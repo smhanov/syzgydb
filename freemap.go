@@ -5,6 +5,13 @@ import (
 	"sort"
 )
 
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 type FreeMap struct {
 	freeSpaces []space
 }
@@ -34,7 +41,7 @@ func (fm *FreeMap) markFree(start, length int) {
 		if len(merged) == 0 || merged[len(merged)-1].start+merged[len(merged)-1].length < s.start {
 			merged = append(merged, s)
 		} else {
-			merged[len(merged)-1].length = s.start + s.length - merged[len(merged)-1].start
+			merged[len(merged)-1].length = max(merged[len(merged)-1].start+merged[len(merged)-1].length, s.start+s.length) - merged[len(merged)-1].start
 		}
 	}
 	fm.freeSpaces = merged
