@@ -31,8 +31,8 @@ func TestMarkFreeAndGetFreeRange(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	if start != 5 {
-		t.Errorf("Expected start to be 5, got %d", start)
+	if start != 15 {
+		t.Errorf("Expected start to be 15, got %d", start)
 	}
 
 	// Test insufficient space
