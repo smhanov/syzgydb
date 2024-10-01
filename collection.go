@@ -16,18 +16,6 @@ type Collection struct {
 	CollectionOptions
 	memfile      *memfile
 	pivotsManager PivotsManager
-	// Manage pivots
-	if len(c.memfile.idOffsets) >= 100 {
-		if len(c.pivotsManager.Pivots) == 0 {
-			// Select initial pivot
-			initialPivot := c.pivotsManager.SelectInitialPivot(c.getAllVectors())
-			c.pivotsManager.AddPivot(initialPivot)
-		} else {
-			// Select new pivot based on variance
-			newPivot := c.pivotsManager.SelectPivotWithMinVariance(c.getAllVectors())
-			c.pivotsManager.AddPivot(newPivot)
-		}
-	}
 
 // Helper function to get all vectors from the collection
 func (c *Collection) getAllVectors() [][]float64 {
@@ -125,11 +113,24 @@ func (c *Collection) addDocument(id uint64, vector []float64, metadata []byte) {
 		Metadata: metadata,
 	}
 
-	// Encode the document
-	encodedData := encodeDocument(doc)
+	// Manage pivots
+	if len(c.memfile.idOffsets) >= 100 {
+		if len(c.pivotsManager.Pivots) == 0 {
+			// Select initial pivot
+			initialPivot := c.pivotsManager.SelectInitialPivot(c.getAllVectors())
+			c.pivotsManager.AddPivot(initialPivot)
+		} else {
+			// Select new pivot based on variance
+			newPivot := c.pivotsManager.SelectPivotWithMinVariance(c.getAllVectors())
+			c.pivotsManager.AddPivot(newPivot)
+		}
+	}
 
-	// Add or update the document in the memfile
-	c.memfile.addRecord(id, encodedData)
+    // Encode the document
+    encodedData := encodeDocument(doc)
+
+    // Add or update the document in the memfile
+    c.memfile.addRecord(id, encodedData)
 }
 
 func (c *Collection) removeDocument(id uint64) error {
