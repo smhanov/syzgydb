@@ -111,6 +111,13 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 	mf.idOffsets[id] = int64(offset)
 }
 
+func (mf *memfile) readUint64(offset int64) uint64 {
+	// Read 8 bytes from the specified offset
+	buf := make([]byte, 8)
+	mf.ReadAt(buf, offset)
+	return binary.LittleEndian.Uint64(buf)
+}
+
 func (mf *memfile) writeUint64(offset int64, value uint64) {
 	// use mf.File.WriteByte() to write the value to the file
 	// assume that it is already large enough.
