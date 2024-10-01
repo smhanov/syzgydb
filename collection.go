@@ -29,8 +29,6 @@ func equalVectors(vec1, vec2 []float64) bool {
 			return false
 		}
 
-		// Debug print for exact distance
-		fmt.Printf("Doc ID: %d, Exact Distance: %f\n", doc.ID, distance)
 	}
 	return true
 }
