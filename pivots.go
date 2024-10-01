@@ -50,25 +50,46 @@ func CalculateDistance(vec1, vec2 []float64) float64 {
 }
 
 func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
-	// Get a random document ID
+	// Step 1: Select a random point
 	randomID, err := c.getRandomID()
 	if err != nil {
 		return err
 	}
 
 	// Get the document associated with the random ID
-	doc, err := c.getDocument(randomID)
+	randomDoc, err := c.getDocument(randomID)
 	if err != nil {
 		return err
 	}
 
-	// Set the pivot to the random document
-	pm.pivots = []*Document{doc}
-
-	// Use iterateDocuments to fill in distance information in the distances map
+	// Step 2: Find the point farthest from the random point
+	var firstPivot *Document
+	maxDistance := -1.0
 	c.iterateDocuments(func(d *Document) {
-		distance := CalculateDistance(d.Vector, doc.Vector)
-		pm.distances[d.ID] = []float64{distance}
+		distance := CalculateDistance(randomDoc.Vector, d.Vector)
+		if distance > maxDistance {
+			maxDistance = distance
+			firstPivot = d
+		}
+	})
+
+	// Step 3: Find the point farthest from the first pivot
+	var secondPivot *Document
+	maxDistance = -1.0
+	c.iterateDocuments(func(d *Document) {
+		distance := CalculateDistance(firstPivot.Vector, d.Vector)
+		if distance > maxDistance {
+			maxDistance = distance
+			secondPivot = d
+		}
+	})
+
+	// Set the pivots
+	pm.pivots = []*Document{firstPivot, secondPivot}
+
+	// Update the distances map for all documents
+	c.iterateDocuments(func(d *Document) {
+		pm.pointAdded(d)
 	})
 
 	return nil
