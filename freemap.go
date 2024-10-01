@@ -69,3 +69,10 @@ func (fm *FreeMap) getFreeRange(length int) (int64, error) {
 
 	return 0, errors.New("no sufficient free space available")
 }
+
+// dump prints all the free ranges in the FreeMap.
+func (fm *FreeMap) dump() {
+	for _, s := range fm.freeSpaces {
+		fmt.Printf("Start: %d, Length: %d\n", s.start, s.length)
+	}
+}
