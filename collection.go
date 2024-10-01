@@ -434,8 +434,12 @@ func encodeDocument(doc *Document) []byte {
 		binary.BigEndian.PutUint64(data[vectorOffset+i*8:], math.Float64bits(v))
 	}
 
+	// Encode the metadata length after the vector
+	metadataLengthOffset := vectorOffset + len(doc.Vector)*8
+	binary.BigEndian.PutUint32(data[metadataLengthOffset:], uint32(len(doc.Metadata)))
+
 	// Encode the metadata
-	metadataOffset := vectorOffset + len(doc.Vector)*8
+	metadataOffset := metadataLengthOffset + 4
 	copy(data[metadataOffset:], doc.Metadata)
 
 	return data
@@ -448,18 +452,19 @@ func decodeDocument(data []byte) *Document {
 	// Decode the length of the vector
 	vectorLength := binary.BigEndian.Uint32(data[8:])
 
-	// Decode the length of the metadata
-	metadataLength := binary.BigEndian.Uint32(data[12:])
-
 	// Decode the vector
 	vector := make([]float64, vectorLength)
-	vectorOffset := 16
+	vectorOffset := 12
 	for i := range vector {
 		vector[i] = math.Float64frombits(binary.BigEndian.Uint64(data[vectorOffset+i*8:]))
 	}
 
+	// Decode the metadata length after the vector
+	metadataLengthOffset := vectorOffset + int(vectorLength)*8
+	metadataLength := binary.BigEndian.Uint32(data[metadataLengthOffset:])
+
 	// Decode the metadata
-	metadataOffset := vectorOffset + int(vectorLength)*8
+	metadataOffset := metadataLengthOffset + 4
 	metadata := make([]byte, metadataLength)
 	copy(metadata, data[metadataOffset:])
 
