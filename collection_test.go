@@ -14,7 +14,6 @@ func TestEuclideanDistance(t *testing.T) {
 	if result != expected {
 		t.Errorf("Expected %f, got %f", expected, result)
 	}
-}
 
 func TestRemoveDocumentRealWorld(t *testing.T) {
 	// Create a collection with some documents
