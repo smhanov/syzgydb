@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"os"
 )
 
@@ -23,12 +22,14 @@ func DumpIndex(filename string) {
 	headerLength, _ := readUint(file, 4)
 	distanceMethod, _ := readUint(file, 1)
 	dimensionCount, _ := readUint(file, 4)
+	quantization, _ := readUint(file, 1) // Add this line
 
 	fmt.Printf("Header:\n")
 	fmt.Printf("  Version: %d\n", version)
 	fmt.Printf("  Header Length: %d\n", headerLength)
 	fmt.Printf("  Distance Method: %d\n", distanceMethod)
 	fmt.Printf("  Number of Dimensions: %d\n", dimensionCount)
+	fmt.Printf("  Quantization: %d-bit\n", quantization*8) // Add this line
 
 	// Iterate over all records
 	fmt.Println("Records:")
@@ -59,7 +60,7 @@ func DumpIndex(filename string) {
 		vector := make([]float64, dimensionCount)
 		for i := range vector {
 			val, _ := readUint(file, 8)
-			vector[i] = math.Float64frombits(val)
+			vector[i] = dequantize(val, int(quantization)) // Use quantization here
 		}
 
 		fmt.Printf("    Vector: %v\n", vector)

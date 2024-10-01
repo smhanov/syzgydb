@@ -11,8 +11,9 @@ import (
 )
 
 type DistanceIndex struct {
-	distance float64
-	index    uint64
+	distance     float64
+	index        uint64
+	Quantization int // Add this line
 }
 
 type ApproxHeap []DistanceIndex
@@ -78,7 +79,7 @@ func (c *Collection) getDocument(id uint64) (*Document, error) {
 	}
 
 	// Decode the document
-	doc := decodeDocument(data, id, c.DimensionCount)
+	doc := c.decodeDocument(data, id)
 	return doc, nil
 }
 
@@ -106,7 +107,7 @@ func (c *Collection) iterateDocuments(fn func(doc *Document)) {
 		if err != nil {
 			continue
 		}
-		doc := decodeDocument(data, id, c.DimensionCount)
+		doc := c.decodeDocument(data, id)
 		fn(doc)
 	}
 }
@@ -170,7 +171,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 				continue
 			}
 
-			doc := decodeDocument(data, id, c.DimensionCount)
+			doc := c.decodeDocument(data, id)
 
 			// Apply filter function if provided
 			if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
@@ -241,7 +242,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 
 		pointsSearched++
 
-		doc := decodeDocument(data, item.index, c.DimensionCount)
+		doc := c.decodeDocument(data, item.index)
 
 		// Apply filter function if provided
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
@@ -312,7 +313,7 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	c.pivotsManager.ensurePivots(c, desiredPivots)
 
 	// Encode the document
-	encodedData := encodeDocument(doc)
+	encodedData := encodeDocument(doc, c.Quantization)
 
 	// Add or update the document in the memfile
 	c.memfile.addRecord(id, encodedData)
@@ -341,13 +342,13 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	}
 
 	// Decode the existing document
-	doc := decodeDocument(data, id, c.DimensionCount)
+	doc := c.decodeDocument(data, id)
 
 	// Update the metadata
 	doc.Metadata = newMetadata
 
 	// Encode the updated document
-	encodedData := encodeDocument(doc)
+	encodedData := encodeDocument(doc, c.Quantization)
 
 	// Update the document in the memfile
 	c.memfile.addRecord(id, encodedData)
@@ -359,6 +360,7 @@ type CollectionOptions struct {
 	Name           string
 	DistanceMethod int
 	DimensionCount int
+	Quantization   int
 }
 
 type Document struct {
@@ -397,13 +399,21 @@ type FilterFn func(id uint64, metadata []byte) bool
 // 4 bytes: length of the header
 // 1 byte: distance method
 // 4 bytes: number of dimensions
-const headerSize = 13
+const headerSize = 14 // Update the header size to 14
 
 func NewCollection(options CollectionOptions) *Collection {
 	distanceFn := euclideanDistance
 	if options.DistanceMethod == Cosine {
 		distanceFn = cosineDistance
 	}
+
+	// Validate and set Quantization
+	if options.Quantization == 0 {
+		options.Quantization = 64
+	} else if options.Quantization != 4 && options.Quantization != 8 && options.Quantization != 16 && options.Quantization != 32 && options.Quantization != 64 {
+		panic("Quantization must be one of 0, 4, 8, 16, 32, or 64")
+	}
+
 	c := &Collection{
 		CollectionOptions: options,
 		pivotsManager:     *newPivotsManager(distanceFn), // Use newPivotsManager
@@ -416,6 +426,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	binary.BigEndian.PutUint32(header[4:], uint32(headerSize)) // length of the header
 	header[8] = byte(options.DistanceMethod)
 	binary.BigEndian.PutUint32(header[9:], uint32(options.DimensionCount))
+	header[13] = byte(options.Quantization) // Add this line
 
 	var err error
 	c.memfile, err = createMemFile(c.Name, header)
@@ -426,24 +437,38 @@ func NewCollection(options CollectionOptions) *Collection {
 	return c
 }
 
-func encodeDocument(doc *Document) []byte {
-	// n bytes: vector
-	// 4 bytes: length of metadata
-	// n bytes: metadata
-
+func encodeDocument(doc *Document, quantization int) []byte {
 	dimensions := len(doc.Vector)
 
-	docSize := dimensions*8 + 4 + len(doc.Metadata)
+	vectorSize := getVectorSize(quantization, dimensions)
+
+	docSize := vectorSize + 4 + len(doc.Metadata)
 	data := make([]byte, docSize)
 
-	// Encode the floating point vector to the data slice
+	// Encode the vector
 	vectorOffset := 0
 	for i, v := range doc.Vector {
-		binary.BigEndian.PutUint64(data[vectorOffset+i*8:], math.Float64bits(v))
+		quantizedValue := quantize(v, quantization)
+		switch quantization {
+		case 4:
+			if i%2 == 0 {
+				data[vectorOffset+i/2] = byte(quantizedValue << 4)
+			} else {
+				data[vectorOffset+i/2] |= byte(quantizedValue & 0x0F)
+			}
+		case 8:
+			data[vectorOffset+i] = byte(quantizedValue)
+		case 16:
+			binary.BigEndian.PutUint16(data[vectorOffset+i*2:], uint16(quantizedValue))
+		case 32:
+			binary.BigEndian.PutUint32(data[vectorOffset+i*4:], uint32(quantizedValue))
+		case 64:
+			binary.BigEndian.PutUint64(data[vectorOffset+i*8:], quantizedValue)
+		}
 	}
 
 	// Encode the metadata length after the vector
-	metadataLengthOffset := dimensions * 8
+	metadataLengthOffset := vectorOffset + vectorSize
 	binary.BigEndian.PutUint32(data[metadataLengthOffset:], uint32(len(doc.Metadata)))
 
 	// Encode the metadata
@@ -453,17 +478,53 @@ func encodeDocument(doc *Document) []byte {
 	return data
 }
 
-func decodeDocument(data []byte, id uint64, dimensions int) *Document {
+func getVectorSize(quantization int, dimensions int) int {
+	switch quantization {
+	case 4:
+		return (dimensions + 1) / 2
+	case 8:
+		return dimensions
+	case 16:
+		return dimensions * 2
+	case 32:
+		return dimensions * 4
+	case 64:
+		return dimensions * 8
+	default:
+		panic("Unsupported quantization level")
+	}
+}
 
-	// Use the passed dimensions to decode the vector
+func (c *Collection) decodeDocument(data []byte, id uint64) *Document {
+	dimensions := c.DimensionCount
+	quantization := c.Quantization
 	vector := make([]float64, dimensions)
 	vectorOffset := 0
+
 	for i := range vector {
-		vector[i] = math.Float64frombits(binary.BigEndian.Uint64(data[vectorOffset+i*8:]))
+		var quantizedValue uint64
+		switch quantization {
+		case 4:
+			if i%2 == 0 {
+				quantizedValue = uint64(data[vectorOffset+i/2] >> 4)
+			} else {
+				quantizedValue = uint64(data[vectorOffset+i/2] & 0x0F)
+			}
+		case 8:
+			quantizedValue = uint64(data[vectorOffset+i])
+		case 16:
+			quantizedValue = uint64(binary.BigEndian.Uint16(data[vectorOffset+i*2:]))
+		case 32:
+			quantizedValue = uint64(binary.BigEndian.Uint32(data[vectorOffset+i*4:]))
+		case 64:
+			quantizedValue = binary.BigEndian.Uint64(data[vectorOffset+i*8:])
+		}
+
+		vector[i] = dequantize(quantizedValue, quantization)
 	}
 
 	// Decode the metadata length after the vector
-	metadataLengthOffset := vectorOffset + dimensions*8
+	metadataLengthOffset := vectorOffset + getVectorSize(quantization, dimensions)
 	metadataLength := binary.BigEndian.Uint32(data[metadataLengthOffset:])
 
 	// Decode the metadata

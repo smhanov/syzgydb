@@ -3,7 +3,6 @@ package main
 import (
 	"math/rand"
 	"testing"
-	"time"
 )
 
 func TestEuclideanDistance(t *testing.T) {
@@ -96,7 +95,7 @@ func TestUpdateDocument(t *testing.T) {
 	}
 
 	// Decode the document
-	doc := decodeDocument(data, 1, 3)
+	doc := collection.decodeDocument(data, 1)
 
 	// Check if the metadata was updated
 	if string(doc.Metadata) != "updated" {
@@ -139,8 +138,6 @@ func TestRemoveDocument(t *testing.T) {
 }
 
 func TestCollectionSearch(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
-
 	// Create a collection with some documents
 	options := CollectionOptions{
 		Name:           "test_collection",
@@ -227,4 +224,53 @@ func TestCollectionSearch(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestVectorSearchWith4BitQuantization(t *testing.T) {
+	// Define collection options with 4-bit quantization
+	options := CollectionOptions{
+		Name:           "test_collection_4bit",
+		DistanceMethod: Euclidean,
+		DimensionCount: 3, // Example dimension count
+		Quantization:   4, // 4-bit quantization
+	}
+
+	collection := NewCollection(options)
+
+	// Add documents to the collection
+	numDocuments := 10
+	for i := 0; i < numDocuments; i++ {
+		vector := make([]float64, options.DimensionCount)
+		for d := 0; d < options.DimensionCount; d++ {
+			vector[d] = rand.Float64() // Random float values
+		}
+		collection.AddDocument(uint64(i), vector, []byte("metadata"))
+	}
+
+	// Define a search vector
+	searchVector := make([]float64, options.DimensionCount)
+	for d := 0; d < options.DimensionCount; d++ {
+		searchVector[d] = rand.Float64()
+	}
+
+	// Define search arguments
+	args := SearchArgs{
+		Vector:   searchVector,
+		MaxCount: 5, // Limit to top 5 results
+	}
+
+	// Perform the search
+	results := collection.Search(args)
+
+	// Check the results
+	if len(results.Results) == 0 {
+		t.Errorf("Expected search results, but got none")
+	}
+
+	// Optionally, print results for manual verification
+	for _, result := range results.Results {
+		t.Logf("ID: %d, Distance: %.4f, Metadata: %s", result.ID, result.Distance, string(result.Metadata))
+	}
+
+	DumpIndex("test_collection_4bit")
 }
