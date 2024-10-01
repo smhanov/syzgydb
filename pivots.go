@@ -160,6 +160,34 @@ func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
 
 // SelectPivotWithMinVariance selects a pivot with minimum variance of distances to other pivots
 func (pm *PivotsManager) SelectPivotWithMinVariance(c *Collection) error {
+	if len(pm.pivots) == 1 {
+		// If there is only one pivot, find the point farthest from the existing pivot
+		existingPivot := pm.pivots[0]
+		var farthestDoc *Document
+		maxDistance := -1.0
+
+		c.iterateDocuments(func(d *Document) {
+			distance := pm.distanceFn(existingPivot.Vector, d.Vector)
+			if distance > maxDistance {
+				maxDistance = distance
+				farthestDoc = d
+			}
+		})
+
+		if farthestDoc != nil {
+			// Set the new pivot
+			pm.pivots = append(pm.pivots, farthestDoc)
+
+			// Update the distances map for all documents
+			c.iterateDocuments(func(d *Document) {
+				pm.pointAdded(d)
+			})
+		}
+
+		return nil
+	}
+
+	// Existing logic for selecting pivot with minimum variance
 	if len(pm.distances) == 0 {
 		return errors.New("no distances available to calculate variance")
 	}
