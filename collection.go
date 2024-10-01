@@ -29,7 +29,10 @@ func NewCollection(options CollectionOptions) *Collection {
 
 	header := make([]byte, headerSize)
 
-	// fill in the header here
+	// Fill in the header
+	header[0] = 1 // version
+	header[1] = byte(options.DistanceMethod)
+	binary.LittleEndian.PutUint64(header[2:], uint64(options.DimensionCount))
 
 	var err error
 	c.memfile, err = createMemFile(c.Name, header)
