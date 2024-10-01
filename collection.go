@@ -29,6 +29,7 @@ func equalVectors(vec1, vec2 []float64) bool {
 		}
 	}
 	return true
+}
 
 // Helper function to get all vectors from the collection
 func (c *Collection) getAllVectors() [][]float64 {
