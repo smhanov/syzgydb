@@ -43,4 +43,14 @@ func TestMemfile(t *testing.T) {
 	if value != readValue {
 		t.Errorf("Expected %d, got %d", value, readValue)
 	}
+	// Test deleteRecord
+	err = mf.deleteRecord(1)
+	if err != nil {
+		t.Fatalf("Failed to delete record: %v", err)
+	}
+
+	_, err = mf.readRecord(1)
+	if err == nil {
+		t.Errorf("Expected error when reading deleted record, got nil")
+	}
 }
