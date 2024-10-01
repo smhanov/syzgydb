@@ -213,7 +213,7 @@ func (mf *memfile) readUint64(offset int64) uint64 {
 	// Read 8 bytes from the specified offset
 	buf := make([]byte, 8)
 	mf.ReadAt(buf, offset)
-	return binary.LittleEndian.Uint64(buf)
+	return binary.BigEndian.Uint64(buf)
 }
 
 /*
@@ -264,7 +264,7 @@ Parameters:
 func (mf *memfile) writeUint32(offset int64, value uint32) {
 	// Convert value to a byte slice
 	buf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(buf, value)
+	binary.BigEndian.PutUint32(buf, value)
 	mf.WriteAt(buf, offset)
 }
 
@@ -281,7 +281,7 @@ func (mf *memfile) readUint32(offset int64) uint32 {
 	// Read 4 bytes from the specified offset
 	buf := make([]byte, 4)
 	mf.ReadAt(buf, offset)
-	return binary.LittleEndian.Uint32(buf)
+	return binary.BigEndian.Uint32(buf)
 }
 
 /*
@@ -297,6 +297,6 @@ func (mf *memfile) writeUint64(offset int64, value uint64) {
 
 	// convert value to a byte slice
 	buf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(buf, value)
+	binary.BigEndian.PutUint64(buf, value)
 	mf.WriteAt(buf, int64(offset))
 }
