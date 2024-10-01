@@ -92,10 +92,9 @@ func createMemFile(name string, headerSize int64) (*memfile, error) {
 	return ret, nil
 }
 
-// check if the file is at least the given length, and if not, extend it
-// and remap the file
 /*
-ensureLength checks if the file is at least the given length, and if not, extends it and remaps the file.
+ensureLength checks if the file is at least the given length, and if not,
+extends it and remaps the file.
 
 Parameters:
 - length: The minimum length the file should be.
@@ -169,6 +168,8 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 
 	// Write the data
 	mf.WriteAt(data, offset+16)
+
+	mf.File.Sync()
 
 	// If the record already existed, mark the old space as free
 	if oldOffset, exists := mf.idOffsets[id]; exists {
