@@ -10,6 +10,9 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+	if debug {
+		fm.dump()
+	}
 }
 
 type FreeMap struct {
@@ -63,6 +66,9 @@ func (fm *FreeMap) getFreeRange(length int) (int64, error) {
 				fm.freeSpaces = append(fm.freeSpaces[:i], fm.freeSpaces[i+1:]...)
 			}
 
+			if debug {
+				fm.dump()
+			}
 			return int64(start), nil
 		}
 	}

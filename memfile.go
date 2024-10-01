@@ -14,6 +14,8 @@ import (
 // uint64 - total length of record
 // uint64 - ID, or deleted is all 0xffffffffffffffff
 
+const debug = true
+
 type memfile struct {
 	*mmap.File
 	//Header size which we ignore
