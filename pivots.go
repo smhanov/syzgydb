@@ -56,8 +56,44 @@ func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
 	return nil
 }
 
+import (
+	"errors"
+)
+
 // SelectPivotWithMinVariance selects a pivot with minimum variance of distances to other pivots
-func (pm *PivotsManager) SelectPivotWithMinVariance(c *collection) {
+func (pm *PivotsManager) SelectPivotWithMinVariance(c *Collection) error {
+	if len(pm.distances) == 0 {
+		return errors.New("no distances available to calculate variance")
+	}
+
+	var minVarianceID uint64
+	minVariance := math.MaxFloat64
+
+	// Find the point ID with the minimum variance of distances
+	for id, dists := range pm.distances {
+		variance := calculateVariance(dists)
+		if variance < minVariance {
+			minVariance = variance
+			minVarianceID = id
+		}
+	}
+
+	// Retrieve the document with the minimum variance ID
+	doc, err := c.getDocument(minVarianceID)
+	if err != nil {
+		return err
+	}
+
+	// Update the distances map with actual distances to all other points
+	c.iterateDocuments(func(d *Document) {
+		distance := CalculateDistance(doc.Vector, d.Vector)
+		pm.distances[d.ID] = append(pm.distances[d.ID], distance)
+	})
+
+	// Set the new pivot
+	pm.pivots = append(pm.pivots, doc)
+
+	return nil
 }
 
 // ensurePivots ensures that the number of pivots is at least the desired number
