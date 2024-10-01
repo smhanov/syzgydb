@@ -238,7 +238,7 @@ func TestCollectionPersistence(t *testing.T) {
 	collection := NewCollection(options)
 
 	// Add some records to the collection
-	numRecords := 100 // trigger creation of pivots.
+	numRecords := 100 // Ensure enough records to trigger pivot creation
 	for i := 0; i < numRecords; i++ {
 		vector := []float64{float64(i), float64(i + 1), float64(i + 2)}
 		metadata := []byte("metadata")
@@ -265,6 +265,25 @@ func TestCollectionPersistence(t *testing.T) {
 			t.Errorf("Expected metadata 'metadata', got '%s'", doc.Metadata)
 		}
 	}
+
+	// Perform a search to test pivot usage
+	searchVector := []float64{50, 51, 52}
+	args := SearchArgs{
+		Vector:   searchVector,
+		MaxCount: 5,
+	}
+	results := collection.Search(args)
+
+	// Check that the search results are not empty
+	if len(results.Results) == 0 {
+		t.Errorf("Expected search results, but got none")
+	}
+
+	// Ensure that PercentSearched is less than 100
+	if results.PercentSearched >= 100 {
+		t.Errorf("Expected PercentSearched to be less than 100, got %f", results.PercentSearched)
+	}
+}
 }
 
 func TestVectorSearchWith4BitQuantization(t *testing.T) {
