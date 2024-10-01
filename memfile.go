@@ -102,6 +102,26 @@ func createMemFile(name string, header []byte) (*memfile, error) {
 			return nil, err
 		}
 		ret.Sync()
+	} else {
+		// Process existing records
+		offset := ret.headerSize
+		for offset < int64(ret.Len()) {
+			recordLength := ret.readUint64(offset)
+			if recordLength == 0 {
+				break // End of valid data
+			}
+
+			id := ret.readUint64(offset + 8)
+			if id == 0xffffffffffffffff {
+				// Record is marked as deleted, add to freemap
+				ret.freemap.markFree(int(offset), int(recordLength))
+			} else {
+				// Record is valid, add to idOffsets
+				ret.idOffsets[id] = offset
+			}
+
+			offset += int64(recordLength)
+		}
 	}
 
 	return ret, nil
