@@ -64,30 +64,39 @@ func (mf *memfile) deleteRecord(id uint64) error {
 }
 
 /*
-createMemFile creates a new memory-mapped file.
+createMemFile creates a new memory-mapped file and writes the header if the file is new.
 
 Parameters:
 - name: The name of the file.
-- headerSize: The size of the header to ignore.
+- header: The header data to write if the file is new.
 
 Returns:
 - A pointer to the created memfile.
 - An error if the file cannot be created.
 */
-func createMemFile(name string, headerSize int64) (*memfile, error) {
+func createMemFile(name string, header []byte) (*memfile, error) {
 	f, err := mmap.OpenFile(name, mmap.Read|mmap.Write)
 	if err != nil {
 		return nil, err
 	}
 
 	ret := &memfile{
-		File:       f,
-		idOffsets:  make(map[uint64]int64),
-		headerSize: headerSize,
-		name:       name,
+		File:      f,
+		idOffsets: make(map[uint64]int64),
+		headerSize: int64(len(header)),
+		name:      name,
 	}
 
-	ret.ensureLength(int(headerSize))
+	// Check if the file is new by checking its size
+	if f.Len() == 0 {
+		// Write the header to the file
+		if _, err := f.WriteAt(header, 0); err != nil {
+			return nil, err
+		}
+		f.Sync()
+	}
+
+	ret.ensureLength(len(header))
 
 	return ret, nil
 }
