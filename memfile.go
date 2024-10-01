@@ -81,22 +81,21 @@ func createMemFile(name string, header []byte) (*memfile, error) {
 	}
 
 	ret := &memfile{
-		File:      f,
-		idOffsets: make(map[uint64]int64),
+		File:       f,
+		idOffsets:  make(map[uint64]int64),
 		headerSize: int64(len(header)),
-		name:      name,
+		name:       name,
 	}
 
 	// Check if the file is new by checking its size
-	if f.Len() == 0 {
+	if ret.Len() == 0 {
+		ret.ensureLength(len(header))
 		// Write the header to the file
-		if _, err := f.WriteAt(header, 0); err != nil {
+		if _, err := ret.WriteAt(header, 0); err != nil {
 			return nil, err
 		}
-		f.Sync()
+		ret.Sync()
 	}
-
-	ret.ensureLength(len(header))
 
 	return ret, nil
 }
