@@ -16,8 +16,9 @@ func TestMemfile(t *testing.T) {
 	file.Close()
 	defer os.Remove(fileName)
 
-	// Create a memfile instance
-	mf, err := createMemFile(fileName, 0)
+	// Create a memfile instance with an 8-byte header
+	header := make([]byte, 8)
+	mf, err := createMemFile(fileName, header)
 	if err != nil {
 		t.Fatalf("Failed to create memfile: %v", err)
 	}
