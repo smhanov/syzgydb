@@ -31,6 +31,15 @@ type memfile struct {
 	name string
 }
 
+/*
+deleteRecord marks a record as deleted and frees its space.
+
+Parameters:
+- id: The ID of the record to delete.
+
+Returns:
+- An error if the record is not found.
+*/
 func (mf *memfile) deleteRecord(id uint64) error {
 	mf.Lock()
 	defer mf.Unlock()
@@ -54,6 +63,17 @@ func (mf *memfile) deleteRecord(id uint64) error {
 	return nil
 }
 
+/*
+createMemFile creates a new memory-mapped file.
+
+Parameters:
+- name: The name of the file.
+- headerSize: The size of the header to ignore.
+
+Returns:
+- A pointer to the created memfile.
+- An error if the file cannot be created.
+*/
 func createMemFile(name string, headerSize int64) (*memfile, error) {
 	f, err := mmap.OpenFile(name, mmap.Read|mmap.Write)
 	if err != nil {
@@ -74,6 +94,12 @@ func createMemFile(name string, headerSize int64) (*memfile, error) {
 
 // check if the file is at least the given length, and if not, extend it
 // and remap the file
+/*
+ensureLength checks if the file is at least the given length, and if not, extends it and remaps the file.
+
+Parameters:
+- length: The minimum length the file should be.
+*/
 func (mf *memfile) ensureLength(length int) {
 	curSize := mf.File.Len()
 	if curSize >= length {
@@ -109,6 +135,13 @@ func (mf *memfile) ensureLength(length int) {
 	}
 }
 
+/*
+addRecord adds a new record to the memory-mapped file.
+
+Parameters:
+- id: The ID of the record.
+- data: The data to be stored in the record.
+*/
 func (mf *memfile) addRecord(id uint64, data []byte) {
 	mf.Lock()
 	defer mf.Unlock()
@@ -148,6 +181,15 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 	mf.idOffsets[id] = int64(offset)
 }
 
+/*
+readUint64 reads an unsigned 64-bit integer from the specified offset.
+
+Parameters:
+- offset: The offset from which to read.
+
+Returns:
+- The unsigned 64-bit integer read from the file.
+*/
 func (mf *memfile) readUint64(offset int64) uint64 {
 	// Read 8 bytes from the specified offset
 	buf := make([]byte, 8)
@@ -155,6 +197,16 @@ func (mf *memfile) readUint64(offset int64) uint64 {
 	return binary.LittleEndian.Uint64(buf)
 }
 
+/*
+readRecord reads a record by its ID.
+
+Parameters:
+- id: The ID of the record to read.
+
+Returns:
+- The data of the record.
+- An error if the record is not found.
+*/
 func (mf *memfile) readRecord(id uint64) ([]byte, error) {
 	// Check if the record ID exists
 	offset, exists := mf.idOffsets[id]
@@ -172,6 +224,13 @@ func (mf *memfile) readRecord(id uint64) ([]byte, error) {
 	return data, nil
 }
 
+/*
+writeUint64 writes an unsigned 64-bit integer to the specified offset.
+
+Parameters:
+- offset: The offset at which to write.
+- value: The unsigned 64-bit integer to write.
+*/
 func (mf *memfile) writeUint64(offset int64, value uint64) {
 	// use mf.File.WriteByte() to write the value to the file
 	// assume that it is already large enough.
