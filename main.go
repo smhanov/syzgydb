@@ -12,11 +12,17 @@ const collectionName = "gaussian_collection"
 
 func main() {
 	// Define command-line flags
+	dump := flag.Bool("dump", false, "Dump the collection and exit")
 	points := flag.Int("points", 1000, "Number of points to generate")
 	dims := flag.Int("dims", 2, "Number of dimensions for each point")
 	resume := flag.Bool("resume", false, "Resume from existing collection")
 
 	// Parse the flags
+	if *dump {
+		// Dump the collection and exit
+		DumpIndex(collectionName)
+		return
+	}
 	flag.Parse()
 	if !*resume {
 		// Delete the existing file if it exists
