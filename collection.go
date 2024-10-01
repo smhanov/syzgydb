@@ -14,8 +14,9 @@ const (
 
 type Collection struct {
 	CollectionOptions
-	memfile      *memfile
+	memfile       *memfile
 	pivotsManager PivotsManager
+}
 
 // Helper function to get all vectors from the collection
 func (c *Collection) getAllVectors() [][]float64 {
@@ -126,11 +127,11 @@ func (c *Collection) addDocument(id uint64, vector []float64, metadata []byte) {
 		}
 	}
 
-    // Encode the document
-    encodedData := encodeDocument(doc)
+	// Encode the document
+	encodedData := encodeDocument(doc)
 
-    // Add or update the document in the memfile
-    c.memfile.addRecord(id, encodedData)
+	// Add or update the document in the memfile
+	c.memfile.addRecord(id, encodedData)
 }
 
 func (c *Collection) removeDocument(id uint64) error {
