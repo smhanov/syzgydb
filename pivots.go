@@ -5,14 +5,17 @@ import (
 	"math/rand"
 )
 
-// Pivot represents a pivot point in the collection
-type Pivot struct {
-	Vector []float64
-}
+
 
 // PivotsManager manages the list of pivots and their distances
 type PivotsManager struct {
-	Pivots []Pivot
+	// Ids of the pivots in the arrays
+	pivotIDs uint64[]
+
+	// Map from a point ID to the distances to each pivot.
+	// The key is the point ID and the value is a slice of distances to each pivot.
+	// The pivots are in the order specified in pivotIDs
+	pivots map]uint64][]float64
 }
 
 // AddPivot adds a new pivot to the manager
