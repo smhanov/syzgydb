@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"math"
+	"sort"
 )
 
 // Constants for euclidean distance or cosine similarity
@@ -14,6 +15,81 @@ const (
 type Collection struct {
 	CollectionOptions
 	memfile *memfile
+}
+
+func (c *Collection) Search(args SearchArgs) SearchResults {
+	var results []SearchResult
+
+	for id, offset := range c.memfile.idOffsets {
+		data, err := c.memfile.readRecord(id)
+		if err != nil {
+			continue
+		}
+
+		doc := decodeDocument(data)
+
+		// Apply filter function if provided
+		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
+			continue
+		}
+
+		// Calculate distance
+		var distance float64
+		switch c.DistanceMethod {
+		case Euclidean:
+			distance = euclideanDistance(args.Vector, doc.Vector)
+		case Cosine:
+			distance = cosineDistance(args.Vector, doc.Vector)
+		}
+
+		// Check if the document meets the search criteria
+		if (args.Radius > 0 && distance <= args.Radius) || (args.MaxCount > 0 && len(results) < args.MaxCount) {
+			results = append(results, SearchResult{
+				ID:       doc.ID,
+				Metadata: doc.Metadata,
+				Distance: distance,
+			})
+		}
+	}
+
+	// Sort results by distance
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Distance < results[j].Distance
+	})
+
+	// Limit results to MaxCount if specified
+	if args.MaxCount > 0 && len(results) > args.MaxCount {
+		results = results[:args.MaxCount]
+	}
+
+	return SearchResults{
+		Results:        results,
+		PercentSearched: 100.0, // Assuming full search for simplicity
+	}
+}
+
+func euclideanDistance(vec1, vec2 []float64) float64 {
+	sum := 0.0
+	for i := range vec1 {
+		diff := vec1[i] - vec2[i]
+		sum += diff * diff
+	}
+	return math.Sqrt(sum)
+}
+
+func cosineDistance(vec1, vec2 []float64) float64 {
+	dotProduct := 0.0
+	magnitude1 := 0.0
+	magnitude2 := 0.0
+	for i := range vec1 {
+		dotProduct += vec1[i] * vec2[i]
+		magnitude1 += vec1[i] * vec1[i]
+		magnitude2 += vec2[i] * vec2[i]
+	}
+	if magnitude1 == 0 || magnitude2 == 0 {
+		return 1.0 // Return max distance if one vector is zero
+	}
+	return 1.0 - (dotProduct / (math.Sqrt(magnitude1) * math.Sqrt(magnitude2)))
 }
 
 func (c *Collection) addDocument(id uint64, vector []float64, metadata []byte) {
