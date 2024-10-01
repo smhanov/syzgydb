@@ -19,6 +19,18 @@ type Collection struct {
 	pivotsManager PivotsManager
 }
 
+// iterateDocuments applies a function to each document in the collection.
+func (c *Collection) iterateDocuments(fn func(doc *Document)) {
+    for id := range c.memfile.idOffsets {
+        data, err := c.memfile.readRecord(id)
+        if err != nil {
+            continue
+        }
+        doc := decodeDocument(data)
+        fn(doc)
+    }
+}
+
 // Helper function to compare two vectors for equality
 func equalVectors(vec1, vec2 []float64) bool {
 	if len(vec1) != len(vec2) {
@@ -33,19 +45,6 @@ func equalVectors(vec1, vec2 []float64) bool {
 	return true
 }
 
-// Helper function to get all vectors from the collection
-func (c *Collection) getAllVectors() [][]float64 {
-	var vectors [][]float64
-	for id := range c.memfile.idOffsets {
-		data, err := c.memfile.readRecord(id)
-		if err != nil {
-			continue
-		}
-		doc := decodeDocument(data)
-		vectors = append(vectors, doc.Vector)
-	}
-	return vectors
-}
 
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	var results []SearchResult
@@ -151,51 +150,63 @@ func (c *Collection) addDocument(id uint64, vector []float64, metadata []byte) {
 	if len(c.pivotsManager.Pivots) < desiredPivots {
 		if len(c.pivotsManager.Pivots) == 0 {
 			// Select initial pivot
-			initialPivot := c.pivotsManager.SelectInitialPivot(c.getAllVectors())
-			c.pivotsManager.AddPivot(initialPivot)
-		} else {
-			// Select new pivot based on variance
-			newPivot := c.pivotsManager.SelectPivotWithMinVariance(c.getAllVectors())
-			c.pivotsManager.AddPivot(newPivot)
-		}
-	}
+            var initialPivot []float64
+            c.iterateDocuments(func(d *Document) {
+                if initialPivot == nil {
+                    initialPivot = d.Vector
+                }
+            })
+            c.pivotsManager.AddPivot(initialPivot)
+        } else {
+            // Select new pivot based on variance
+            var vectors [][]float64
+            c.iterateDocuments(func(d *Document) {
+                vectors = append(vectors, d.Vector)
+            })
+            newPivot := c.pivotsManager.SelectPivotWithMinVariance(vectors)
+            c.pivotsManager.AddPivot(newPivot)
+        }
+    }
 
-	// Encode the document
-	encodedData := encodeDocument(doc)
+    // Encode the document
+    encodedData := encodeDocument(doc)
 
-	// Add or update the document in the memfile
-	c.memfile.addRecord(id, encodedData)
+    // Add or update the document in the memfile
+    c.memfile.addRecord(id, encodedData)
 }
 
 func (c *Collection) removeDocument(id uint64) error {
-	// Remove the document from the memfile
-	// Read the existing record to get its vector
-	data, err := c.memfile.readRecord(id)
-	if err != nil {
-		return err
-	}
+    // Remove the document from the memfile
+    data, err := c.memfile.readRecord(id)
+    if err != nil {
+        return err
+    }
 
-	// Decode the existing document
-	doc := decodeDocument(data)
+    // Decode the existing document
+    doc := decodeDocument(data)
 
-	// Check if the document's vector is a pivot
-	for i, pivot := range c.pivotsManager.Pivots {
-		if equalVectors(doc.Vector, pivot.Vector) {
-			// Remove the pivot
-			c.pivotsManager.Pivots = append(c.pivotsManager.Pivots[:i], c.pivotsManager.Pivots[i+1:]...)
-			break
-		}
-	}
+    // Check if the document's vector is a pivot
+    for i, pivot := range c.pivotsManager.Pivots {
+        if equalVectors(doc.Vector, pivot.Vector) {
+            // Remove the pivot
+            c.pivotsManager.Pivots = append(c.pivotsManager.Pivots[:i], c.pivotsManager.Pivots[i+1:]...)
+            break
+        }
+    }
 
-	// Optionally, add a new pivot if needed
-	desiredPivots := int(math.Log2(float64(len(c.memfile.idOffsets))))
-	if len(c.pivotsManager.Pivots) < desiredPivots {
-		newPivot := c.pivotsManager.SelectPivotWithMinVariance(c.getAllVectors())
-		c.pivotsManager.AddPivot(newPivot)
-	}
+    // Optionally, add a new pivot if needed
+    desiredPivots := int(math.Log2(float64(len(c.memfile.idOffsets))))
+    if len(c.pivotsManager.Pivots) < desiredPivots {
+        var vectors [][]float64
+        c.iterateDocuments(func(d *Document) {
+            vectors = append(vectors, d.Vector)
+        })
+        newPivot := c.pivotsManager.SelectPivotWithMinVariance(vectors)
+        c.pivotsManager.AddPivot(newPivot)
+    }
 
-	// Remove the document from the memfile
-	return c.memfile.deleteRecord(id)
+    // Remove the document from the memfile
+    return c.memfile.deleteRecord(id)
 }
 
 func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
