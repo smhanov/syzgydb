@@ -111,6 +111,28 @@ func (c *Collection) removeDocument(id uint64) error {
 	return c.memfile.deleteRecord(id)
 }
 
+func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
+	// Read the existing record
+	data, err := c.memfile.readRecord(id)
+	if err != nil {
+		return err
+	}
+
+	// Decode the existing document
+	doc := decodeDocument(data)
+
+	// Update the metadata
+	doc.Metadata = newMetadata
+
+	// Encode the updated document
+	encodedData := encodeDocument(doc)
+
+	// Update the document in the memfile
+	c.memfile.addRecord(id, encodedData)
+
+	return nil
+}
+
 type CollectionOptions struct {
 	Name           string
 	DistanceMethod int

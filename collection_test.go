@@ -15,6 +15,39 @@ func TestEuclideanDistance(t *testing.T) {
 	}
 }
 
+func TestUpdateDocument(t *testing.T) {
+	// Create a collection with some documents
+	options := CollectionOptions{
+		Name:           "test_collection",
+		DistanceMethod: Euclidean,
+		DimensionCount: 3,
+	}
+	collection := NewCollection(options)
+
+	// Add a document to the collection
+	collection.addDocument(1, []float64{1.0, 2.0, 3.0}, []byte("original"))
+
+	// Update the document's metadata
+	err := collection.UpdateDocument(1, []byte("updated"))
+	if err != nil {
+		t.Errorf("Failed to update document: %v", err)
+	}
+
+	// Read the updated document
+	data, err := collection.memfile.readRecord(1)
+	if err != nil {
+		t.Errorf("Failed to read updated document: %v", err)
+	}
+
+	// Decode the document
+	doc := decodeDocument(data)
+
+	// Check if the metadata was updated
+	if string(doc.Metadata) != "updated" {
+		t.Errorf("Expected metadata 'updated', got '%s'", doc.Metadata)
+	}
+}
+
 func TestCosineDistance(t *testing.T) {
 	vec1 := []float64{1.0, 0.0, 0.0}
 	vec2 := []float64{0.0, 1.0, 0.0}
