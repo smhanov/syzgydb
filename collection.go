@@ -21,6 +21,21 @@ type Collection struct {
 	pivotsManager PivotsManager
 }
 
+func (c *Collection) GetDocument(id uint64) (*Document, error) {
+	c.memfile.Lock()
+	defer c.memfile.Unlock()
+
+	// Read the record from the memfile
+	data, err := c.memfile.readRecord(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode the document
+	doc := decodeDocument(data)
+	return doc, nil
+}
+
 func (c *Collection) getRandomID() (uint64, error) {
 	c.memfile.Lock()
 	defer c.memfile.Unlock()
