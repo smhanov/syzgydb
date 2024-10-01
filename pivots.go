@@ -6,8 +6,8 @@ import (
 
 // PivotsManager manages the list of pivots and their distances
 type PivotsManager struct {
-	// Ids of the pivots in the arrays
-	pivotIDs []uint64
+	// Pivot document
+	pivot Document
 
 	// Map from a point ID to the distances to each pivot.
 	// The key is the point ID and the value is a slice of distances to each pivot.
@@ -45,10 +45,10 @@ func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
 		return err
 	}
 
-	// Set the pivotIDs to the random document ID
-	pm.pivotIDs = []uint64{randomID}
+	// Set the pivot to the random document
+	pm.pivot = *doc
 
-	// Use iterateDocuments to fill in distance information in the pivots map
+	// Use iterateDocuments to fill in distance information in the distances map
 	c.iterateDocuments(func(d *Document) {
 		distance := CalculateDistance(d.Vector, doc.Vector)
 		pm.distances[d.ID] = []float64{distance}
