@@ -2,6 +2,20 @@
 
 AetherDB is an embeddable vector database written in Go, designed to efficiently handle large datasets by keeping data on disk rather than in memory. This makes AetherDB ideal for systems with limited memory resources. It supports various distance metrics and quantization levels, allowing for flexible and efficient vector similarity searches.
 
+## What is a Vector Database?
+
+A vector database is a specialized database designed to store and query high-dimensional vector data. Vectors are numerical representations of data points, often used in machine learning and data science to represent features of objects, such as images, text, or audio. Vector databases enable efficient similarity searches, allowing users to find vectors that are close to a given query vector based on a specified distance metric.
+
+## Applications of Vector Databases
+
+Vector databases are used in a variety of applications, including:
+
+- **Image and Video Retrieval**: Finding similar images or videos based on visual features.
+- **Recommendation Systems**: Suggesting products or content based on user preferences and behavior.
+- **Natural Language Processing**: Semantic search and document similarity based on text embeddings.
+- **Anomaly Detection**: Identifying unusual patterns or outliers in data.
+- **Bioinformatics**: Analyzing genetic sequences and protein structures.
+
 ## Features
 
 - **Disk-Based Storage**: Operates with minimal memory usage by storing data on disk.
