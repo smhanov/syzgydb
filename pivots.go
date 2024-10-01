@@ -14,6 +14,8 @@ type PivotsManager struct {
 	// The key is the point ID and the value is a slice of distances to each pivot.
 	// The distances are in the order specified in pivotIDs
 	distances map[uint64][]float64
+	// Debug print
+	fmt.Printf("Added point ID: %d, Distances: %v\n", doc.ID, distances)
 }
 
 // approxDistance calculates the approximate minimum distance of a point from a target document using the triangle inequality.
@@ -21,6 +23,7 @@ func (pm *PivotsManager) approxDistance(target *Document, id uint64) float64 {
 	// Check if the point ID exists in the distances map
 	dists, exists := pm.distances[id]
 	if !exists {
+		fmt.Printf("Point ID not found: %d\n", id) // Debug print
 		panic(errors.New("point ID not found in distances map"))
 	}
 

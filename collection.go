@@ -21,6 +21,8 @@ type Collection struct {
 	memfile       *memfile
 	pivotsManager PivotsManager
 	mutex         sync.Mutex
+	// Add the document to the pivots manager
+	c.pivotsManager.pointAdded(doc)
 }
 
 func (c *Collection) GetDocument(id uint64) (*Document, error) {
