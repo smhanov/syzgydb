@@ -1,4 +1,4 @@
-module hanovsolutions.com/nnsearch2
+module github.com/smhanov/syzygy
 
 go 1.23.1
 

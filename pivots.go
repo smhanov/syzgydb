@@ -1,4 +1,4 @@
-package main
+package syzygy
 
 import (
 	"errors"
@@ -22,6 +22,17 @@ type PivotsManager struct {
 	distanceFn distanceFn
 }
 
+type distanceFn func(vec1, vec2 []float64) float64
+
+// newPivotsManager creates a new PivotsManager
+func newPivotsManager(distanceFn distanceFn) *PivotsManager {
+	return &PivotsManager{
+		pivots:     []*Document{},
+		distances:  make(map[uint64][]float64), // Initialize the map
+		distanceFn: distanceFn,
+	}
+}
+
 // isPivot checks if a document is a pivot
 func (pm *PivotsManager) isPivot(id uint64) bool {
 	for _, pivot := range pm.pivots {
@@ -31,8 +42,6 @@ func (pm *PivotsManager) isPivot(id uint64) bool {
 	}
 	return false
 }
-
-type distanceFn func(vec1, vec2 []float64) float64
 
 // approxDistance calculates the approximate minimum distance of a point from a target document using the triangle inequality.
 func (pm *PivotsManager) approxDistance(vec []float64, id uint64) float64 {
@@ -110,26 +119,7 @@ func (pm *PivotsManager) pointAdded(doc *Document) {
 	pm.distances[doc.ID] = distances
 }
 
-func newPivotsManager(distanceFn distanceFn) *PivotsManager {
-	return &PivotsManager{
-		pivots:     []*Document{},
-		distances:  make(map[uint64][]float64), // Initialize the map
-		distanceFn: distanceFn,
-	}
-}
-
-// CalculateDistance calculates the Euclidean distance between two vectors
-func CalculateDistance(vec1, vec2 []float64, method int) float64 {
-	switch method {
-	case Euclidean:
-		return euclideanDistance(vec1, vec2)
-	case Cosine:
-		return cosineDistance(vec1, vec2)
-	default:
-		panic("unsupported distance method")
-	}
-}
-
+// SelectInitialPivot selects the initial pivot points
 func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
 	// Step 1: Select a random point
 	randomID, err := c.getRandomID()
@@ -272,4 +262,16 @@ func calculateVariance(data []float64) float64 {
 		variance += diff * diff
 	}
 	return variance / float64(len(data))
+}
+
+// CalculateDistance calculates the Euclidean distance between two vectors
+func CalculateDistance(vec1, vec2 []float64, method int) float64 {
+	switch method {
+	case Euclidean:
+		return euclideanDistance(vec1, vec2)
+	case Cosine:
+		return cosineDistance(vec1, vec2)
+	default:
+		panic("unsupported distance method")
+	}
 }

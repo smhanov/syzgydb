@@ -1,4 +1,4 @@
-package main
+package syzygy
 
 import (
 	"math/rand"
@@ -272,5 +272,5 @@ func TestVectorSearchWith4BitQuantization(t *testing.T) {
 		t.Logf("ID: %d, Distance: %.4f, Metadata: %s", result.ID, result.Distance, string(result.Metadata))
 	}
 
-	DumpIndex("test_collection_4bit")
+	//DumpIndex("test_collection_4bit")
 }
