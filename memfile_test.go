@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"os"
 	"testing"
-
-	"github.com/go-mmap/mmap"
 )
 
 func TestMemfile(t *testing.T) {
