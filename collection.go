@@ -1,6 +1,9 @@
 package main
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"math"
+)
 
 // Constants for euclidean distance or cosine similarity
 const (
@@ -58,7 +61,7 @@ func EncodeDocument(doc *Document) []byte {
 	// n bytes: vector
 	// n bytes: metadata
 
-	docSize := 8 + 8 + 8 + len(doc.Vector) + len(doc.Metadata)
+	docSize := 8 + 4 + 4 + len(doc.Vector)*8 + len(doc.Metadata)
 	data := make([]byte, docSize)
 
 	binary.LittleEndian.PutUint64(data[0:], doc.ID)
