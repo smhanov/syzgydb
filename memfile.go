@@ -76,17 +76,38 @@ func (mf *memfile) ensureLength(length int) {
 }
 
 func (mf *memfile) addRecord(id uint64, data []byte) {
-	// use copy-on-write semantics
-	// first, use the freemap to find a free location for the new or updated record
+	// Calculate the total length of the record
+	recordLength := 16 + len(data) // 8 bytes for length, 8 bytes for ID
 
-	// if there was no free space, ensure the file is large enough using ensureLength
+	// Find a free location for the new record
+	start, err := mf.freemap.getFreeRange(recordLength)
+	if err != nil {
+		// If no free space, ensure the file is large enough
+		mf.ensureLength(mf.File.Len() + recordLength)
+		start, err = mf.freemap.getFreeRange(recordLength)
+		if err != nil {
+			log.Panic("Failed to allocate space for the new record")
+		}
+	}
 
-	// write the record to the file. The record
-	// is the length of the record, the id, and the data
+	// Write the record to the file
+	offset := start + mf.headerSize
+	binary.LittleEndian.PutUint64(mf.Data[offset:], uint64(recordLength))
+	binary.LittleEndian.PutUint64(mf.Data[offset+8:], id)
+	copy(mf.Data[offset+16:], data)
 
-	// sync the file to disk
+	// Sync the file to disk
+	if err := mf.File.Sync(); err != nil {
+		log.Panic(err)
+	}
 
-	// if the record already existed, then mark it as deleted by writing
-	// 0xffffffffffffffff as the id in the old location
-	// read its old length and mark that space as free
+	// If the record already existed, mark the old space as free
+	if oldOffset, exists := mf.idOffsets[id]; exists {
+		binary.LittleEndian.PutUint64(mf.Data[oldOffset+8:], 0xffffffffffffffff)
+		oldLength := binary.LittleEndian.Uint64(mf.Data[oldOffset:])
+		mf.freemap.markFree(int(oldOffset), int(oldLength))
+	}
+
+	// Update the idOffsets map
+	mf.idOffsets[id] = int64(offset)
 }
