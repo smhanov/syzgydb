@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"math/rand"
+	"errors"
 )
 
 // Constants for euclidean distance or cosine similarity
@@ -17,6 +19,25 @@ type Collection struct {
 	CollectionOptions
 	memfile       *memfile
 	pivotsManager PivotsManager
+}
+
+func (c *Collection) getRandomID() (uint64, error) {
+	c.memfile.Lock()
+	defer c.memfile.Unlock()
+
+	if len(c.memfile.idOffsets) == 0 {
+		return 0, errors.New("no documents in the collection")
+	}
+
+	// Create a slice of IDs
+	ids := make([]uint64, 0, len(c.memfile.idOffsets))
+	for id := range c.memfile.idOffsets {
+		ids = append(ids, id)
+	}
+
+	// Select a random ID
+	randomIndex := rand.Intn(len(ids))
+	return ids[randomIndex], nil
 }
 
 // iterateDocuments applies a function to each document in the collection.
