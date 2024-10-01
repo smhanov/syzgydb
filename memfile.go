@@ -49,12 +49,18 @@ func (mf *memfile) ensureLength(length int) error {
 		return err
 	}
 
-	// Increase the file size if necessary
-	if fileInfo.Size() < int64(length) {
-		if err := file.Truncate(int64(length)); err != nil {
-			return err
-		}
+	// Check if the file is already the given length
+	if fileInfo.Size() >= int64(length) {
+		return nil
 	}
+
+	// Increase the file size
+	if err := file.Truncate(int64(length)); err != nil {
+		return err
+	}
+
+	// Update freemap with the extended range
+	mf.freemap.markFree(int(fileInfo.Size()), length-int(fileInfo.Size()))
 
 	// Re-obtain the memory-mapped file
 	mf.File, err = mmap.OpenFile(mf.name, mmap.Read|mmap.Write)
