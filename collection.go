@@ -16,6 +16,25 @@ type Collection struct {
 	memfile *memfile
 }
 
+func (c *Collection) addDocument(id uint64, vector []float64, metadata []byte) {
+    doc := &Document{
+        ID:       id,
+        Vector:   vector,
+        Metadata: metadata,
+    }
+
+    // Encode the document
+    encodedData := encodeDocument(doc)
+
+    // Add or update the document in the memfile
+    c.memfile.addRecord(id, encodedData)
+}
+
+func (c *Collection) removeDocument(id uint64) error {
+    // Remove the document from the memfile
+    return c.memfile.deleteRecord(id)
+}
+
 type CollectionOptions struct {
 	Name           string
 	DistanceMethod int
