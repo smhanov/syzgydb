@@ -105,7 +105,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		}
 
 		// Calculate the minimum possible distance using the triangle inequality
-		minPossibleDistance := c.pivotsManager.approxDistance(&Document{Vector: args.Vector}, doc.ID)
+		minPossibleDistance := c.pivotsManager.approxDistance(&Document{Vector: args.Vector}, doc.ID, c.DistanceMethod)
 
 		// Debug print for minimum possible distance
 		fmt.Printf("Doc ID: %d, Min Possible Distance: %f, Radius: %f\n", doc.ID, minPossibleDistance, args.Radius)

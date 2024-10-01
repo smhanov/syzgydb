@@ -29,7 +29,7 @@ func (pm *PivotsManager) approxDistance(target *Document, id uint64) float64 {
 	// Calculate the distance of each pivot from the target
 	targetPivotDistances := make([]float64, len(pm.pivots))
 	for i, pivot := range pm.pivots {
-		targetPivotDistances[i] = CalculateDistance(target.Vector, pivot.Vector)
+		targetPivotDistances[i] = CalculateDistance(target.Vector, pivot.Vector, method)
 	}
 
 	// Use the triangle inequality to compute the minimum possible distance
@@ -70,7 +70,7 @@ func (pm *PivotsManager) pointRemoved(docID uint64) {
 }
 
 // pointAdded calculates the distance to each pivot and updates the distances map if the point doesn't already exist.
-func (pm *PivotsManager) pointAdded(doc *Document) {
+func (pm *PivotsManager) pointAdded(doc *Document, method int) {
 	// Check if the point already exists in the distances map
 	if _, exists := pm.distances[doc.ID]; exists {
 		return
@@ -79,7 +79,7 @@ func (pm *PivotsManager) pointAdded(doc *Document) {
 	// Calculate the distance to each pivot
 	distances := make([]float64, len(pm.pivots))
 	for i, pivot := range pm.pivots {
-		distances[i] = CalculateDistance(doc.Vector, pivot.Vector)
+		distances[i] = CalculateDistance(doc.Vector, pivot.Vector, method)
 	}
 
 	// Add the entry to the distances map
@@ -94,13 +94,15 @@ func newPivotsManager() *PivotsManager {
 }
 
 // CalculateDistance calculates the Euclidean distance between two vectors
-func CalculateDistance(vec1, vec2 []float64) float64 {
-	sum := 0.0
-	for i := range vec1 {
-		diff := vec1[i] - vec2[i]
-		sum += diff * diff
+func CalculateDistance(vec1, vec2 []float64, method int) float64 {
+	switch method {
+	case Euclidean:
+		return euclideanDistance(vec1, vec2)
+	case Cosine:
+		return cosineDistance(vec1, vec2)
+	default:
+		panic("unsupported distance method")
 	}
-	return math.Sqrt(sum)
 }
 
 func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
