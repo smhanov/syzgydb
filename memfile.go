@@ -157,6 +157,7 @@ Parameters:
 - data: The data to be stored in the record.
 */
 func (mf *memfile) addRecord(id uint64, data []byte) bool {
+    fmt.Printf("Allocating space for record ID: %d\n", id) // Add this line
 	// Calculate the total length of the record
 	recordLength := 16 + len(data) // 8 bytes for length, 8 bytes for ID
 

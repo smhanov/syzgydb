@@ -1,6 +1,8 @@
 package main
 
 import (
+    "net/http"
+    _ "net/http/pprof"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -11,7 +13,9 @@ import (
 const collectionName = "gaussian_collection"
 
 func main() {
-	// Define command-line flags
+    go func() {
+        log.Println(http.ListenAndServe("localhost:6060", nil))
+    }()
 	dump := flag.Bool("dump", false, "Dump the collection and exit")
 	points := flag.Int("points", 1000, "Number of points to generate")
 	dims := flag.Int("dims", 2, "Number of dimensions for each point")

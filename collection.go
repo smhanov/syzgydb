@@ -284,6 +284,7 @@ func cosineDistance(vec1, vec2 []float64) float64 {
 }
 
 func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
+    fmt.Printf("Adding document ID: %d\n", id) // Add this line
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
