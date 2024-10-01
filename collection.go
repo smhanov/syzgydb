@@ -48,7 +48,21 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 			continue
 		}
 
-		// Calculate distance
+		// Calculate distance to the nearest pivot
+		nearestPivotDistance := math.MaxFloat64
+		for _, pivot := range c.pivotsManager.Pivots {
+			pivotDistance := euclideanDistance(args.Vector, pivot.Vector)
+			if pivotDistance < nearestPivotDistance {
+				nearestPivotDistance = pivotDistance
+			}
+		}
+
+		// Skip documents that are too far from the nearest pivot
+		if nearestPivotDistance > args.Radius {
+			continue
+		}
+
+		// Calculate exact distance
 		var distance float64
 		switch c.DistanceMethod {
 		case Euclidean:

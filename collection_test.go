@@ -134,7 +134,7 @@ func TestRemoveDocument(t *testing.T) {
 	}
 }
 
-func TestSearch(t *testing.T) {
+func TestSearchWithPivots(t *testing.T) {
 	// Create a collection with some documents
 	options := CollectionOptions{
 		Name:           "test_collection",
@@ -147,10 +147,14 @@ func TestSearch(t *testing.T) {
 	collection.addDocument(1, []float64{1.0, 2.0, 3.0}, []byte("doc1"))
 	collection.addDocument(2, []float64{4.0, 5.0, 6.0}, []byte("doc2"))
 
+	// Add a pivot
+	collection.pivotsManager.AddPivot([]float64{1.0, 2.0, 3.0})
+
 	// Define search arguments
 	args := SearchArgs{
 		Vector:   []float64{1.0, 2.0, 3.0},
 		MaxCount: 1,
+		Radius:   10.0,
 	}
 
 	// Perform search
