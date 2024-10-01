@@ -48,7 +48,30 @@ func TestUpdateDocument(t *testing.T) {
 	}
 }
 
-func TestCosineDistance(t *testing.T) {
+func TestRemoveDocument(t *testing.T) {
+	// Create a collection with some documents
+	options := CollectionOptions{
+		Name:           "test_collection",
+		DistanceMethod: Euclidean,
+		DimensionCount: 3,
+	}
+	collection := NewCollection(options)
+
+	// Add a document to the collection
+	collection.addDocument(1, []float64{1.0, 2.0, 3.0}, []byte("to be removed"))
+
+	// Remove the document
+	err := collection.removeDocument(1)
+	if err != nil {
+		t.Errorf("Failed to remove document: %v", err)
+	}
+
+	// Attempt to read the removed document
+	_, err = collection.memfile.readRecord(1)
+	if err == nil {
+		t.Errorf("Expected error when reading removed document, but got none")
+	}
+}
 	vec1 := []float64{1.0, 0.0, 0.0}
 	vec2 := []float64{0.0, 1.0, 0.0}
 	expected := 1.0 // Orthogonal vectors have cosine distance of 1
