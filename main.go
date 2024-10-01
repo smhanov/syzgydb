@@ -22,7 +22,7 @@ func main() {
 
 	// Number of clusters and vectors
 	numClusters := 50
-	numVectors := 10000
+	numVectors := 100000
 
 	// Generate random cluster centers
 	clusterCenters := make([][]float64, numClusters)
