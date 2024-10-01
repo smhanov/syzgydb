@@ -128,8 +128,11 @@ func (c *Collection) addDocument(id uint64, vector []float64, metadata []byte) {
 		Metadata: metadata,
 	}
 
+	// Calculate the desired number of pivots using a logarithmic function
+	desiredPivots := int(math.Log2(float64(len(c.memfile.idOffsets) + 1)))
+
 	// Manage pivots
-	if len(c.memfile.idOffsets) >= 100 {
+	if len(c.pivotsManager.Pivots) < desiredPivots {
 		if len(c.pivotsManager.Pivots) == 0 {
 			// Select initial pivot
 			initialPivot := c.pivotsManager.SelectInitialPivot(c.getAllVectors())
