@@ -437,7 +437,6 @@ func encodeDocument(doc *Document) []byte {
 
 	binary.BigEndian.PutUint64(data[0:], doc.ID)
 	binary.BigEndian.PutUint32(data[8:], uint32(len(doc.Vector)))
-	binary.BigEndian.PutUint32(data[12:], uint32(len(doc.Metadata)))
 
 	// Encode the floating point vector to the data slice
 	vectorOffset := 16
@@ -446,7 +445,7 @@ func encodeDocument(doc *Document) []byte {
 	}
 
 	// Encode the metadata length after the vector
-	metadataLengthOffset := vectorOffset + len(doc.Vector)*8
+	metadataLengthOffset := 12 + len(doc.Vector)*8
 	binary.BigEndian.PutUint32(data[metadataLengthOffset:], uint32(len(doc.Metadata)))
 
 	// Encode the metadata
@@ -471,7 +470,7 @@ func decodeDocument(data []byte) *Document {
 	}
 
 	// Decode the metadata length after the vector
-	metadataLengthOffset := vectorOffset + int(vectorLength)*8
+	metadataLengthOffset := 12 + int(vectorLength)*8
 	metadataLength := binary.BigEndian.Uint32(data[metadataLengthOffset:])
 	log.Printf("vector length %v metadatalength %v", vectorLength, metadataLength)
 	// Decode the metadata
