@@ -226,6 +226,17 @@ func (mf *memfile) readRecord(id uint64) ([]byte, error) {
 }
 
 /*
+writeByte writes a single byte to the specified offset.
+
+Parameters:
+- offset: The offset at which to write.
+- value: The byte value to write.
+*/
+func (mf *memfile) writeByte(offset int64, value byte) {
+	mf.WriteByte(offset, value)
+}
+
+/*
 writeUint32 writes an unsigned 32-bit integer to the specified offset.
 
 Parameters:
