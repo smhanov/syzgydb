@@ -303,7 +303,7 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	c.pivotsManager.ensurePivots(c, desiredPivots)
 
 	// Encode the document
-	encodedData := encodeDocument(doc, c.DimensionCount)
+	encodedData := encodeDocument(doc)
 
 	// Add or update the document in the memfile
 	c.memfile.addRecord(id, encodedData)
@@ -419,11 +419,13 @@ func NewCollection(options CollectionOptions) *Collection {
 	return c
 }
 
-func encodeDocument(doc *Document, dimensions int) []byte {
+func encodeDocument(doc *Document) []byte {
 	// 8 bytes: document ID
 	// n bytes: vector
 	// 4 bytes: length of metadata
 	// n bytes: metadata
+
+	dimensions := len(doc.Vector)
 
 	docSize := 8 + dimensions*8 + 4 + len(doc.Metadata)
 	data := make([]byte, docSize)
