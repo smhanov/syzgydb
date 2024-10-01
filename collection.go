@@ -17,22 +17,22 @@ type Collection struct {
 }
 
 func (c *Collection) addDocument(id uint64, vector []float64, metadata []byte) {
-    doc := &Document{
-        ID:       id,
-        Vector:   vector,
-        Metadata: metadata,
-    }
+	doc := &Document{
+		ID:       id,
+		Vector:   vector,
+		Metadata: metadata,
+	}
 
-    // Encode the document
-    encodedData := encodeDocument(doc)
+	// Encode the document
+	encodedData := encodeDocument(doc)
 
-    // Add or update the document in the memfile
-    c.memfile.addRecord(id, encodedData)
+	// Add or update the document in the memfile
+	c.memfile.addRecord(id, encodedData)
 }
 
 func (c *Collection) removeDocument(id uint64) error {
-    // Remove the document from the memfile
-    return c.memfile.deleteRecord(id)
+	// Remove the document from the memfile
+	return c.memfile.deleteRecord(id)
 }
 
 type CollectionOptions struct {
@@ -46,6 +46,32 @@ type Document struct {
 	Vector   []float64
 	Metadata []byte
 }
+
+type SearchResult struct {
+	ID       uint64
+	Metadata []byte
+	Distance float64
+}
+
+type SearchResults struct {
+	Results []SearchResult
+
+	// percentage of database searched
+	PercentSearched float64
+}
+
+type SearchArgs struct {
+	Vector []float64
+	Filter FilterFn
+
+	// for nearest neighbour search
+	MaxCount int
+
+	// for radius search
+	Radius float64
+}
+
+type FilterFn func(id uint64, metadata []byte) bool
 
 // one byte: version
 // 1 byte: distance method
