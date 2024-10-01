@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
-	"sort"
 	"math/rand"
-	"errors"
+	"sort"
 )
 
 // Constants for euclidean distance or cosine similarity
@@ -61,14 +61,14 @@ func (c *Collection) getRandomID() (uint64, error) {
 
 // iterateDocuments applies a function to each document in the collection.
 func (c *Collection) iterateDocuments(fn func(doc *Document)) {
-    for id := range c.memfile.idOffsets {
-        data, err := c.memfile.readRecord(id)
-        if err != nil {
-            continue
-        }
-        doc := decodeDocument(data)
-        fn(doc)
-    }
+	for id := range c.memfile.idOffsets {
+		data, err := c.memfile.readRecord(id)
+		if err != nil {
+			continue
+		}
+		doc := decodeDocument(data)
+		fn(doc)
+	}
 }
 
 // Helper function to compare two vectors for equality
@@ -84,7 +84,6 @@ func equalVectors(vec1, vec2 []float64) bool {
 	}
 	return true
 }
-
 
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	var results []SearchResult
@@ -104,14 +103,8 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 
 		// Calculate the minimum possible distance using the triangle inequality
 		minPossibleDistance := math.MaxFloat64
-		for _, pivot := range c.pivotsManager.Pivots {
-			targetPivotDistance := euclideanDistance(args.Vector, pivot.Vector)
-			docPivotDistance := euclideanDistance(doc.Vector, pivot.Vector)
-			possibleDistance := math.Abs(targetPivotDistance - docPivotDistance)
-			if possibleDistance < minPossibleDistance {
-				minPossibleDistance = possibleDistance
-			}
-		}
+
+		// TODO: fill in code here.
 
 		// Debug print for minimum possible distance
 		fmt.Printf("Doc ID: %d, Min Possible Distance: %f, Radius: %f\n", doc.ID, minPossibleDistance, args.Radius)
@@ -178,7 +171,7 @@ func cosineDistance(vec1, vec2 []float64) float64 {
 	return 1.0 - (dotProduct / (math.Sqrt(magnitude1) * math.Sqrt(magnitude2)))
 }
 
-func (c *Collection) addDocument(id uint64, vector []float64, metadata []byte) {
+func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	doc := &Document{
 		ID:       id,
 		Vector:   vector,
@@ -189,66 +182,20 @@ func (c *Collection) addDocument(id uint64, vector []float64, metadata []byte) {
 	desiredPivots := int(math.Log2(float64(len(c.memfile.idOffsets) + 1)))
 
 	// Manage pivots
-	if len(c.pivotsManager.Pivots) < desiredPivots {
-		if len(c.pivotsManager.Pivots) == 0 {
-			// Select initial pivot
-            var initialPivot []float64
-            c.iterateDocuments(func(d *Document) {
-                if initialPivot == nil {
-                    initialPivot = d.Vector
-                }
-            })
-            c.pivotsManager.AddPivot(initialPivot)
-        } else {
-            // Select new pivot based on variance
-            var vectors [][]float64
-            c.iterateDocuments(func(d *Document) {
-                vectors = append(vectors, d.Vector)
-            })
-            newPivot := c.pivotsManager.SelectPivotWithMinVariance(vectors)
-            c.pivotsManager.AddPivot(newPivot)
-        }
-    }
+	c.pivotsManager.ensurePivots(c, desiredPivots)
 
-    // Encode the document
-    encodedData := encodeDocument(doc)
+	// Encode the document
+	encodedData := encodeDocument(doc)
 
-    // Add or update the document in the memfile
-    c.memfile.addRecord(id, encodedData)
+	// Add or update the document in the memfile
+	c.memfile.addRecord(id, encodedData)
 }
 
 func (c *Collection) removeDocument(id uint64) error {
-    // Remove the document from the memfile
-    data, err := c.memfile.readRecord(id)
-    if err != nil {
-        return err
-    }
+	c.pivotsManager.pointRemoved(id)
 
-    // Decode the existing document
-    doc := decodeDocument(data)
-
-    // Check if the document's vector is a pivot
-    for i, pivot := range c.pivotsManager.Pivots {
-        if equalVectors(doc.Vector, pivot.Vector) {
-            // Remove the pivot
-            c.pivotsManager.Pivots = append(c.pivotsManager.Pivots[:i], c.pivotsManager.Pivots[i+1:]...)
-            break
-        }
-    }
-
-    // Optionally, add a new pivot if needed
-    desiredPivots := int(math.Log2(float64(len(c.memfile.idOffsets))))
-    if len(c.pivotsManager.Pivots) < desiredPivots {
-        var vectors [][]float64
-        c.iterateDocuments(func(d *Document) {
-            vectors = append(vectors, d.Vector)
-        })
-        newPivot := c.pivotsManager.SelectPivotWithMinVariance(vectors)
-        c.pivotsManager.AddPivot(newPivot)
-    }
-
-    // Remove the document from the memfile
-    return c.memfile.deleteRecord(id)
+	// Remove the document from the memfile
+	return c.memfile.deleteRecord(id)
 }
 
 func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
