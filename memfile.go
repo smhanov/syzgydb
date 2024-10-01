@@ -16,7 +16,7 @@ import (
 type memfile struct {
 	*mmap.File
 	//Header size which we ignore
-	headerSize int
+	headerSize int64
 
 	// offsets of each record id into the file
 	idOffsets map[uint64]int64
@@ -24,8 +24,9 @@ type memfile struct {
 	freemap FreeMap
 
 	name string
+}
 
-func createMemFile(name string, headerSize int) (*memfile, error) {
+func createMemFile(name string, headerSize int64) (*memfile, error) {
 	f, err := mmap.OpenFile(name, mmap.Read|mmap.Write)
 	if err != nil {
 		return nil, err
@@ -92,9 +93,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 
 	// Write the record to the file
 	offset := start + mf.headerSize
-	binary.LittleEndian.PutUint64(mf.Data[offset:], uint64(recordLength))
-	binary.LittleEndian.PutUint64(mf.Data[offset+8:], id)
-	copy(mf.Data[offset+16:], data)
+	mf.writeUint64(offset, uint64(recordLength))
 
 	// Sync the file to disk
 	if err := mf.File.Sync(); err != nil {
@@ -103,7 +102,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 
 	// If the record already existed, mark the old space as free
 	if oldOffset, exists := mf.idOffsets[id]; exists {
-		binary.LittleEndian.PutUint64(mf.Data[oldOffset+8:], 0xffffffffffffffff)
+		mf.writeUint64(oldOffset, 0xffffffffffffffff)
 		oldLength := binary.LittleEndian.Uint64(mf.Data[oldOffset:])
 		mf.freemap.markFree(int(oldOffset), int(oldLength))
 	}
@@ -112,12 +111,12 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 	mf.idOffsets[id] = int64(offset)
 }
 
-func (mf *memfile) writeUint64(offset uint64, value uint64) {
-	// Convert the offset to an int for indexing
-	intOffset := int(offset)
+func (mf *memfile) writeUint64(offset int64, value uint64) {
+	// use mf.File.WriteByte() to write the value to the file
+	// assume that it is already large enough.
 
-	// Write the 64-bit unsigned integer to the specified offset
-	binary.LittleEndian.PutUint64(mf.Data[intOffset:], value)
-}
-
+	// convert value to a byte slice
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, value)
+	mf.WriteAt(buf, int64(offset))
 }
