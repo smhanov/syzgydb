@@ -288,7 +288,6 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	defer c.mutex.Unlock()
 
 	doc := &Document{
-		ID:       id,
 		Vector:   vector,
 		Metadata: metadata,
 	}
@@ -417,20 +416,18 @@ func NewCollection(options CollectionOptions) *Collection {
 }
 
 func encodeDocument(doc *Document) []byte {
-	// 8 bytes: document ID
 	// n bytes: vector
 	// 4 bytes: length of metadata
 	// n bytes: metadata
 
 	dimensions := len(doc.Vector)
 
-	docSize := 8 + dimensions*8 + 4 + len(doc.Metadata)
+	docSize := dimensions*8 + 4 + len(doc.Metadata)
 	data := make([]byte, docSize)
 
-	binary.BigEndian.PutUint64(data[0:], doc.ID)
 
 	// Encode the floating point vector to the data slice
-	vectorOffset := 8
+	vectorOffset := 0
 	for i, v := range doc.Vector {
 		binary.BigEndian.PutUint64(data[vectorOffset+i*8:], math.Float64bits(v))
 	}
@@ -447,12 +444,10 @@ func encodeDocument(doc *Document) []byte {
 }
 
 func decodeDocument(data []byte, dimensions int) *Document {
-	// Decode the document ID -- 8 bytes
-	id := binary.BigEndian.Uint64(data[0:])
 
 	// Use the passed dimensions to decode the vector
 	vector := make([]float64, dimensions)
-	vectorOffset := 8
+	vectorOffset := 0
 	for i := range vector {
 		vector[i] = math.Float64frombits(binary.BigEndian.Uint64(data[vectorOffset+i*8:]))
 	}
