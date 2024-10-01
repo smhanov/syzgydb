@@ -20,7 +20,7 @@ type Collection struct {
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	var results []SearchResult
 
-	for id, offset := range c.memfile.idOffsets {
+	for id := range c.memfile.idOffsets {
 		data, err := c.memfile.readRecord(id)
 		if err != nil {
 			continue
@@ -63,7 +63,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 	}
 
 	return SearchResults{
-		Results:        results,
+		Results:         results,
 		PercentSearched: 100.0, // Assuming full search for simplicity
 	}
 }
