@@ -23,14 +23,16 @@ func DumpIndex(filename string) {
 		log.Fatalf("Failed to read header: %v", err)
 	}
 
-	version := header[0]
-	distanceMethod := header[1]
-	dimensionCount := binary.BigEndian.Uint64(header[2:])
+   version := binary.BigEndian.Uint32(header[0:])
+   headerLength := binary.BigEndian.Uint32(header[4:])
+   distanceMethod := header[8]
+   dimensionCount := binary.BigEndian.Uint32(header[9:])
 
-	fmt.Printf("Header:\n")
-	fmt.Printf("  Version: %d\n", version)
-	fmt.Printf("  Distance Method: %d\n", distanceMethod)
-	fmt.Printf("  Number of Dimensions: %d\n", dimensionCount)
+   fmt.Printf("Header:\n")
+   fmt.Printf("  Version: %d\n", version)
+   fmt.Printf("  Header Length: %d\n", headerLength)
+   fmt.Printf("  Distance Method: %d\n", distanceMethod)
+   fmt.Printf("  Number of Dimensions: %d\n", dimensionCount)
 
 	// Iterate over all records
 	fmt.Println("Records:")

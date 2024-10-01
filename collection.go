@@ -388,10 +388,11 @@ type SearchArgs struct {
 
 type FilterFn func(id uint64, metadata []byte) bool
 
-// one byte: version
-// 1 byte: distance method
-// 8 bytes: number of dimensions
-const headerSize = 10
+   // 4 bytes: version
+   // 4 bytes: length of the header
+   // 1 byte: distance method
+   // 4 bytes: number of dimensions
+   const headerSize = 13
 
 func NewCollection(options CollectionOptions) *Collection {
 	distanceFn := euclideanDistance
@@ -403,12 +404,13 @@ func NewCollection(options CollectionOptions) *Collection {
 		pivotsManager:     *newPivotsManager(distanceFn), // Use newPivotsManager
 	}
 
-	header := make([]byte, headerSize)
+   header := make([]byte, headerSize)
 
-	// Fill in the header
-	header[0] = 1 // version
-	header[1] = byte(options.DistanceMethod)
-	binary.BigEndian.PutUint64(header[2:], uint64(options.DimensionCount))
+   // Fill in the header
+   binary.BigEndian.PutUint32(header[0:], 1) // version
+   binary.BigEndian.PutUint32(header[4:], uint32(headerSize)) // length of the header
+   header[8] = byte(options.DistanceMethod)
+   binary.BigEndian.PutUint32(header[9:], uint32(options.DimensionCount))
 
 	var err error
 	c.memfile, err = createMemFile(c.Name, header)
