@@ -79,7 +79,7 @@ func (c *Collection) getDocument(id uint64) (*Document, error) {
 	}
 
 	// Decode the document
-	doc := decodeDocument(data)
+	doc := decodeDocument(data, c.DimensionCount)
 	return doc, nil
 }
 
@@ -303,7 +303,7 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	c.pivotsManager.ensurePivots(c, desiredPivots)
 
 	// Encode the document
-	encodedData := encodeDocument(doc)
+	encodedData := encodeDocument(doc, c.DimensionCount)
 
 	// Add or update the document in the memfile
 	c.memfile.addRecord(id, encodedData)
@@ -419,27 +419,25 @@ func NewCollection(options CollectionOptions) *Collection {
 	return c
 }
 
-func encodeDocument(doc *Document) []byte {
+func encodeDocument(doc *Document, dimensions int) []byte {
 	// 8 bytes: document ID
-	// 4 bytes: length of vector
 	// n bytes: vector
 	// 4 bytes: length of metadata
 	// n bytes: metadata
 
-	docSize := 8 + 4 + len(doc.Vector)*8 + 4 + len(doc.Metadata)
+	docSize := 8 + dimensions*8 + 4 + len(doc.Metadata)
 	data := make([]byte, docSize)
 
 	binary.BigEndian.PutUint64(data[0:], doc.ID)
-	binary.BigEndian.PutUint32(data[8:], uint32(len(doc.Vector)))
 
 	// Encode the floating point vector to the data slice
-	vectorOffset := 16
+	vectorOffset := 8
 	for i, v := range doc.Vector {
 		binary.BigEndian.PutUint64(data[vectorOffset+i*8:], math.Float64bits(v))
 	}
 
 	// Encode the metadata length after the vector
-	metadataLengthOffset := 12 + len(doc.Vector)*8
+	metadataLengthOffset := 8 + dimensions*8
 	binary.BigEndian.PutUint32(data[metadataLengthOffset:], uint32(len(doc.Metadata)))
 
 	// Encode the metadata
@@ -449,22 +447,19 @@ func encodeDocument(doc *Document) []byte {
 	return data
 }
 
-func decodeDocument(data []byte) *Document {
+func decodeDocument(data []byte, dimensions int) *Document {
 	// Decode the document ID -- 8 bytes
 	id := binary.BigEndian.Uint64(data[0:])
 
-	// Decode the length of the vector -- 4 bytes
-	vectorLength := binary.BigEndian.Uint32(data[8:])
-
-	// Decode the vector
-	vector := make([]float64, vectorLength)
-	vectorOffset := 12
+	// Use the passed dimensions to decode the vector
+	vector := make([]float64, dimensions)
+	vectorOffset := 8
 	for i := range vector {
 		vector[i] = math.Float64frombits(binary.BigEndian.Uint64(data[vectorOffset+i*8:]))
 	}
 
 	// Decode the metadata length after the vector
-	metadataLengthOffset := 12 + int(vectorLength)*8
+	metadataLengthOffset := 8 + dimensions*8
 	metadataLength := binary.BigEndian.Uint32(data[metadataLengthOffset:])
 
 	// Decode the metadata
