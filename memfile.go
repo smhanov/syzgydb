@@ -24,7 +24,6 @@ type memfile struct {
 	freemap FreeMap
 
 	name string
-}
 
 func createMemFile(name string, headerSize int) (*memfile, error) {
 	f, err := mmap.OpenFile(name, mmap.Read|mmap.Write)
