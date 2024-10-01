@@ -10,40 +10,78 @@ import (
 	"sync"
 )
 
+/*
+CollectionOptions defines the configuration options for creating a Collection.
+*/
 type CollectionOptions struct {
-	Name           string
+	// Name is the identifier for the collection.
+	Name string
+
+	// DistanceMethod specifies the method used to calculate distances between vectors.
+	// It can be either Euclidean or Cosine.
 	DistanceMethod int
+
+	// DimensionCount is the number of dimensions for each vector in the collection.
 	DimensionCount int
-	Quantization   int
+
+	// Quantization specifies the bit-level quantization for storing vectors.
+	// Supported values are 4, 8, 16, 32, and 64, with 64 as the default.
+	Quantization int
 }
 
+/*
+Document represents a single document in the collection, consisting of an ID, vector, and metadata.
+*/
 type Document struct {
-	ID       uint64
-	Vector   []float64
+	// ID is the unique identifier for the document.
+	ID uint64
+
+	// Vector is the numerical representation of the document.
+	Vector []float64
+
+	// Metadata is additional information associated with the document.
 	Metadata []byte
 }
 
+/*
+SearchResult represents a single result from a search operation, including the document ID, metadata, and distance.
+*/
 type SearchResult struct {
-	ID       uint64
+	// ID is the unique identifier of the document in the search result.
+	ID uint64
+
+	// Metadata is the associated metadata of the document in the search result.
 	Metadata []byte
+
+	// Distance is the calculated distance from the search vector to the document vector.
 	Distance float64
 }
 
+/*
+SearchResults contains the results of a search operation, including the list of results and the percentage of the database searched.
+*/
 type SearchResults struct {
+	// Results is a slice of SearchResult containing the documents that matched the search criteria.
 	Results []SearchResult
 
-	// percentage of database searched
+	// PercentSearched indicates the percentage of the database that was searched to obtain the results.
 	PercentSearched float64
 }
 
+/*
+SearchArgs defines the arguments for performing a search in the collection.
+*/
 type SearchArgs struct {
+	// Vector is the search vector used to find similar documents.
 	Vector []float64
+
+	// Filter is an optional function to filter documents based on their ID and metadata.
 	Filter FilterFn
 
-	// for nearest neighbour search
+	// MaxCount specifies the maximum number of nearest neighbors to return.
 	MaxCount int
 
-	// for radius search
+	// Radius specifies the maximum distance for radius-based search.
 	Radius float64
 }
 
@@ -102,6 +140,9 @@ const (
 	Cosine
 )
 
+/*
+Collection represents a collection of documents, supporting operations such as adding, updating, removing, and searching documents.
+*/
 type Collection struct {
 	CollectionOptions
 	memfile       *memfile
@@ -109,6 +150,10 @@ type Collection struct {
 	mutex         sync.Mutex
 }
 
+/*
+NewCollection creates a new Collection with the specified options.
+It initializes the collection's memory file and pivots manager.
+*/
 func NewCollection(options CollectionOptions) *Collection {
 	distanceFn := euclideanDistance
 	if options.DistanceMethod == Cosine {
@@ -145,6 +190,10 @@ func NewCollection(options CollectionOptions) *Collection {
 	return c
 }
 
+/*
+AddDocument adds a new document to the collection with the specified ID, vector, and metadata.
+It manages pivots and encodes the document for storage.
+*/
 func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -172,6 +221,10 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	c.pivotsManager.pointAdded(doc)
 }
 
+/*
+GetDocument retrieves a document from the collection by its ID.
+It returns the document or an error if the document is not found.
+*/
 func (c *Collection) GetDocument(id uint64) (*Document, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -191,6 +244,10 @@ func (c *Collection) getDocument(id uint64) (*Document, error) {
 	return doc, nil
 }
 
+/*
+UpdateDocument updates the metadata of an existing document in the collection.
+It returns an error if the document is not found.
+*/
 func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -254,6 +311,10 @@ func (c *Collection) iterateDocuments(fn func(doc *Document)) {
 	}
 }
 
+/*
+Search performs a search in the collection based on the specified search arguments.
+It returns the search results, including the list of matching documents and the percentage of the database searched.
+*/
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
