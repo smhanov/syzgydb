@@ -4,6 +4,8 @@ import (
 	"container/heap"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"sort"
@@ -284,7 +286,7 @@ func cosineDistance(vec1, vec2 []float64) float64 {
 }
 
 func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
-    fmt.Printf("Adding document ID: %d\n", id) // Add this line
+	fmt.Printf("Adding document ID: %d\n", id) // Add this line
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -308,7 +310,11 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	// Add or update the document in the memfile
 	c.memfile.addRecord(id, encodedData)
 
+	log.Printf("AddDocument: 1")
+
 	c.pivotsManager.pointAdded(doc)
+	log.Printf("AddDocument: done")
+
 }
 
 func (c *Collection) removeDocument(id uint64) error {
@@ -340,8 +346,12 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	// Encode the updated document
 	encodedData := encodeDocument(doc)
 
+	log.Printf("Encoded data length is %v", len(encodedData))
+
 	// Update the document in the memfile
 	c.memfile.addRecord(id, encodedData)
+
+	log.Printf("Done updatedocument")
 
 	return nil
 }
@@ -447,10 +457,10 @@ func encodeDocument(doc *Document) []byte {
 }
 
 func decodeDocument(data []byte) *Document {
-	// Decode the document ID
+	// Decode the document ID -- 8 bytes
 	id := binary.BigEndian.Uint64(data[0:])
 
-	// Decode the length of the vector
+	// Decode the length of the vector -- 4 bytes
 	vectorLength := binary.BigEndian.Uint32(data[8:])
 
 	// Decode the vector
@@ -463,7 +473,7 @@ func decodeDocument(data []byte) *Document {
 	// Decode the metadata length after the vector
 	metadataLengthOffset := vectorOffset + int(vectorLength)*8
 	metadataLength := binary.BigEndian.Uint32(data[metadataLengthOffset:])
-
+	log.Printf("vector length %v metadatalength %v", vectorLength, metadataLength)
 	// Decode the metadata
 	metadataOffset := metadataLengthOffset + 4
 	metadata := make([]byte, metadataLength)
