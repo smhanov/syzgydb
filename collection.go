@@ -152,7 +152,7 @@ type FilterFn func(id uint64, metadata []byte) bool
 // one byte: version
 // 1 byte: distance method
 // 8 bytes: number of dimensions
-const headerSize = 1
+const headerSize = 10
 
 func NewCollection(options CollectionOptions) *Collection {
 	c := &Collection{
