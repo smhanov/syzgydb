@@ -188,7 +188,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 	// Write the data
 	mf.WriteAt(data, offset+16)
 
-	mf.File.Sync()
+	//mf.File.Sync()
 
 	// If the record already existed, mark the old space as free
 	if oldOffset, exists := mf.idOffsets[id]; exists {
