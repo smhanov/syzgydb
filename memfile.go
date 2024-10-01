@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 
 	"github.com/go-mmap/mmap"
@@ -41,20 +42,20 @@ func (mf *memfile) ensureLength(length int) error {
 
 	// Close the current memory-mapped file
 	if err := mf.File.Close(); err != nil {
-		return err
+		log.Panic(err)
 	}
 
 	// Open the file on disk
 	file, err := os.OpenFile(mf.name, os.O_RDWR, 0644)
 	if err != nil {
-		return err
+		log.Panic(err)
 	}
 	defer file.Close()
 
 	// Check the current file size
 	fileInfo, err := file.Stat()
 	if err != nil {
-		return err
+		log.Panic(err)
 	}
 
 	// Check if the file is already the given length
@@ -64,7 +65,7 @@ func (mf *memfile) ensureLength(length int) error {
 
 	// Increase the file size
 	if err := file.Truncate(int64(length)); err != nil {
-		return err
+		log.Panic(err)
 	}
 
 	// Update freemap with the extended range
