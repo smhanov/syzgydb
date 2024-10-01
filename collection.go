@@ -65,7 +65,15 @@ func EncodeDocument(doc *Document) []byte {
 	binary.LittleEndian.PutUint32(data[8:], uint32(len(doc.Vector)))
 	binary.LittleEndian.PutUint32(data[12:], uint32(len(doc.Metadata)))
 
-	// encode the floating point vector to the data slice
+	// Encode the floating point vector to the data slice
+	vectorOffset := 16
+	for i, v := range doc.Vector {
+		binary.LittleEndian.PutUint64(data[vectorOffset+i*8:], math.Float64bits(v))
+	}
+
+	// Encode the metadata
+	metadataOffset := vectorOffset + len(doc.Vector)*8
+	copy(data[metadataOffset:], doc.Metadata)
 
 	return data
 }
