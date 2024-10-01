@@ -15,6 +15,17 @@ func TestEuclideanDistance(t *testing.T) {
 	}
 }
 
+func TestCosineDistance(t *testing.T) {
+	vec1 := []float64{1.0, 0.0, 0.0}
+	vec2 := []float64{0.0, 1.0, 0.0}
+	expected := 1.0 // Orthogonal vectors have cosine distance of 1
+
+	result := cosineDistance(vec1, vec2)
+	if result != expected {
+		t.Errorf("Expected %f, got %f", expected, result)
+	}
+}
+
 func TestUpdateDocument(t *testing.T) {
 	// Create a collection with some documents
 	options := CollectionOptions{
