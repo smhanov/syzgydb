@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"math"
 )
 
@@ -55,10 +56,6 @@ func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
 
 	return nil
 }
-
-import (
-	"errors"
-)
 
 // SelectPivotWithMinVariance selects a pivot with minimum variance of distances to other pivots
 func (pm *PivotsManager) SelectPivotWithMinVariance(c *Collection) error {
