@@ -16,6 +16,32 @@ type PivotsManager struct {
 	distances map[uint64][]float64
 }
 
+// approxDistance calculates the approximate minimum distance of a point from a target document using the triangle inequality.
+func (pm *PivotsManager) approxDistance(target *Document, id uint64) (float64, error) {
+	// Check if the point ID exists in the distances map
+	dists, exists := pm.distances[id]
+	if !exists {
+		return 0, errors.New("point ID not found in distances map")
+	}
+
+	// Calculate the distance of each pivot from the target
+	targetPivotDistances := make([]float64, len(pm.pivots))
+	for i, pivot := range pm.pivots {
+		targetPivotDistances[i] = CalculateDistance(target.Vector, pivot.Vector)
+	}
+
+	// Use the triangle inequality to compute the minimum possible distance
+	minPossibleDistance := math.MaxFloat64
+	for i, pivotDistance := range dists {
+		possibleDistance := math.Abs(targetPivotDistances[i] - pivotDistance)
+		if possibleDistance < minPossibleDistance {
+			minPossibleDistance = possibleDistance
+		}
+	}
+
+	return minPossibleDistance, nil
+}
+
 // pointRemoved removes a point from the distances map and updates pivots if necessary.
 func (pm *PivotsManager) pointRemoved(docID uint64) {
 	// Remove the point from the distances map
