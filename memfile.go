@@ -35,9 +35,6 @@ func (mf *memfile) deleteRecord(id uint64) error {
 	mf.Lock()
 	defer mf.Unlock()
 
-	mf.Lock()
-	defer mf.Unlock()
-
 	// Check if the record ID exists
 	offset, exists := mf.idOffsets[id]
 	if !exists {
@@ -62,6 +59,7 @@ func createMemFile(name string, headerSize int64) (*memfile, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	ret := &memfile{
 		File:       f,
 		idOffsets:  make(map[uint64]int64),
@@ -69,15 +67,14 @@ func createMemFile(name string, headerSize int64) (*memfile, error) {
 		name:       name,
 	}
 
+	ret.ensureLength(int(headerSize))
+
 	return ret, nil
 }
 
 // check if the file is at least the given length, and if not, extend it
 // and remap the file
 func (mf *memfile) ensureLength(length int) {
-	mf.Lock()
-	defer mf.Unlock()
-
 	curSize := mf.File.Len()
 	if curSize >= length {
 		return
@@ -152,9 +149,6 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 }
 
 func (mf *memfile) readUint64(offset int64) uint64 {
-	mf.Lock()
-	defer mf.Unlock()
-
 	// Read 8 bytes from the specified offset
 	buf := make([]byte, 8)
 	mf.ReadAt(buf, offset)
@@ -179,9 +173,6 @@ func (mf *memfile) readRecord(id uint64) ([]byte, error) {
 }
 
 func (mf *memfile) writeUint64(offset int64, value uint64) {
-	mf.Lock()
-	defer mf.Unlock()
-
 	// use mf.File.WriteByte() to write the value to the file
 	// assume that it is already large enough.
 
