@@ -78,7 +78,7 @@ func (c *Collection) getDocument(id uint64) (*Document, error) {
 	}
 
 	// Decode the document
-	doc := decodeDocument(data, c.DimensionCount)
+	doc := decodeDocument(id, data, c.DimensionCount)
 	return doc, nil
 }
 
@@ -106,7 +106,7 @@ func (c *Collection) iterateDocuments(fn func(doc *Document)) {
 		if err != nil {
 			continue
 		}
-		doc := decodeDocument(data, c.DimensionCount)
+		doc := decodeDocument(id, data, c.DimensionCount)
 		fn(doc)
 	}
 }
@@ -443,7 +443,7 @@ func encodeDocument(doc *Document) []byte {
 	return data
 }
 
-func decodeDocument(data []byte, dimensions int) *Document {
+func decodeDocument(id uint64, data []byte, dimensions int) *Document {
 
 	// Use the passed dimensions to decode the vector
 	vector := make([]float64, dimensions)
