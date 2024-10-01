@@ -114,7 +114,11 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 }
 
 func (mf *memfile) writeUint64(offset uint64, value uint64) {
-	// use mf.File.WriteByte() to write the value to the file
-	// assume that it is already large enough.
+	// Convert the offset to an int for indexing
+	intOffset := int(offset)
+
+	// Write the 64-bit unsigned integer to the specified offset
+	binary.LittleEndian.PutUint64(mf.Data[intOffset:], value)
+}
 
 }
