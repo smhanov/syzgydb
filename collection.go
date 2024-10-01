@@ -417,11 +417,11 @@ func NewCollection(options CollectionOptions) *Collection {
 func encodeDocument(doc *Document) []byte {
 	// 8 bytes: document ID
 	// 4 bytes: length of vector
-	// 4 bytes: length of metadata
 	// n bytes: vector
+	// 4 bytes: length of metadata
 	// n bytes: metadata
 
-	docSize := 8 + 4 + 4 + len(doc.Vector)*8 + len(doc.Metadata)
+	docSize := 8 + 4 + len(doc.Vector)*8 + 4 + len(doc.Metadata)
 	data := make([]byte, docSize)
 
 	binary.BigEndian.PutUint64(data[0:], doc.ID)
