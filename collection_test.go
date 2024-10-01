@@ -226,6 +226,47 @@ func TestCollectionSearch(t *testing.T) {
 	})
 }
 
+func TestCollectionPersistence(t *testing.T) {
+	// Define collection options
+	options := CollectionOptions{
+		Name:           "persistent_test_collection",
+		DistanceMethod: Euclidean,
+		DimensionCount: 3,
+	}
+
+	// Create a new collection
+	collection := NewCollection(options)
+
+	// Add some records to the collection
+	numRecords := 5
+	for i := 0; i < numRecords; i++ {
+		vector := []float64{float64(i), float64(i + 1), float64(i + 2)}
+		metadata := []byte("metadata")
+		collection.AddDocument(uint64(i), vector, metadata)
+	}
+
+	// Close the collection (assuming there's a method to close it)
+	// collection.Close() // Uncomment if there's a close method
+
+	// Reopen the collection (assuming there's a method to open it)
+	// collection = OpenCollection(options) // Uncomment if there's an open method
+
+	// Verify that the records are still available
+	for i := 0; i < numRecords; i++ {
+		doc, err := collection.GetDocument(uint64(i))
+		if err != nil {
+			t.Errorf("Failed to retrieve document with ID %d: %v", i, err)
+		}
+		expectedVector := []float64{float64(i), float64(i + 1), float64(i + 2)}
+		if !equalVectors(doc.Vector, expectedVector) {
+			t.Errorf("Expected vector %v, got %v", expectedVector, doc.Vector)
+		}
+		if string(doc.Metadata) != "metadata" {
+			t.Errorf("Expected metadata 'metadata', got '%s'", doc.Metadata)
+		}
+	}
+}
+
 func TestVectorSearchWith4BitQuantization(t *testing.T) {
 	// Define collection options with 4-bit quantization
 	options := CollectionOptions{
