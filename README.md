@@ -86,6 +86,30 @@ args = SearchArgs{
 results = collection.Search(args)
 ```
 
+#### Using a Filter Function
+
+You can also apply a filter function during the search to include only documents that meet certain criteria. The filter function takes a document's ID and metadata as arguments and returns a boolean indicating whether the document should be included in the search results.
+
+```go
+searchVector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example search vector
+
+// Define a filter function to exclude documents with odd IDs
+filterFn := func(id uint64, metadata []byte) bool {
+    return id%2 == 0 // Include only documents with even IDs
+}
+
+// Search with a filter function
+args := SearchArgs{
+    Vector:   searchVector,
+    MaxCount: 5, // Return top 5 results
+    Filter:   filterFn,
+}
+
+results := collection.Search(args)
+```
+
+This allows you to customize the search process by excluding certain documents based on their IDs or metadata, providing more control over the search results.
+
 ### Updating and Removing Documents
 
 Update the metadata of an existing document or remove a document from the collection:
