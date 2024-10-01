@@ -137,7 +137,58 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 }
 
 func (c *Collection) searchRadius(args SearchArgs) SearchResults {
+	results := []SearchResult{}
+	pointsSearched := make(map[uint64]struct{})
 
+	// Calculate distances from the target to each pivot
+	distances := make([]float64, len(c.pivotsManager.pivots))
+	for i, pivot := range c.pivotsManager.pivots {
+		dist := c.pivotsManager.distanceFn(args.Vector, pivot.Vector)
+		pointsSearched[pivot.ID] = struct{}{}
+		if dist <= args.Radius {
+			results = append(results, SearchResult{ID: pivot.ID, Metadata: pivot.Metadata, Distance: dist})
+		}
+		distances[i] = dist
+	}
+
+	// Iterate over all points
+	for id := range c.memfile.idOffsets {
+		if c.pivotsManager.isPivot(id) {
+			continue
+		}
+
+		minDistance := 0.0
+		for j, pivot := range c.pivotsManager.pivots {
+			dist := math.Abs(distances[j] - c.pivotsManager.distances[id][j])
+			if dist > minDistance {
+				minDistance = dist
+			}
+		}
+
+		if minDistance <= args.Radius {
+			data, err := c.memfile.readRecord(id)
+			if err != nil {
+				continue
+			}
+
+			doc := decodeDocument(data)
+			actualDistance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
+			pointsSearched[id] = struct{}{}
+			if actualDistance <= args.Radius {
+				results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: actualDistance})
+			}
+		}
+	}
+
+	// Sort results by distance
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Distance < results[j].Distance
+	})
+
+	return SearchResults{
+		Results:         results,
+		PercentSearched: float64(len(pointsSearched)) / float64(len(c.memfile.idOffsets)) * 100,
+	}
 }
 
 func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
