@@ -32,7 +32,9 @@ func createMemFile(name string, headerSize int64) (*memfile, error) {
 	if err != nil {
 		return nil, err
 	}
-	ret := &memfile{File: f,
+	ret := &memfile{
+		File:       f,
+		idOffsets:  make(map[uint64]int64),
 		headerSize: headerSize,
 		name:       name,
 	}
