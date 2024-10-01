@@ -86,6 +86,6 @@ func main() {
 	fmt.Printf("Percent of space searched: %.2f%%\n", results.PercentSearched)
 	fmt.Printf("Top %d results:\n", len(results.Results))
 	for _, result := range results.Results {
-		fmt.Printf("ID: %d, Distance: %.4f\n", result.ID, result.Distance)
+		fmt.Printf("ID: %d, Distance: %.4f, Metadata: %s\n", result.ID, result.Distance, string(result.Metadata))
 	}
 }
