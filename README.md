@@ -1,6 +1,6 @@
-# AetherDB
+# Syzgy DB
 
-AetherDB is an embeddable vector database written in Go, designed to efficiently handle large datasets by keeping data on disk rather than in memory. This makes AetherDB ideal for systems with limited memory resources. It supports various distance metrics and quantization levels, allowing for flexible and efficient vector similarity searches.
+SyzgyDB is an embeddable vector database written in Go, designed to efficiently handle large datasets by keeping data on disk rather than in memory. This makes SyzgyDB ideal for systems with limited memory resources. It supports various distance metrics and quantization levels, allowing for flexible and efficient vector similarity searches.
 
 ## What is a Vector Database?
 
@@ -26,11 +26,11 @@ Vector databases are used in a variety of applications, including:
 
 ## Installation
 
-To use AetherDB in your Go project, you can clone the repository and build the project using the following commands:
+To use SyzgyDB in your Go project, you can clone the repository and build the project using the following commands:
 
 ```bash
-git clone https://github.com/smhanov/aetherdb.git
-cd aetherdb
+git clone https://github.com/smhanov/syzgydb.git
+cd syzgy
 go build
 ```
 

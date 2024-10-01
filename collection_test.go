@@ -1,7 +1,8 @@
-package syzygy
+package syzgydb
 
 import (
 	"math/rand"
+	"os"
 	"testing"
 )
 
@@ -111,10 +112,13 @@ func TestUpdateDocument(t *testing.T) {
 func TestRemoveDocument(t *testing.T) {
 	// Create a collection with some documents
 	options := CollectionOptions{
-		Name:           "test_collection",
+		Name:           "test_collection.dat",
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
 	}
+
+	os.Remove(options.Name)
+
 	collection := NewCollection(options)
 
 	// Add a document to the collection
@@ -145,10 +149,30 @@ func TestRemoveDocument(t *testing.T) {
 func TestCollectionSearch(t *testing.T) {
 	// Create a collection with some documents
 	options := CollectionOptions{
-		Name:           "test_collection",
+		Name:           "test_collection.dat",
 		DistanceMethod: Euclidean,
 		DimensionCount: 2,
 	}
+	os.Remove(options.Name)
+
+	// Search with Empty Collection
+	t.Run("Empty Collection", func(t *testing.T) {
+		emptyCollection := NewCollection(options)
+		defer emptyCollection.Close()
+		searchVector := []float64{50, 50}
+		args := SearchArgs{
+			Vector:   searchVector,
+			MaxCount: 5,
+		}
+		results := emptyCollection.Search(args)
+		if len(results.Results) != 0 {
+			t.Errorf("Expected no results, got %d", len(results.Results))
+		}
+
+	})
+
+	os.Remove(options.Name)
+
 	collection := NewCollection(options)
 
 	// Add documents to the collection
@@ -198,20 +222,6 @@ func TestCollectionSearch(t *testing.T) {
 		}
 	})
 
-	// Search with Empty Collection
-	t.Run("Empty Collection", func(t *testing.T) {
-		emptyCollection := NewCollection(options)
-		searchVector := []float64{50, 50}
-		args := SearchArgs{
-			Vector:   searchVector,
-			MaxCount: 5,
-		}
-		results := emptyCollection.Search(args)
-		if len(results.Results) != 0 {
-			t.Errorf("Expected no results, got %d", len(results.Results))
-		}
-	})
-
 	// Search with Filter Function
 	t.Run("Filter Function", func(t *testing.T) {
 		searchVector := []float64{50, 50}
@@ -240,11 +250,13 @@ func TestCollectionPersistence(t *testing.T) {
 		DimensionCount: 3,
 	}
 
+	os.Remove(collectionName)
+
 	// Create a new collection
 	collection := NewCollection(options)
 
 	// Add some records to the collection
-	numRecords := 100 // Ensure enough records to trigger pivot creation
+	numRecords := 200 // Ensure enough records to trigger pivot creation
 	for i := 0; i < numRecords; i++ {
 		vector := []float64{float64(i), float64(i + 1), float64(i + 2)}
 		metadata := []byte("metadata")
@@ -303,6 +315,7 @@ func TestVectorSearchWith4BitQuantization(t *testing.T) {
 		Quantization:   4, // 4-bit quantization
 	}
 
+	os.Remove(collectionName)
 	collection := NewCollection(options)
 
 	// Add documents to the collection

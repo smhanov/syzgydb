@@ -1,4 +1,4 @@
-package syzygy
+package syzgydb
 
 import "math"
 

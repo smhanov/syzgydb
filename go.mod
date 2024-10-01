@@ -1,4 +1,4 @@
-module github.com/smhanov/syzygy
+module github.com/smhanov/syzgydb
 
 go 1.23.1
 

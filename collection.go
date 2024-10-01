@@ -1,4 +1,4 @@
-package syzygy
+package syzgydb
 
 import (
 	"container/heap"
@@ -187,6 +187,8 @@ func NewCollection(options CollectionOptions) *Collection {
 		panic(err)
 	}
 
+	c.pivotsManager.ensurePivots(c, getDesiredPivots(len(c.memfile.idOffsets)))
+
 	return c
 }
 
@@ -201,7 +203,11 @@ func (c *Collection) Close() error {
 	defer c.mutex.Unlock()
 
 	if c.memfile != nil {
-		err := c.memfile.Close()
+		err := c.memfile.Sync()
+		if err != nil {
+			return err
+		}
+		err = c.memfile.Close()
 		if err != nil {
 			return err
 		}
@@ -227,11 +233,8 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 
 	numDocs := len(c.memfile.idOffsets)
 
-	// Calculate the desired number of pivots using a logarithmic function
-	desiredPivots := int(math.Log2(float64(numDocs+1) - 7))
-
 	// Manage pivots
-	c.pivotsManager.ensurePivots(c, desiredPivots)
+	c.pivotsManager.ensurePivots(c, getDesiredPivots(numDocs+1))
 
 	// Encode the document
 	encodedData := encodeDocument(doc, c.Quantization)
@@ -240,6 +243,11 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	c.memfile.addRecord(id, encodedData)
 
 	c.pivotsManager.pointAdded(doc)
+}
+
+// Calculate the desired number of pivots using a logarithmic function
+func getDesiredPivots(numDocs int) int {
+	return int(math.Log2(float64(numDocs)) - 6)
 }
 
 /*
@@ -440,6 +448,11 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	// Process the approximate heap
 	for approxHeap.Len() > 0 {
 		item := heap.Pop(approxHeap).(distanceIndex)
+
+		//log.Printf("Top of approx heap: %v", item.distance)
+		//	if resultsHeap.Len() > 0 {
+		//	log.Printf("Top of results heap: %v", (*resultsHeap)[0].Distance)
+		//}
 
 		if resultsHeap.Len() == args.MaxCount && item.distance >= (*resultsHeap)[0].Distance {
 			break

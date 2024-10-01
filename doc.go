@@ -1,5 +1,5 @@
 /*
-Package syzygy provides an embeddable vector database written in Go, designed to efficiently handle large datasets by keeping data on disk rather than in memory. This makes SyzygyDB ideal for systems with limited memory resources.
+Package syzgydb provides an embeddable vector database written in Go, designed to efficiently handle large datasets by keeping data on disk rather than in memory. This makes SyzygyDB ideal for systems with limited memory resources.
 
 # What is a Vector Database?
 
@@ -83,4 +83,4 @@ Contributions are welcome! Please feel free to submit a pull request or open an 
 
 This project is licensed under the MIT License. See the LICENSE file for details.
 */
-package syzygy
+package syzgydb

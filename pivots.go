@@ -1,8 +1,7 @@
-package syzygy
+package syzgydb
 
 import (
 	"errors"
-	"fmt"
 	"math"
 )
 
@@ -46,15 +45,14 @@ func (pm *PivotsManager) isPivot(id uint64) bool {
 // approxDistance calculates the approximate minimum distance of a point from a target document using the triangle inequality.
 func (pm *PivotsManager) approxDistance(vec []float64, id uint64) float64 {
 
-	// if there are no pivots, return max float64
+	// if there are no pivots, we don't know anything so it could be 0
 	if len(pm.pivots) == 0 {
-		return math.MaxFloat64
+		return 0
 	}
 
 	// Check if the point ID exists in the distances map
 	dists, exists := pm.distances[id]
 	if !exists {
-		fmt.Printf("Point ID not found: %d\n", id) // Debug print
 		panic(errors.New("point ID not found in distances map"))
 	}
 

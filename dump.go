@@ -1,4 +1,4 @@
-package syzygy
+package syzgydb
 
 import (
 	"encoding/binary"
@@ -29,7 +29,7 @@ func DumpIndex(filename string) {
 	fmt.Printf("  Header Length: %d\n", headerLength)
 	fmt.Printf("  Distance Method: %d\n", distanceMethod)
 	fmt.Printf("  Number of Dimensions: %d\n", dimensionCount)
-	fmt.Printf("  Quantization: %d-bit\n", quantization*8) // Add this line
+	fmt.Printf("  Quantization: %d-bit\n", quantization) // Add this line
 
 	// Iterate over all records
 	fmt.Println("Records:")

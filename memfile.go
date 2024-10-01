@@ -1,4 +1,4 @@
-package syzygy
+package syzgydb
 
 import (
 	"encoding/binary"
@@ -136,11 +136,12 @@ Parameters:
 */
 func (mf *memfile) ensureLength(length int) {
 	curSize := mf.File.Len()
+
+	length += 4096
+
 	if curSize >= length {
 		return
 	}
-
-	length += 4096
 
 	// Close the current memory-mapped file
 	if err := mf.File.Close(); err != nil {
@@ -157,6 +158,10 @@ func (mf *memfile) ensureLength(length int) {
 	// Increase the file size
 	if err := file.Truncate(int64(length)); err != nil {
 		log.Panic(err)
+	}
+
+	if curSize < int(mf.headerSize) {
+		curSize = int(mf.headerSize)
 	}
 
 	// Update freemap with the extended range
@@ -195,7 +200,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 	}
 
 	// Write the record to the file
-	offset := start + mf.headerSize
+	offset := start
 	mf.writeUint64(offset, uint64(recordLength))
 
 	// Write the ID
@@ -259,7 +264,6 @@ func (mf *memfile) readRecord(id uint64) ([]byte, error) {
 	// Read the record data
 	data := make([]byte, recordLength-16) // Subtract 16 bytes for length and ID
 	mf.ReadAt(data, offset+16)
-
 	return data, nil
 }
 
