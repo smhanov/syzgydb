@@ -75,9 +75,25 @@ Returns:
 - An error if the file cannot be created.
 */
 func createMemFile(name string, header []byte) (*memfile, error) {
-	f, err := mmap.OpenFile(name, mmap.Read|mmap.Write|mmap.Create)
+	// Attempt to open the file
+	f, err := mmap.OpenFile(name, mmap.Read|mmap.Write)
 	if err != nil {
-		return nil, err
+		// If the file doesn't exist, create it
+		if os.IsNotExist(err) {
+			file, createErr := os.Create(name)
+			if createErr != nil {
+				return nil, createErr
+			}
+			file.Close()
+
+			// Re-attempt to open the file after creation
+			f, err = mmap.OpenFile(name, mmap.Read|mmap.Write)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	ret := &memfile{
