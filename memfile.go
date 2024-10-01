@@ -233,7 +233,7 @@ Parameters:
 - value: The byte value to write.
 */
 func (mf *memfile) writeByte(offset int64, value byte) {
-	mf.WriteByte(offset, value)
+	mf.WriteAt([]byte{value}, offset)
 }
 
 /*
