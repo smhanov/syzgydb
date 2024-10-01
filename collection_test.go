@@ -246,10 +246,10 @@ func TestCollectionPersistence(t *testing.T) {
 	}
 
 	// Close the collection (assuming there's a method to close it)
-	// collection.Close() // Uncomment if there's a close method
+	collection.Close()
 
 	// Reopen the collection (assuming there's a method to open it)
-	// collection = OpenCollection(options) // Uncomment if there's an open method
+	collection = NewCollection(options)
 
 	// Verify that the records are still available
 	for i := 0; i < numRecords; i++ {
@@ -279,11 +279,12 @@ func TestCollectionPersistence(t *testing.T) {
 		t.Errorf("Expected search results, but got none")
 	}
 
+	t.Logf("Percent searched: %v", results.PercentSearched)
+
 	// Ensure that PercentSearched is less than 100
 	if results.PercentSearched >= 100 {
 		t.Errorf("Expected PercentSearched to be less than 100, got %f", results.PercentSearched)
 	}
-}
 }
 
 func TestVectorSearchWith4BitQuantization(t *testing.T) {
