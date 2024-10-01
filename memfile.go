@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"log"
 	"os"
 
@@ -110,4 +111,10 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 
 	// Update the idOffsets map
 	mf.idOffsets[id] = int64(offset)
+}
+
+func (mf *memfile) writeUint64(offset uint64, value uint64) {
+	// use mf.File.WriteByte() to write the value to the file
+	// assume that it is already large enough.
+
 }
