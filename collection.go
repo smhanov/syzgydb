@@ -18,6 +18,18 @@ type Collection struct {
 	pivotsManager PivotsManager
 }
 
+// Helper function to compare two vectors for equality
+func equalVectors(vec1, vec2 []float64) bool {
+	if len(vec1) != len(vec2) {
+		return false
+	}
+	for i := range vec1 {
+		if vec1[i] != vec2[i] {
+			return false
+		}
+	}
+	return true
+
 // Helper function to get all vectors from the collection
 func (c *Collection) getAllVectors() [][]float64 {
 	var vectors [][]float64
@@ -152,6 +164,32 @@ func (c *Collection) addDocument(id uint64, vector []float64, metadata []byte) {
 }
 
 func (c *Collection) removeDocument(id uint64) error {
+	// Remove the document from the memfile
+	// Read the existing record to get its vector
+	data, err := c.memfile.readRecord(id)
+	if err != nil {
+		return err
+	}
+
+	// Decode the existing document
+	doc := decodeDocument(data)
+
+	// Check if the document's vector is a pivot
+	for i, pivot := range c.pivotsManager.Pivots {
+		if equalVectors(doc.Vector, pivot.Vector) {
+			// Remove the pivot
+			c.pivotsManager.Pivots = append(c.pivotsManager.Pivots[:i], c.pivotsManager.Pivots[i+1:]...)
+			break
+		}
+	}
+
+	// Optionally, add a new pivot if needed
+	desiredPivots := int(math.Log2(float64(len(c.memfile.idOffsets))))
+	if len(c.pivotsManager.Pivots) < desiredPivots {
+		newPivot := c.pivotsManager.SelectPivotWithMinVariance(c.getAllVectors())
+		c.pivotsManager.AddPivot(newPivot)
+	}
+
 	// Remove the document from the memfile
 	return c.memfile.deleteRecord(id)
 }
