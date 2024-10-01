@@ -4,8 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"os"
 	"time"
 )
+
+const collectionName = "gaussian_collection"
 
 func main() {
 	// Define command-line flags
@@ -14,11 +17,20 @@ func main() {
 
 	// Parse the flags
 	flag.Parse()
+	// Delete the existing file if it exists
+	if _, err := os.Stat(collectionName); err == nil {
+		err = os.Remove(collectionName)
+		if err != nil {
+			fmt.Printf("Error deleting file: %v\n", err)
+			return
+		}
+	}
+
 	rand.Seed(time.Now().UnixNano())
 
 	// Define collection options
 	options := CollectionOptions{
-		Name:           "gaussian_collection",
+		Name:           collectionName,
 		DistanceMethod: Euclidean,
 		DimensionCount: *dims,
 	}
