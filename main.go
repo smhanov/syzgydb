@@ -14,15 +14,18 @@ func main() {
 	// Define command-line flags
 	points := flag.Int("points", 1000, "Number of points to generate")
 	dims := flag.Int("dims", 2, "Number of dimensions for each point")
+	resume := flag.Bool("resume", false, "Resume from existing collection")
 
 	// Parse the flags
 	flag.Parse()
-	// Delete the existing file if it exists
-	if _, err := os.Stat(collectionName); err == nil {
-		err = os.Remove(collectionName)
-		if err != nil {
-			fmt.Printf("Error deleting file: %v\n", err)
-			return
+	if !*resume {
+		// Delete the existing file if it exists
+		if _, err := os.Stat(collectionName); err == nil {
+			err = os.Remove(collectionName)
+			if err != nil {
+				fmt.Printf("Error deleting file: %v\n", err)
+				return
+			}
 		}
 	}
 
@@ -38,37 +41,51 @@ func main() {
 	// Create a new collection
 	collection := NewCollection(options)
 
-	// Number of clusters and vectors
-	numClusters := 50
-	numVectors := *points
+	if !*resume {
+		// Number of clusters and vectors
+		numClusters := 50
+		numVectors := *points
 
-	// Generate random cluster centers
-	clusterCenters := make([][]float64, numClusters)
-	for i := 0; i < numClusters; i++ {
-		center := make([]float64, *dims)
-		for d := 0; d < *dims; d++ {
-			center[d] = rand.Float64() * 100
-		}
-		clusterCenters[i] = center
-	}
-
-	// Add vectors to the collection
-	for i := 0; i < numVectors; i++ {
-		// Select a random cluster center
-		center := clusterCenters[rand.Intn(numClusters)]
-
-		// Generate a vector around the cluster center with Gaussian noise
-		vector := make([]float64, *dims)
-		for d := 0; d < *dims; d++ {
-			vector[d] = center[d] + rand.NormFloat64()
+		// Generate random cluster centers
+		clusterCenters := make([][]float64, numClusters)
+		for i := 0; i < numClusters; i++ {
+			center := make([]float64, *dims)
+			for d := 0; d < *dims; d++ {
+				center[d] = rand.Float64() * 100
+			}
+			clusterCenters[i] = center
 		}
 
-		// Add the vector to the collection
-		collection.AddDocument(uint64(i), vector, []byte(fmt.Sprintf("metadata_%d", i)))
+		// Add vectors to the collection
+		for i := 0; i < numVectors; i++ {
+			// Select a random cluster center
+			center := clusterCenters[rand.Intn(numClusters)]
+
+			// Generate a vector around the cluster center with Gaussian noise
+			vector := make([]float64, *dims)
+			for d := 0; d < *dims; d++ {
+				vector[d] = center[d] + rand.NormFloat64()
+			}
+
+			// Add the vector to the collection
+			collection.AddDocument(uint64(i), vector, []byte(fmt.Sprintf("metadata_%d", i)))
+		}
 	}
 
-	// Define a search vector (e.g., the first cluster center)
-	searchVector := clusterCenters[0]
+	// Define a search vector
+	var searchVector []float64
+	if *resume {
+		// Use an existing document as the search vector
+		doc, err := collection.GetDocument(0) // Assuming ID 0 exists; adjust as needed
+		if err != nil {
+			fmt.Printf("Error retrieving document: %v\n", err)
+			return
+		}
+		searchVector = doc.Vector
+	} else {
+		// Use the first cluster center as the search vector
+		searchVector = clusterCenters[0]
+	}
 
 	// Define search arguments
 	args := SearchArgs{
