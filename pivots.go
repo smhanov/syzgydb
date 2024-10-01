@@ -46,13 +46,29 @@ func CalculateDistance(vec1, vec2 []float64) float64 {
 	return math.Sqrt(sum)
 }
 
-// SelectInitialPivot selects an initial random pivot
-func (pm *PivotsManager) SelectInitialPivot(vectors map[uint64][]float64) uint64 {
-	ids := make([]uint64, 0, len(vectors))
-	for id := range vectors {
-		ids = append(ids, id)
-	}
-	return ids[rand.Intn(len(ids))]
+func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
+    // Get a random document ID
+    randomID, err := c.getRandomID()
+    if err != nil {
+        return err
+    }
+
+    // Get the document associated with the random ID
+    doc, err := c.getDocument(randomID)
+    if err != nil {
+        return err
+    }
+
+    // Set the pivotIDs to the random document ID
+    pm.pivotIDs = []uint64{randomID}
+
+    // Use iterateDocuments to fill in distance information in the pivots map
+    c.iterateDocuments(func(d *Document) {
+        distance := CalculateDistance(d.Vector, doc.Vector)
+        pm.pivots[d.ID] = []float64{distance}
+    })
+
+    return nil
 }
 
 // SelectFarthestPoint selects the point farthest from the given vector
