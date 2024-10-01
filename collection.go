@@ -107,7 +107,7 @@ func (c *Collection) iterateDocuments(fn func(doc *Document)) {
 		if err != nil {
 			continue
 		}
-		doc := decodeDocument(data)
+		doc := decodeDocument(data, c.DimensionCount)
 		fn(doc)
 	}
 }
@@ -171,7 +171,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 				continue
 			}
 
-			doc := decodeDocument(data)
+			doc := decodeDocument(data, c.DimensionCount)
 			actualDistance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
 			pointsSearched++
 			if actualDistance <= args.Radius {
@@ -237,7 +237,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 
 		pointsSearched++
 
-		doc := decodeDocument(data)
+		doc := decodeDocument(data, c.DimensionCount)
 		distance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
 
 		if resultsHeap.Len() < args.MaxCount {
@@ -332,7 +332,7 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	}
 
 	// Decode the existing document
-	doc := decodeDocument(data)
+	doc := decodeDocument(data, c.DimensionCount)
 
 	// Update the metadata
 	doc.Metadata = newMetadata
