@@ -80,3 +80,32 @@ func EncodeDocument(doc *Document) []byte {
 
 	return data
 }
+
+func DecodeDocument(data []byte) *Document {
+	// Decode the document ID
+	id := binary.LittleEndian.Uint64(data[0:])
+
+	// Decode the length of the vector
+	vectorLength := binary.LittleEndian.Uint32(data[8:])
+
+	// Decode the length of the metadata
+	metadataLength := binary.LittleEndian.Uint32(data[12:])
+
+	// Decode the vector
+	vector := make([]float64, vectorLength)
+	vectorOffset := 16
+	for i := range vector {
+		vector[i] = math.Float64frombits(binary.LittleEndian.Uint64(data[vectorOffset+i*8:]))
+	}
+
+	// Decode the metadata
+	metadataOffset := vectorOffset + int(vectorLength)*8
+	metadata := make([]byte, metadataLength)
+	copy(metadata, data[metadataOffset:])
+
+	return &Document{
+		ID:       id,
+		Vector:   vector,
+		Metadata: metadata,
+	}
+}
