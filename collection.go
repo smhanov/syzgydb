@@ -25,6 +25,10 @@ func (c *Collection) GetDocument(id uint64) (*Document, error) {
 	c.memfile.Lock()
 	defer c.memfile.Unlock()
 
+	return c.getDocument(id)
+}
+
+func (c *Collection) getDocument(id uint64) (*Document, error) {
 	// Read the record from the memfile
 	data, err := c.memfile.readRecord(id)
 	if err != nil {
