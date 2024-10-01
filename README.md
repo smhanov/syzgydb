@@ -29,7 +29,7 @@ Vector databases are used in a variety of applications, including:
 To use AetherDB in your Go project, you can clone the repository and build the project using the following commands:
 
 ```bash
-git clone https://github.com/yourusername/aetherdb.git
+git clone https://github.com/smhanov/aetherdb.git
 cd aetherdb
 go build
 ```
@@ -42,7 +42,7 @@ To create a new collection, define the collection options and initialize the col
 
 ```go
 options := CollectionOptions{
-    Name:           "example_collection",
+    Name:           "example.dat",
     DistanceMethod: Euclidean, // or Cosine
     DimensionCount: 128,       // Number of dimensions for each vector
     Quantization:   64,        // Quantization level (4, 8, 16, 32, 64)
