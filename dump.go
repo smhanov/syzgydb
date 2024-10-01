@@ -75,15 +75,16 @@ func DumpIndex(filename string) {
 		fmt.Printf("    Vector: %v\n", vector)
 
 		// Read the metadata length
+		metadataLengthOffset := vectorOffset + int64(dimensionCount*8)
 		metadataLengthBuf := make([]byte, 4)
-		if _, err := file.ReadAt(metadataLengthBuf, vectorOffset+int64(dimensionCount*8)); err != nil {
+		if _, err := file.ReadAt(metadataLengthBuf, metadataLengthOffset); err != nil {
 			break
 		}
 		metadataLength := binary.BigEndian.Uint32(metadataLengthBuf)
 		fmt.Printf("    Metadata length: %v\n", metadataLength)
 
 		// Read the metadata
-		metadataOffset := vectorOffset + int64(dimensionCount*8) + 4
+		metadataOffset := metadataLengthOffset + 4
 		metadata := make([]byte, metadataLength)
 		if _, err := file.ReadAt(metadata, metadataOffset); err != nil {
 			break

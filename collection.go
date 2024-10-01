@@ -463,7 +463,7 @@ func decodeDocument(data []byte, dimensions int) *Document {
 	}
 
 	// Decode the metadata length after the vector
-	metadataLengthOffset := 8 + dimensions*8
+	metadataLengthOffset := vectorOffset + dimensions*8
 	metadataLength := binary.BigEndian.Uint32(data[metadataLengthOffset:])
 
 	// Decode the metadata
