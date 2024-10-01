@@ -191,6 +191,27 @@ func NewCollection(options CollectionOptions) *Collection {
 }
 
 /*
+Close closes the memfile associated with the collection.
+
+Returns:
+- An error if the memfile cannot be closed.
+*/
+func (c *Collection) Close() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.memfile != nil {
+		err := c.memfile.Close()
+		if err != nil {
+			return err
+		}
+		c.memfile = nil
+	}
+
+	return nil
+}
+
+/*
 AddDocument adds a new document to the collection with the specified ID, vector, and metadata.
 It manages pivots and encodes the document for storage.
 */
