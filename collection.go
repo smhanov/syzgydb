@@ -1,13 +1,11 @@
 package main
 
 import (
+	"container/heap"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"math"
-	"container/heap"
 	"math/rand"
-	"sort"
 	"sync"
 )
 
@@ -51,6 +49,7 @@ func (h *ResultHeap) Pop() interface{} {
 	*h = old[0 : n-1]
 	return x
 }
+
 const (
 	Euclidean = iota
 	Cosine
@@ -128,7 +127,20 @@ func equalVectors(vec1, vec2 []float64) bool {
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	if args.MaxCount > 0 {
+		return c.searchNearestNeighbours(args)
+	} else if args.Radius > 0 {
+		return c.searchRadius(args)
+	}
 
+	return SearchResults{}
+}
+
+func (c *Collection) searchRadius(args SearchArgs) SearchResults {
+
+}
+
+func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	if args.MaxCount <= 0 {
 		return SearchResults{}
 	}
@@ -152,14 +164,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 			continue
 		}
 
-		minDistance := 0.0
-		for i, pivot := range c.pivotsManager.pivots {
-			dist := math.Abs(distances[i] - c.pivotsManager.distances[id][i])
-			if dist > minDistance {
-				minDistance = dist
-			}
-		}
-
+		minDistance := c.pivotsManager.approxDistance(args.Vector, id)
 		heap.Push(approxHeap, DistanceIndex{distance: minDistance, index: id})
 	}
 
