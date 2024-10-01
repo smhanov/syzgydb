@@ -23,7 +23,7 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 		DimensionCount: 3,
 	}
 	collection := NewCollection(options)
-
+	t.Logf("Adding 1000 documents")
 	// Add 1000 documents to the collection
 	for i := 0; i < 1000; i++ {
 		vector := []float64{float64(i), float64(i + 1), float64(i + 2)}
@@ -32,6 +32,7 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 	}
 
 	// Remove every 10th document
+	t.Logf(("Removing every 10th document"))
 	for i := 0; i < 1000; i += 10 {
 		err := collection.removeDocument(uint64(i))
 		if err != nil {
@@ -39,6 +40,7 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 		}
 	}
 
+	t.Logf("Verifying that removed documents are not accessible")
 	// Verify that removed documents are not accessible
 	for i := 0; i < 1000; i++ {
 		_, err := collection.memfile.readRecord(uint64(i))
@@ -92,7 +94,7 @@ func TestUpdateDocument(t *testing.T) {
 	}
 
 	// Decode the document
-	doc := decodeDocument(data)
+	doc := decodeDocument(data, 1, 3)
 
 	// Check if the metadata was updated
 	if string(doc.Metadata) != "updated" {
