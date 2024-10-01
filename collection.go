@@ -43,8 +43,6 @@ func (c *Collection) getDocument(id uint64) (*Document, error) {
 }
 
 func (c *Collection) getRandomID() (uint64, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 
 	if len(c.memfile.idOffsets) == 0 {
 		return 0, errors.New("no documents in the collection")
