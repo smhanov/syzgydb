@@ -171,11 +171,13 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 			}
 
 			doc := decodeDocument(data, id, c.DimensionCount)
-			actualDistance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
+
 			// Apply filter function if provided
 			if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
 				continue
 			}
+			actualDistance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
+
 			if actualDistance <= args.Radius {
 				results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: actualDistance})
 			}
@@ -240,13 +242,13 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		pointsSearched++
 
 		doc := decodeDocument(data, item.index, c.DimensionCount)
-		distance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
 
 		// Apply filter function if provided
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
 			continue
 		}
 
+		distance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
 		if resultsHeap.Len() < args.MaxCount {
 			heap.Push(resultsHeap, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
 		} else if distance < (*resultsHeap)[0].Distance {

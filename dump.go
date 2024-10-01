@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"os"
@@ -18,44 +19,37 @@ func DumpIndex(filename string) {
 	defer file.Close()
 
 	// Read and display the header
-	header := make([]byte, headerSize)
-	if _, err := file.ReadAt(header, 0); err != nil {
-		log.Fatalf("Failed to read header: %v", err)
-	}
+	version, _ := readUint(file, 4)
+	headerLength, _ := readUint(file, 4)
+	distanceMethod, _ := readUint(file, 1)
+	dimensionCount, _ := readUint(file, 4)
 
-   version := binary.BigEndian.Uint32(header[0:])
-   headerLength := binary.BigEndian.Uint32(header[4:])
-   distanceMethod := header[8]
-   dimensionCount := binary.BigEndian.Uint32(header[9:])
-
-   fmt.Printf("Header:\n")
-   fmt.Printf("  Version: %d\n", version)
-   fmt.Printf("  Header Length: %d\n", headerLength)
-   fmt.Printf("  Distance Method: %d\n", distanceMethod)
-   fmt.Printf("  Number of Dimensions: %d\n", dimensionCount)
+	fmt.Printf("Header:\n")
+	fmt.Printf("  Version: %d\n", version)
+	fmt.Printf("  Header Length: %d\n", headerLength)
+	fmt.Printf("  Distance Method: %d\n", distanceMethod)
+	fmt.Printf("  Number of Dimensions: %d\n", dimensionCount)
 
 	// Iterate over all records
 	fmt.Println("Records:")
-	offset := int64(headerSize)
 	for {
-		// Read the total length of the record
-		recordLengthBuf := make([]byte, 8)
-		if _, err := file.ReadAt(recordLengthBuf, offset); err != nil {
-			break // End of file
-		}
-		recordLength := binary.BigEndian.Uint64(recordLengthBuf)
-		fmt.Printf("    Total Length: %d\n", recordLength)
-
-		// Read the ID
-		recordIDBuf := make([]byte, 8)
-		if _, err := file.ReadAt(recordIDBuf, offset+8); err != nil {
+		recordLength, err := readUint(file, 8)
+		if err != nil {
 			break
 		}
-		recordID := binary.BigEndian.Uint64(recordIDBuf)
+
+		fmt.Printf("    Total Length: %d\n", recordLength)
+		if recordLength == 0 {
+			fmt.Println("     (Indicates end of usable records)")
+			break
+		}
+
+		// Read the ID
+		recordID, _ := readUint(file, 8)
 
 		if recordID == 0xffffffffffffffff {
-			fmt.Printf("  Record at offset %d is deleted\n", offset)
-			offset += int64(recordLength)
+			fmt.Printf("  Record is deleted\n")
+			file.Seek(int64(recordLength)-16, io.SeekCurrent)
 			continue
 		}
 
@@ -63,35 +57,43 @@ func DumpIndex(filename string) {
 
 		// Read the vector
 		vector := make([]float64, dimensionCount)
-		vectorOffset := offset + 16
 		for i := range vector {
-			vectorBuf := make([]byte, 8)
-			if _, err := file.ReadAt(vectorBuf, vectorOffset+int64(i*8)); err != nil {
-				break
-			}
-			vector[i] = math.Float64frombits(binary.BigEndian.Uint64(vectorBuf))
+			val, _ := readUint(file, 8)
+			vector[i] = math.Float64frombits(val)
 		}
 
 		fmt.Printf("    Vector: %v\n", vector)
 
 		// Read the metadata length
-		metadataLengthOffset := vectorOffset + int64(dimensionCount*8)
-		metadataLengthBuf := make([]byte, 4)
-		if _, err := file.ReadAt(metadataLengthBuf, metadataLengthOffset); err != nil {
-			break
-		}
-		metadataLength := binary.BigEndian.Uint32(metadataLengthBuf)
+		metadataLength, _ := readUint(file, 4)
 		fmt.Printf("    Metadata length: %v\n", metadataLength)
 
 		// Read the metadata
-		metadataOffset := metadataLengthOffset + 4
 		metadata := make([]byte, metadataLength)
-		if _, err := file.ReadAt(metadata, metadataOffset); err != nil {
+		if _, err := file.Read(metadata); err != nil {
 			break
 		}
 		fmt.Printf("    Metadata: %s\n", string(metadata))
-
-		// Move to the next record
-		offset += int64(recordLength)
 	}
+}
+
+func readUint(f io.Reader, size int) (uint64, error) {
+	buf := make([]byte, size)
+	if _, err := f.Read(buf); err != nil {
+		return 0, err
+	}
+
+	switch size {
+	case 1:
+		return uint64(buf[0]), nil
+	case 2:
+		return uint64(binary.BigEndian.Uint16(buf)), nil
+	case 4:
+		return uint64(binary.BigEndian.Uint32(buf)), nil
+	case 8:
+		return uint64(binary.BigEndian.Uint64(buf)), nil
+	default:
+		log.Fatalf("Invalid number of bytes: %d", size)
+	}
+	return 0, nil
 }

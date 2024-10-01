@@ -35,7 +35,7 @@ func (pm *PivotsManager) isPivot(id uint64) bool {
 type distanceFn func(vec1, vec2 []float64) float64
 
 // approxDistance calculates the approximate minimum distance of a point from a target document using the triangle inequality.
-func (pm *PivotsManager) approxDistance(target *Document, id uint64) float64 {
+func (pm *PivotsManager) approxDistance(vec []float64, id uint64) float64 {
 
 	// if there are no pivots, return max float64
 	if len(pm.pivots) == 0 {
@@ -52,7 +52,7 @@ func (pm *PivotsManager) approxDistance(target *Document, id uint64) float64 {
 	// Calculate the distance of each pivot from the target
 	targetPivotDistances := make([]float64, len(pm.pivots))
 	for i, pivot := range pm.pivots {
-		targetPivotDistances[i] = pm.distanceFn(target.Vector, pivot.Vector)
+		targetPivotDistances[i] = pm.distanceFn(vec, pivot.Vector)
 	}
 
 	// Use the triangle inequality to compute the minimum possible distance
@@ -199,7 +199,8 @@ func (pm *PivotsManager) SelectPivotWithMinVariance(c *Collection) error {
 
 			// Update the distances map for all documents
 			c.iterateDocuments(func(d *Document) {
-				pm.pointAdded(d)
+				distance := pm.distanceFn(farthestDoc.Vector, d.Vector)
+				pm.distances[d.ID] = append(pm.distances[d.ID], distance)
 			})
 		}
 
