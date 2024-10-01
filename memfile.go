@@ -1,6 +1,10 @@
 package main
 
-import "github.com/go-mmap/mmap"
+import (
+	"os"
+
+	"github.com/go-mmap/mmap"
+)
 
 type memfile struct {
 	*mmap.File
@@ -31,6 +35,10 @@ func createMemFile(name string, headerSize int) (*memfile, error) {
 // check if the file is at least the given length, and if not, extend it
 // and remap the file
 func (mf *memfile) ensureLength(length int) error {
+	if mf.File.Len() >= length {
+		return nil
+	}
+
 	// Close the current memory-mapped file
 	if err := mf.File.Close(); err != nil {
 		return err
