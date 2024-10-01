@@ -1,20 +1,26 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math/rand"
 	"time"
 )
 
 func main() {
-	// Set random seed for reproducibility
+	// Define command-line flags
+	points := flag.Int("points", 1000, "Number of points to generate")
+	dims := flag.Int("dims", 2, "Number of dimensions for each point")
+
+	// Parse the flags
+	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 
 	// Define collection options
 	options := CollectionOptions{
 		Name:           "gaussian_collection",
 		DistanceMethod: Euclidean,
-		DimensionCount: 3,
+		DimensionCount: *dims,
 	}
 
 	// Create a new collection
@@ -22,16 +28,16 @@ func main() {
 
 	// Number of clusters and vectors
 	numClusters := 50
-	numVectors := 100000
+	numVectors := *points
 
 	// Generate random cluster centers
 	clusterCenters := make([][]float64, numClusters)
 	for i := 0; i < numClusters; i++ {
-		clusterCenters[i] = []float64{
-			rand.Float64() * 100,
-			rand.Float64() * 100,
-			rand.Float64() * 100,
+		center := make([]float64, *dims)
+		for d := 0; d < *dims; d++ {
+			center[d] = rand.Float64() * 100
 		}
+		clusterCenters[i] = center
 	}
 
 	// Add vectors to the collection
@@ -40,10 +46,9 @@ func main() {
 		center := clusterCenters[rand.Intn(numClusters)]
 
 		// Generate a vector around the cluster center with Gaussian noise
-		vector := []float64{
-			center[0] + rand.NormFloat64(),
-			center[1] + rand.NormFloat64(),
-			center[2] + rand.NormFloat64(),
+		vector := make([]float64, *dims)
+		for d := 0; d < *dims; d++ {
+			vector[d] = center[d] + rand.NormFloat64()
 		}
 
 		// Add the vector to the collection
