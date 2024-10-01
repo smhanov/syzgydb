@@ -82,7 +82,7 @@ func TestRemoveDocument(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected error when reading removed document, but got none")
 	}
-}
+
 	vec1 := []float64{1.0, 0.0, 0.0}
 	vec2 := []float64{0.0, 1.0, 0.0}
 	expected := 1.0 // Orthogonal vectors have cosine distance of 1
@@ -108,7 +108,7 @@ func TestSearch(t *testing.T) {
 
 	// Define search arguments
 	args := SearchArgs{
-		Vector:  []float64{1.0, 2.0, 3.0},
+		Vector:   []float64{1.0, 2.0, 3.0},
 		MaxCount: 1,
 	}
 
