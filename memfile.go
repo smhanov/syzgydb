@@ -103,7 +103,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 	// If the record already existed, mark the old space as free
 	if oldOffset, exists := mf.idOffsets[id]; exists {
 		mf.writeUint64(oldOffset, 0xffffffffffffffff)
-		oldLength := binary.LittleEndian.Uint64(mf.Data[oldOffset:])
+		oldLength := mf.readUint64((oldOffset))
 		mf.freemap.markFree(int(oldOffset), int(oldLength))
 	}
 
