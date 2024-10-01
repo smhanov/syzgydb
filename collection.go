@@ -14,7 +14,33 @@ const (
 
 type Collection struct {
 	CollectionOptions
-	memfile *memfile
+	memfile      *memfile
+	pivotsManager PivotsManager
+	// Manage pivots
+	if len(c.memfile.idOffsets) >= 100 {
+		if len(c.pivotsManager.Pivots) == 0 {
+			// Select initial pivot
+			initialPivot := c.pivotsManager.SelectInitialPivot(c.getAllVectors())
+			c.pivotsManager.AddPivot(initialPivot)
+		} else {
+			// Select new pivot based on variance
+			newPivot := c.pivotsManager.SelectPivotWithMinVariance(c.getAllVectors())
+			c.pivotsManager.AddPivot(newPivot)
+		}
+	}
+
+// Helper function to get all vectors from the collection
+func (c *Collection) getAllVectors() [][]float64 {
+	var vectors [][]float64
+	for id := range c.memfile.idOffsets {
+		data, err := c.memfile.readRecord(id)
+		if err != nil {
+			continue
+		}
+		doc := decodeDocument(data)
+		vectors = append(vectors, doc.Vector)
+	}
+	return vectors
 }
 
 func (c *Collection) Search(args SearchArgs) SearchResults {
