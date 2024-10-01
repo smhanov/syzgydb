@@ -27,6 +27,26 @@ type memfile struct {
 	name string
 }
 
+func (mf *memfile) deleteRecord(id uint64) error {
+	// Check if the record ID exists
+	offset, exists := mf.idOffsets[id]
+	if !exists {
+		return errors.New("record not found")
+	}
+
+	// Mark the record as deleted
+	mf.writeUint64(offset+8, 0xffffffffffffffff)
+
+	// Mark the space as free
+	recordLength := mf.readUint64(offset)
+	mf.freemap.markFree(int(offset), int(recordLength))
+
+	// Remove the record ID from the idOffsets map
+	delete(mf.idOffsets, id)
+
+	return nil
+}
+
 func createMemFile(name string, headerSize int64) (*memfile, error) {
 	f, err := mmap.OpenFile(name, mmap.Read|mmap.Write)
 	if err != nil {
