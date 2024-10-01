@@ -6,8 +6,8 @@ import (
 
 // PivotsManager manages the list of pivots and their distances
 type PivotsManager struct {
-	// Pivot document
-	pivot Document
+	// Pivot documents, in the order they were selected
+	pivots []*Document
 
 	// Map from a point ID to the distances to each pivot.
 	// The key is the point ID and the value is a slice of distances to each pivot.
@@ -17,7 +17,6 @@ type PivotsManager struct {
 
 func NewPivotsManager() *PivotsManager {
 	return &PivotsManager{
-		pivotIDs:  []uint64{},
 		distances: make(map[uint64][]float64),
 	}
 }
@@ -46,7 +45,7 @@ func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
 	}
 
 	// Set the pivot to the random document
-	pm.pivot = *doc
+	pm.pivots = []*Document{doc}
 
 	// Use iterateDocuments to fill in distance information in the distances map
 	c.iterateDocuments(func(d *Document) {
@@ -58,44 +57,21 @@ func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
 }
 
 // SelectPivotWithMinVariance selects a pivot with minimum variance of distances to other pivots
-func (pm *PivotsManager) SelectPivotWithMinVariance(vectors map[uint64][]float64) uint64 {
-	var bestPivotID uint64
-	minVariance := math.MaxFloat64
-
-	for _, vec := range vectors {
-		var distances []float64
-		for _, pivotID := range pm.pivotIDs {
-			distances = append(distances, CalculateDistance(vec, pm.distances[pivotID]))
-		}
-
-		variance := calculateVariance(distances)
-		if variance < minVariance {
-			minVariance = variance
-			bestPivotID = id
-		}
-	}
-
-	return bestPivotID
+func (pm *PivotsManager) SelectPivotWithMinVariance(c *collection) {
 }
 
 // ensurePivots ensures that the number of pivots is at least the desired number
-func (pm *PivotsManager) ensurePivots(c *Collection, desiredPivots int) error {
-	if len(pm.pivotIDs) >= desiredPivots {
+func (pm *PivotsManager) ensurePivots(c *Collection, desiredPivots int) {
+	if len(pm.pivots) >= desiredPivots {
 		return nil
 	}
 
-	if len(pm.pivotIDs) == 0 {
-		return pm.SelectInitialPivot(c)
+	if len(pm.pivots) == 0 {
+		pm.SelectInitialPivot(c)
+		return
 	}
 
-	// Select new pivot based on variance
-	newPivotID := pm.SelectPivotWithMinVariance(c)
-	newPivot, err := c.getDocument(newPivotID)
-	if err != nil {
-		return err
-	}
-
-	return pm.ensurePivots(c, desiredPivots)
+	pm.SelectPivotWithMinVariance(c)
 }
 
 // calculateVariance calculates the variance of a slice of float64
