@@ -31,5 +31,36 @@ func createMemFile(name string, headerSize int) (*memfile, error) {
 // check if the file is at least the given length, and if not, extend it
 // and remap the file
 func (mf *memfile) ensureLength(length int) error {
+	// Close the current memory-mapped file
+	if err := mf.File.Close(); err != nil {
+		return err
+	}
+
+	// Open the file on disk
+	file, err := os.OpenFile(mf.name, os.O_RDWR, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Check the current file size
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	// Increase the file size if necessary
+	if fileInfo.Size() < int64(length) {
+		if err := file.Truncate(int64(length)); err != nil {
+			return err
+		}
+	}
+
+	// Re-obtain the memory-mapped file
+	mf.File, err = mmap.OpenFile(mf.name, mmap.Read|mmap.Write)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
