@@ -6,6 +6,9 @@ import (
 	"math"
 )
 
+// Brute force is used for small collections
+const pivotThreshold = 100
+
 // PivotsManager manages the list of pivots and their distances
 type PivotsManager struct {
 	// Pivot documents, in the order they were selected
@@ -23,6 +26,12 @@ type distanceFn func(vec1, vec2 []float64) float64
 
 // approxDistance calculates the approximate minimum distance of a point from a target document using the triangle inequality.
 func (pm *PivotsManager) approxDistance(target *Document, id uint64) float64 {
+
+	// if there are no pivots, return max float64
+	if len(pm.pivots) == 0 {
+		return math.MaxFloat64
+	}
+
 	// Check if the point ID exists in the distances map
 	dists, exists := pm.distances[id]
 	if !exists {
@@ -50,7 +59,6 @@ func (pm *PivotsManager) approxDistance(target *Document, id uint64) float64 {
 
 // pointRemoved removes a point from the distances map and updates pivots if necessary.
 func (pm *PivotsManager) pointRemoved(docID uint64) {
-	fmt.Printf("Before removal: Pivots: %v, Distances: %v\n", pm.pivots, pm.distances)
 	delete(pm.distances, docID)
 
 	// Check if the point is a pivot
@@ -141,20 +149,21 @@ func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
 	maxDistance = -1.0
 	c.iterateDocuments(func(d *Document) {
 		distance := pm.distanceFn(firstPivot.Vector, d.Vector)
+		pm.distances[d.ID] = []float64{distance}
 		if distance > maxDistance {
 			maxDistance = distance
 			secondPivot = d
 		}
 	})
 
-	// Set the pivots
-	pm.pivots = []*Document{firstPivot, secondPivot}
-
-	// Update the distances map for all documents
+	// find the distances to the second pivot
 	c.iterateDocuments(func(d *Document) {
-		pm.pointAdded(d)
+		distance := pm.distanceFn(secondPivot.Vector, d.Vector)
+		pm.distances[d.ID] = append(pm.distances[d.ID], distance)
 	})
 
+	// Set the pivots
+	pm.pivots = []*Document{firstPivot, secondPivot}
 	return nil
 }
 
@@ -224,16 +233,14 @@ func (pm *PivotsManager) SelectPivotWithMinVariance(c *Collection) error {
 
 // ensurePivots ensures that the number of pivots is at least the desired number
 func (pm *PivotsManager) ensurePivots(c *Collection, desiredPivots int) {
-	if len(pm.pivots) >= desiredPivots {
-		return
-	}
+	for len(pm.pivots) < desiredPivots {
+		if len(pm.pivots) == 0 {
+			pm.SelectInitialPivot(c)
+			return
+		}
 
-	if len(pm.pivots) == 0 {
-		pm.SelectInitialPivot(c)
-		return
+		pm.SelectPivotWithMinVariance(c)
 	}
-
-	pm.SelectPivotWithMinVariance(c)
 }
 
 // calculateVariance calculates the variance of a slice of float64

@@ -186,8 +186,10 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 		Metadata: metadata,
 	}
 
+	numDocs := len(c.memfile.idOffsets)
+
 	// Calculate the desired number of pivots using a logarithmic function
-	desiredPivots := int(math.Log2(float64(len(c.memfile.idOffsets) + 1)))
+	desiredPivots := int(math.Log2(float64(numDocs+1) - 7))
 
 	// Manage pivots
 	c.pivotsManager.ensurePivots(c, desiredPivots)
@@ -197,6 +199,8 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 
 	// Add or update the document in the memfile
 	c.memfile.addRecord(id, encodedData)
+
+	c.pivotsManager.pointAdded(doc)
 }
 
 func (c *Collection) removeDocument(id uint64) error {
