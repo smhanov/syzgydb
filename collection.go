@@ -78,7 +78,7 @@ func (c *Collection) getDocument(id uint64) (*Document, error) {
 	}
 
 	// Decode the document
-	doc := decodeDocument(id, data, c.DimensionCount)
+	doc := decodeDocument(data, id, c.DimensionCount)
 	return doc, nil
 }
 
@@ -106,7 +106,7 @@ func (c *Collection) iterateDocuments(fn func(doc *Document)) {
 		if err != nil {
 			continue
 		}
-		doc := decodeDocument(id, data, c.DimensionCount)
+		doc := decodeDocument(data, id, c.DimensionCount)
 		fn(doc)
 	}
 }
@@ -170,7 +170,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 				continue
 			}
 
-			doc := decodeDocument(data, c.DimensionCount)
+			doc := decodeDocument(data, id, c.DimensionCount)
 			actualDistance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
 			pointsSearched++
 			if actualDistance <= args.Radius {
@@ -236,7 +236,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 
 		pointsSearched++
 
-		doc := decodeDocument(data, c.DimensionCount)
+		doc := decodeDocument(data, item.index, c.DimensionCount)
 		distance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
 
 		if resultsHeap.Len() < args.MaxCount {
@@ -290,6 +290,7 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	doc := &Document{
 		Vector:   vector,
 		Metadata: metadata,
+		ID:       id,
 	}
 
 	numDocs := len(c.memfile.idOffsets)
@@ -330,7 +331,7 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	}
 
 	// Decode the existing document
-	doc := decodeDocument(data, c.DimensionCount)
+	doc := decodeDocument(data, id, c.DimensionCount)
 
 	// Update the metadata
 	doc.Metadata = newMetadata
@@ -425,7 +426,6 @@ func encodeDocument(doc *Document) []byte {
 	docSize := dimensions*8 + 4 + len(doc.Metadata)
 	data := make([]byte, docSize)
 
-
 	// Encode the floating point vector to the data slice
 	vectorOffset := 0
 	for i, v := range doc.Vector {
@@ -433,7 +433,7 @@ func encodeDocument(doc *Document) []byte {
 	}
 
 	// Encode the metadata length after the vector
-	metadataLengthOffset := 8 + dimensions*8
+	metadataLengthOffset := dimensions * 8
 	binary.BigEndian.PutUint32(data[metadataLengthOffset:], uint32(len(doc.Metadata)))
 
 	// Encode the metadata
@@ -443,7 +443,7 @@ func encodeDocument(doc *Document) []byte {
 	return data
 }
 
-func decodeDocument(id uint64, data []byte, dimensions int) *Document {
+func decodeDocument(data []byte, id uint64, dimensions int) *Document {
 
 	// Use the passed dimensions to decode the vector
 	vector := make([]float64, dimensions)
