@@ -25,6 +25,7 @@ func main() {
 		DumpIndex(collectionName)
 		return
 	}
+	fmt.Println("Vectors added to the collection.")
 	if !*resume {
 		// Delete the existing file if it exists
 		if _, err := os.Stat(collectionName); err == nil {
@@ -45,14 +46,15 @@ func main() {
 		DimensionCount: *dims,
 	}
 
-	// Create a new collection
+	fmt.Println("Starting collection creation...")
 	collection := NewCollection(options)
+	fmt.Println("Collection created.")
 
 	// Number of clusters and vectors
 	numClusters := 50
 	numVectors := *points
 
-	// Generate random cluster centers
+	fmt.Println("Generating cluster centers...")
 	clusterCenters := make([][]float64, numClusters)
 	if !*resume {
 		for i := 0; i < numClusters; i++ {
@@ -63,7 +65,8 @@ func main() {
 			clusterCenters[i] = center
 		}
 
-		// Add vectors to the collection
+		fmt.Println("Cluster centers generated.")
+		fmt.Println("Adding vectors to the collection...")
 		for i := 0; i < numVectors; i++ {
 			// Select a random cluster center
 			center := clusterCenters[rand.Intn(numClusters)]
