@@ -18,11 +18,16 @@ func TestEuclideanDistance(t *testing.T) {
 
 func TestRemoveDocumentRealWorld(t *testing.T) {
 	// Create a collection with some documents
+	collectionName := "test_collection.dat"
 	options := CollectionOptions{
-		Name:           "test_collection",
+		Name:           collectionName,
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
 	}
+	// Remove any existing file
+	os.Remove(collectionName)
+
+	// Create a new collection
 	collection := NewCollection(options)
 	t.Logf("Adding 1000 documents")
 	// Add 1000 documents to the collection
@@ -228,8 +233,9 @@ func TestCollectionSearch(t *testing.T) {
 
 func TestCollectionPersistence(t *testing.T) {
 	// Define collection options
+	collectionName := "persistent_test_collection.dat"
 	options := CollectionOptions{
-		Name:           "persistent_test_collection",
+		Name:           collectionName,
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
 	}
@@ -289,8 +295,9 @@ func TestCollectionPersistence(t *testing.T) {
 
 func TestVectorSearchWith4BitQuantization(t *testing.T) {
 	// Define collection options with 4-bit quantization
+	collectionName := "test_collection_4bit.dat"
 	options := CollectionOptions{
-		Name:           "test_collection_4bit",
+		Name:           collectionName,
 		DistanceMethod: Euclidean,
 		DimensionCount: 3, // Example dimension count
 		Quantization:   4, // 4-bit quantization
