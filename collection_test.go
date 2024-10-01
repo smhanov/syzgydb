@@ -15,6 +15,47 @@ func TestEuclideanDistance(t *testing.T) {
 	}
 }
 
+func TestRemoveDocumentRealWorld(t *testing.T) {
+	// Create a collection with some documents
+	options := CollectionOptions{
+		Name:           "test_collection",
+		DistanceMethod: Euclidean,
+		DimensionCount: 3,
+	}
+	collection := NewCollection(options)
+
+	// Add 1000 documents to the collection
+	for i := 0; i < 1000; i++ {
+		vector := []float64{float64(i), float64(i + 1), float64(i + 2)}
+		metadata := []byte("metadata")
+		collection.addDocument(uint64(i), vector, metadata)
+	}
+
+	// Remove every 10th document
+	for i := 0; i < 1000; i += 10 {
+		err := collection.removeDocument(uint64(i))
+		if err != nil {
+			t.Errorf("Failed to remove document with ID %d: %v", i, err)
+		}
+	}
+
+	// Verify that removed documents are not accessible
+	for i := 0; i < 1000; i++ {
+		_, err := collection.memfile.readRecord(uint64(i))
+		if i%10 == 0 {
+			// Expect an error for removed documents
+			if err == nil {
+				t.Errorf("Expected error when reading removed document with ID %d, but got none", i)
+			}
+		} else {
+			// Expect no error for existing documents
+			if err != nil {
+				t.Errorf("Unexpected error when reading document with ID %d: %v", i, err)
+			}
+		}
+	}
+}
+
 func TestCosineDistance(t *testing.T) {
 	vec1 := []float64{1.0, 0.0, 0.0}
 	vec2 := []float64{0.0, 1.0, 0.0}
