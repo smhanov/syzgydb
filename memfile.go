@@ -118,6 +118,23 @@ func (mf *memfile) readUint64(offset int64) uint64 {
 	return binary.LittleEndian.Uint64(buf)
 }
 
+func (mf *memfile) readRecord(id uint64) ([]byte, error) {
+	// Check if the record ID exists
+	offset, exists := mf.idOffsets[id]
+	if !exists {
+		return nil, errors.New("record not found")
+	}
+
+	// Read the total length of the record
+	recordLength := mf.readUint64(offset)
+
+	// Read the record data
+	data := make([]byte, recordLength-16) // Subtract 16 bytes for length and ID
+	mf.ReadAt(data, offset+16)
+
+	return data, nil
+}
+
 func (mf *memfile) writeUint64(offset int64, value uint64) {
 	// use mf.File.WriteByte() to write the value to the file
 	// assume that it is already large enough.
