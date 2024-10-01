@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/go-mmap/mmap"
 )
@@ -18,7 +19,8 @@ const debug = true
 
 type memfile struct {
 	*mmap.File
-	//Header size which we ignore
+	sync.Mutex
+	// Header size which we ignore
 	headerSize int64
 
 	// offsets of each record id into the file
@@ -30,6 +32,12 @@ type memfile struct {
 }
 
 func (mf *memfile) deleteRecord(id uint64) error {
+	mf.Lock()
+	defer mf.Unlock()
+
+	mf.Lock()
+	defer mf.Unlock()
+
 	// Check if the record ID exists
 	offset, exists := mf.idOffsets[id]
 	if !exists {
@@ -67,6 +75,9 @@ func createMemFile(name string, headerSize int64) (*memfile, error) {
 // check if the file is at least the given length, and if not, extend it
 // and remap the file
 func (mf *memfile) ensureLength(length int) {
+	mf.Lock()
+	defer mf.Unlock()
+
 	curSize := mf.File.Len()
 	if curSize >= length {
 		return
@@ -102,6 +113,9 @@ func (mf *memfile) ensureLength(length int) {
 }
 
 func (mf *memfile) addRecord(id uint64, data []byte) {
+	mf.Lock()
+	defer mf.Unlock()
+
 	// Calculate the total length of the record
 	recordLength := 16 + len(data) // 8 bytes for length, 8 bytes for ID
 
@@ -138,6 +152,9 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 }
 
 func (mf *memfile) readUint64(offset int64) uint64 {
+	mf.Lock()
+	defer mf.Unlock()
+
 	// Read 8 bytes from the specified offset
 	buf := make([]byte, 8)
 	mf.ReadAt(buf, offset)
@@ -162,6 +179,9 @@ func (mf *memfile) readRecord(id uint64) ([]byte, error) {
 }
 
 func (mf *memfile) writeUint64(offset int64, value uint64) {
+	mf.Lock()
+	defer mf.Unlock()
+
 	// use mf.File.WriteByte() to write the value to the file
 	// assume that it is already large enough.
 
