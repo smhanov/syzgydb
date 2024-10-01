@@ -1,5 +1,7 @@
 package main
 
+import "encoding/binary"
+
 // Constants for euclidean distance or cosine similarity
 const (
 	Euclidean = iota
@@ -15,6 +17,12 @@ type CollectionOptions struct {
 	Name           string
 	DistanceMethod int
 	DimensionCount int
+}
+
+type Document struct {
+	ID       uint64
+	Vector   []float64
+	Metadata []byte
 }
 
 // one byte: version
@@ -41,4 +49,23 @@ func NewCollection(options CollectionOptions) *Collection {
 	}
 
 	return c
+}
+
+func EncodeDocument(doc *Document) []byte {
+	// 8 bytes: document ID
+	// 4 bytes: length of vector
+	// 4 bytes: length of metadata
+	// n bytes: vector
+	// n bytes: metadata
+
+	docSize := 8 + 8 + 8 + len(doc.Vector) + len(doc.Metadata)
+	data := make([]byte, docSize)
+
+	binary.LittleEndian.PutUint64(data[0:], doc.ID)
+	binary.LittleEndian.PutUint32(data[8:], uint32(len(doc.Vector)))
+	binary.LittleEndian.PutUint32(data[12:], uint32(len(doc.Metadata)))
+
+	// encode the floating point vector to the data slice
+
+	return data
 }
