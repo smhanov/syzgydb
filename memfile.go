@@ -98,10 +98,11 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 	offset := start + mf.headerSize
 	mf.writeUint64(offset, uint64(recordLength))
 
-	// Sync the file to disk
-	if err := mf.File.Sync(); err != nil {
-		log.Panic(err)
-	}
+	// Write the ID
+	mf.writeUint64(offset+8, id)
+
+	// Write the data
+	mf.WriteAt(data, offset+16)
 
 	// If the record already existed, mark the old space as free
 	if oldOffset, exists := mf.idOffsets[id]; exists {
