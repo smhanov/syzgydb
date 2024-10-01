@@ -160,14 +160,17 @@ Parameters:
 - id: The ID of the record.
 - data: The data to be stored in the record.
 */
-func (mf *memfile) addRecord(id uint64, data []byte) {
+func (mf *memfile) addRecord(id uint64, data []byte) bool {
 	mf.Lock()
 	defer mf.Unlock()
 
 	// Calculate the total length of the record
 	recordLength := 16 + len(data) // 8 bytes for length, 8 bytes for ID
 
-	// Find a free location for the new record
+	// Determine if the record was newly added or updated
+	wasNew := true
+
+    // Find a free location for the new record
 	start, err := mf.freemap.getFreeRange(recordLength)
 	if err != nil {
 		// If no free space, ensure the file is large enough
@@ -195,10 +198,13 @@ func (mf *memfile) addRecord(id uint64, data []byte) {
 		mf.writeUint64(oldOffset, 0xffffffffffffffff)
 		oldLength := mf.readUint64((oldOffset))
 		mf.freemap.markFree(int(oldOffset), int(oldLength))
+		wasNew = false
 	}
 
-	// Update the idOffsets map
-	mf.idOffsets[id] = int64(offset)
+    // Update the idOffsets map
+    mf.idOffsets[id] = int64(offset)
+
+    return wasNew
 }
 
 /*
