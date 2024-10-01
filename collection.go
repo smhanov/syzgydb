@@ -27,6 +27,9 @@ func equalVectors(vec1, vec2 []float64) bool {
 		if vec1[i] != vec2[i] {
 			return false
 		}
+
+		// Debug print for exact distance
+		fmt.Printf("Doc ID: %d, Exact Distance: %f\n", doc.ID, distance)
 	}
 	return true
 }
@@ -70,7 +73,8 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 			}
 		}
 
-		// Skip documents that are too far from the nearest pivot
+		// Debug print for pivot distance
+		fmt.Printf("Doc ID: %d, Nearest Pivot Distance: %f, Radius: %f\n", doc.ID, nearestPivotDistance, args.Radius)
 		if nearestPivotDistance > args.Radius {
 			continue
 		}
