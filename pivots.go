@@ -14,8 +14,6 @@ type PivotsManager struct {
 	// The key is the point ID and the value is a slice of distances to each pivot.
 	// The distances are in the order specified in pivotIDs
 	distances map[uint64][]float64
-	// Debug print
-	fmt.Printf("Added point ID: %d, Distances: %v\n", doc.ID, distances)
 }
 
 // approxDistance calculates the approximate minimum distance of a point from a target document using the triangle inequality.
