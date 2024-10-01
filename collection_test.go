@@ -135,3 +135,114 @@ func TestRemoveDocument(t *testing.T) {
 		t.Errorf("Expected %f, got %f", expected, result)
 	}
 }
+package main
+
+import (
+	"math/rand"
+	"testing"
+	"time"
+)
+
+func TestCollectionSearch(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+
+	// Create a collection with some documents
+	options := CollectionOptions{
+		Name:           "test_collection",
+		DistanceMethod: Euclidean,
+		DimensionCount: 2,
+	}
+	collection := NewCollection(options)
+
+	// Add documents to the collection
+	for i := 0; i < 10; i++ {
+		vector := []float64{rand.Float64() * 100, rand.Float64() * 100}
+		collection.AddDocument(uint64(i), vector, []byte("metadata"))
+	}
+
+	// Basic Search Test
+	t.Run("Basic Search", func(t *testing.T) {
+		searchVector := []float64{50, 50}
+		args := SearchArgs{
+			Vector:   searchVector,
+			MaxCount: 5,
+		}
+		results := collection.Search(args)
+		if len(results.Results) == 0 {
+			t.Errorf("Expected results, got none")
+		}
+	})
+
+	// Search with Non-Existent Vector
+	t.Run("Non-Existent Vector", func(t *testing.T) {
+		searchVector := []float64{1000, 1000}
+		args := SearchArgs{
+			Vector:   searchVector,
+			MaxCount: 5,
+		}
+		results := collection.Search(args)
+		if len(results.Results) != 0 {
+			t.Errorf("Expected no results, got %d", len(results.Results))
+		}
+	})
+
+	// Search with Maximum Count
+	t.Run("Max Count", func(t *testing.T) {
+		searchVector := []float64{50, 50}
+		args := SearchArgs{
+			Vector:   searchVector,
+			MaxCount: 3,
+		}
+		results := collection.Search(args)
+		if len(results.Results) > 3 {
+			t.Errorf("Expected at most 3 results, got %d", len(results.Results))
+		}
+	})
+
+	// Search with Radius
+	t.Run("Radius Search", func(t *testing.T) {
+		searchVector := []float64{50, 50}
+		args := SearchArgs{
+			Vector: searchVector,
+			Radius: 10,
+		}
+		results := collection.Search(args)
+		for _, result := range results.Results {
+			if result.Distance > 10 {
+				t.Errorf("Expected distance <= 10, got %f", result.Distance)
+			}
+		}
+	})
+
+	// Search with Empty Collection
+	t.Run("Empty Collection", func(t *testing.T) {
+		emptyCollection := NewCollection(options)
+		searchVector := []float64{50, 50}
+		args := SearchArgs{
+			Vector:   searchVector,
+			MaxCount: 5,
+		}
+		results := emptyCollection.Search(args)
+		if len(results.Results) != 0 {
+			t.Errorf("Expected no results, got %d", len(results.Results))
+		}
+	})
+
+	// Search with Filter Function
+	t.Run("Filter Function", func(t *testing.T) {
+		searchVector := []float64{50, 50}
+		args := SearchArgs{
+			Vector: searchVector,
+			MaxCount: 5,
+			Filter: func(id uint64, metadata []byte) bool {
+				return id%2 == 0 // Exclude odd IDs
+			},
+		}
+		results := collection.Search(args)
+		for _, result := range results.Results {
+			if result.ID%2 != 0 {
+				t.Errorf("Expected only even IDs, got %d", result.ID)
+			}
+		}
+	})
+}
