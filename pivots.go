@@ -28,7 +28,7 @@ func (pm *PivotsManager) approxDistance(target *Document, id uint64) float64 {
 	if !exists {
 		fmt.Printf("Point ID not found: %d\n", id) // Debug print
 		panic(errors.New("point ID not found in distances map"))
-	fmt.Printf("After removal: Pivots: %v, Distances: %v\n", pm.pivots, pm.distances)
+	}
 
 	// Calculate the distance of each pivot from the target
 	targetPivotDistances := make([]float64, len(pm.pivots))
