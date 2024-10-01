@@ -16,6 +16,23 @@ type PivotsManager struct {
 	distances map[uint64][]float64
 }
 
+// pointAdded calculates the distance to each pivot and updates the distances map if the point doesn't already exist.
+func (pm *PivotsManager) pointAdded(doc *Document) {
+    // Check if the point already exists in the distances map
+    if _, exists := pm.distances[doc.ID]; exists {
+        return
+    }
+
+    // Calculate the distance to each pivot
+    distances := make([]float64, len(pm.pivots))
+    for i, pivot := range pm.pivots {
+        distances[i] = CalculateDistance(doc.Vector, pivot.Vector)
+    }
+
+    // Add the entry to the distances map
+    pm.distances[doc.ID] = distances
+}
+
 func NewPivotsManager() *PivotsManager {
 	return &PivotsManager{
 		distances: make(map[uint64][]float64),
