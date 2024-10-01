@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"encoding/binary"
 	"errors"
-	"log"
 	"math"
 	"math/rand"
 	"sort"
@@ -340,12 +339,8 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	// Encode the updated document
 	encodedData := encodeDocument(doc)
 
-	log.Printf("Encoded data length is %v", len(encodedData))
-
 	// Update the document in the memfile
 	c.memfile.addRecord(id, encodedData)
-
-	log.Printf("Done updatedocument")
 
 	return nil
 }
@@ -388,11 +383,11 @@ type SearchArgs struct {
 
 type FilterFn func(id uint64, metadata []byte) bool
 
-   // 4 bytes: version
-   // 4 bytes: length of the header
-   // 1 byte: distance method
-   // 4 bytes: number of dimensions
-   const headerSize = 13
+// 4 bytes: version
+// 4 bytes: length of the header
+// 1 byte: distance method
+// 4 bytes: number of dimensions
+const headerSize = 13
 
 func NewCollection(options CollectionOptions) *Collection {
 	distanceFn := euclideanDistance
@@ -404,13 +399,13 @@ func NewCollection(options CollectionOptions) *Collection {
 		pivotsManager:     *newPivotsManager(distanceFn), // Use newPivotsManager
 	}
 
-   header := make([]byte, headerSize)
+	header := make([]byte, headerSize)
 
-   // Fill in the header
-   binary.BigEndian.PutUint32(header[0:], 1) // version
-   binary.BigEndian.PutUint32(header[4:], uint32(headerSize)) // length of the header
-   header[8] = byte(options.DistanceMethod)
-   binary.BigEndian.PutUint32(header[9:], uint32(options.DimensionCount))
+	// Fill in the header
+	binary.BigEndian.PutUint32(header[0:], 1)                  // version
+	binary.BigEndian.PutUint32(header[4:], uint32(headerSize)) // length of the header
+	header[8] = byte(options.DistanceMethod)
+	binary.BigEndian.PutUint32(header[9:], uint32(options.DimensionCount))
 
 	var err error
 	c.memfile, err = createMemFile(c.Name, header)
