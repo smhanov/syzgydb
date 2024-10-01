@@ -22,6 +22,16 @@ type PivotsManager struct {
 	distanceFn distanceFn
 }
 
+// isPivot checks if a document is a pivot
+func (pm *PivotsManager) isPivot(id uint64) bool {
+	for _, pivot := range pm.pivots {
+		if pivot.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 type distanceFn func(vec1, vec2 []float64) float64
 
 // approxDistance calculates the approximate minimum distance of a point from a target document using the triangle inequality.

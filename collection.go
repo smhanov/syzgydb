@@ -5,12 +5,52 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"container/heap"
 	"math/rand"
 	"sort"
 	"sync"
 )
 
-// Constants for euclidean distance or cosine similarity
+type DistanceIndex struct {
+	distance float64
+	index    uint64
+}
+
+type ApproxHeap []DistanceIndex
+
+func (h ApproxHeap) Len() int           { return len(h) }
+func (h ApproxHeap) Less(i, j int) bool { return h[i].distance < h[j].distance }
+func (h ApproxHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
+func (h *ApproxHeap) Push(x interface{}) {
+	*h = append(*h, x.(DistanceIndex))
+}
+
+func (h *ApproxHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
+}
+
+type ResultHeap []SearchResult
+
+func (h ResultHeap) Len() int           { return len(h) }
+func (h ResultHeap) Less(i, j int) bool { return h[i].Distance > h[j].Distance }
+func (h ResultHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
+func (h *ResultHeap) Push(x interface{}) {
+	*h = append(*h, x.(SearchResult))
+}
+
+func (h *ResultHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
+}
 const (
 	Euclidean = iota
 	Cosine
@@ -89,61 +129,68 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	var results []SearchResult
+	if args.MaxCount <= 0 {
+		return SearchResults{}
+	}
 
+	// Initialize heaps
+	approxHeap := &ApproxHeap{}
+	heap.Init(approxHeap)
+
+	resultsHeap := &ResultHeap{}
+	heap.Init(resultsHeap)
+
+	// Calculate distances to pivots
+	distances := make([]float64, len(c.pivotsManager.pivots))
+	for i, pivot := range c.pivotsManager.pivots {
+		distances[i] = c.pivotsManager.distanceFn(args.Vector, pivot.Vector)
+	}
+
+	// Populate the approximate heap
 	for id := range c.memfile.idOffsets {
-		data, err := c.memfile.readRecord(id)
+		if c.pivotsManager.isPivot(id) {
+			continue
+		}
+
+		minDistance := 0.0
+		for i, pivot := range c.pivotsManager.pivots {
+			dist := math.Abs(distances[i] - c.pivotsManager.distances[id][i])
+			if dist > minDistance {
+				minDistance = dist
+			}
+		}
+
+		heap.Push(approxHeap, DistanceIndex{distance: minDistance, index: id})
+	}
+
+	// Process the approximate heap
+	for approxHeap.Len() > 0 {
+		item := heap.Pop(approxHeap).(DistanceIndex)
+
+		if resultsHeap.Len() == args.MaxCount && item.distance >= (*resultsHeap)[0].Distance {
+			break
+		}
+
+		data, err := c.memfile.readRecord(item.index)
 		if err != nil {
 			continue
 		}
 
 		doc := decodeDocument(data)
+		distance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
 
-		// Apply filter function if provided
-		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			continue
-		}
-
-		// Calculate the minimum possible distance using the triangle inequality
-		minPossibleDistance := c.pivotsManager.approxDistance(&Document{Vector: args.Vector}, doc.ID)
-
-		// Debug print for minimum possible distance
-		fmt.Printf("Doc ID: %d, Min Possible Distance: %f, Radius: %f\n", doc.ID, minPossibleDistance, args.Radius)
-		if minPossibleDistance > args.Radius {
-			continue
-		}
-		fmt.Printf("Doc ID: %d, Min Possible Distance: %f, Radius: %f\n", doc.ID, minPossibleDistance, args.Radius)
-		if minPossibleDistance > args.Radius {
-			continue
-		}
-
-		// Calculate exact distance
-		var distance float64
-		switch c.DistanceMethod {
-		case Euclidean:
-			distance = euclideanDistance(args.Vector, doc.Vector)
-		case Cosine:
-			distance = cosineDistance(args.Vector, doc.Vector)
-		}
-
-		// Check if the document meets the search criteria
-		if (args.Radius > 0 && distance <= args.Radius) || (args.MaxCount > 0 && len(results) < args.MaxCount) {
-			results = append(results, SearchResult{
-				ID:       doc.ID,
-				Metadata: doc.Metadata,
-				Distance: distance,
-			})
+		if resultsHeap.Len() < args.MaxCount {
+			heap.Push(resultsHeap, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
+		} else if distance < (*resultsHeap)[0].Distance {
+			heap.Pop(resultsHeap)
+			heap.Push(resultsHeap, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
 		}
 	}
 
-	// Sort results by distance
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Distance < results[j].Distance
-	})
-
-	// Limit results to MaxCount if specified
-	if args.MaxCount > 0 && len(results) > args.MaxCount {
-		results = results[:args.MaxCount]
+	// Collect results
+	results := make([]SearchResult, resultsHeap.Len())
+	for i := len(results) - 1; i >= 0; i-- {
+		results[i] = heap.Pop(resultsHeap).(SearchResult)
 	}
 
 	return SearchResults{
