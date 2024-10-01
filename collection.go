@@ -278,6 +278,7 @@ const headerSize = 10
 func NewCollection(options CollectionOptions) *Collection {
 	c := &Collection{
 		CollectionOptions: options,
+		pivotsManager:     *newPivotsManager(), // Use newPivotsManager
 	}
 
 	header := make([]byte, headerSize)

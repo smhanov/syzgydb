@@ -84,9 +84,10 @@ func (pm *PivotsManager) pointAdded(doc *Document) {
 	pm.distances[doc.ID] = distances
 }
 
-func NewPivotsManager() *PivotsManager {
+func newPivotsManager() *PivotsManager {
 	return &PivotsManager{
-		distances: make(map[uint64][]float64),
+		pivots:    []*Document{},
+		distances: make(map[uint64][]float64), // Initialize the map
 	}
 }
 
