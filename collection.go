@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"math/rand"
+	"sort"
 	"sync"
 )
 
@@ -138,13 +139,17 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 
 func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 	results := []SearchResult{}
-	pointsSearched := make(map[uint64]struct{})
+	pointsSearched := 0
 
 	// Calculate distances from the target to each pivot
+	// Calculate distances to pivots
 	distances := make([]float64, len(c.pivotsManager.pivots))
 	for i, pivot := range c.pivotsManager.pivots {
+		distances[i] = c.pivotsManager.distanceFn(args.Vector, pivot.Vector)
+	}
+	for i, pivot := range c.pivotsManager.pivots {
 		dist := c.pivotsManager.distanceFn(args.Vector, pivot.Vector)
-		pointsSearched[pivot.ID] = struct{}{}
+		pointsSearched++
 		if dist <= args.Radius {
 			results = append(results, SearchResult{ID: pivot.ID, Metadata: pivot.Metadata, Distance: dist})
 		}
@@ -157,13 +162,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 			continue
 		}
 
-		minDistance := 0.0
-		for j, pivot := range c.pivotsManager.pivots {
-			dist := math.Abs(distances[j] - c.pivotsManager.distances[id][j])
-			if dist > minDistance {
-				minDistance = dist
-			}
-		}
+		minDistance := c.pivotsManager.approxDistance(args.Vector, id)
 
 		if minDistance <= args.Radius {
 			data, err := c.memfile.readRecord(id)
@@ -173,7 +172,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 
 			doc := decodeDocument(data)
 			actualDistance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
-			pointsSearched[id] = struct{}{}
+			pointsSearched++
 			if actualDistance <= args.Radius {
 				results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: actualDistance})
 			}
@@ -187,7 +186,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 
 	return SearchResults{
 		Results:         results,
-		PercentSearched: float64(len(pointsSearched)) / float64(len(c.memfile.idOffsets)) * 100,
+		PercentSearched: float64(pointsSearched) / float64(len(c.memfile.idOffsets)) * 100,
 	}
 }
 
@@ -195,6 +194,8 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	if args.MaxCount <= 0 {
 		return SearchResults{}
 	}
+
+	pointsSearched := 0
 
 	// Initialize heaps
 	approxHeap := &ApproxHeap{}
@@ -207,6 +208,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	distances := make([]float64, len(c.pivotsManager.pivots))
 	for i, pivot := range c.pivotsManager.pivots {
 		distances[i] = c.pivotsManager.distanceFn(args.Vector, pivot.Vector)
+		pointsSearched++
 	}
 
 	// Populate the approximate heap
@@ -232,6 +234,8 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 			continue
 		}
 
+		pointsSearched++
+
 		doc := decodeDocument(data)
 		distance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
 
@@ -251,7 +255,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 
 	return SearchResults{
 		Results:         results,
-		PercentSearched: 100.0, // Assuming full search for simplicity
+		PercentSearched: float64(pointsSearched) / float64(len(c.memfile.idOffsets)) * 100,
 	}
 }
 
@@ -399,7 +403,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	// Fill in the header
 	header[0] = 1 // version
 	header[1] = byte(options.DistanceMethod)
-	binary.LittleEndian.PutUint64(header[2:], uint64(options.DimensionCount))
+	binary.BigEndian.PutUint64(header[2:], uint64(options.DimensionCount))
 
 	var err error
 	c.memfile, err = createMemFile(c.Name, header)
@@ -420,14 +424,14 @@ func encodeDocument(doc *Document) []byte {
 	docSize := 8 + 4 + 4 + len(doc.Vector)*8 + len(doc.Metadata)
 	data := make([]byte, docSize)
 
-	binary.LittleEndian.PutUint64(data[0:], doc.ID)
-	binary.LittleEndian.PutUint32(data[8:], uint32(len(doc.Vector)))
-	binary.LittleEndian.PutUint32(data[12:], uint32(len(doc.Metadata)))
+	binary.BigEndian.PutUint64(data[0:], doc.ID)
+	binary.BigEndian.PutUint32(data[8:], uint32(len(doc.Vector)))
+	binary.BigEndian.PutUint32(data[12:], uint32(len(doc.Metadata)))
 
 	// Encode the floating point vector to the data slice
 	vectorOffset := 16
 	for i, v := range doc.Vector {
-		binary.LittleEndian.PutUint64(data[vectorOffset+i*8:], math.Float64bits(v))
+		binary.BigEndian.PutUint64(data[vectorOffset+i*8:], math.Float64bits(v))
 	}
 
 	// Encode the metadata
@@ -439,19 +443,19 @@ func encodeDocument(doc *Document) []byte {
 
 func decodeDocument(data []byte) *Document {
 	// Decode the document ID
-	id := binary.LittleEndian.Uint64(data[0:])
+	id := binary.BigEndian.Uint64(data[0:])
 
 	// Decode the length of the vector
-	vectorLength := binary.LittleEndian.Uint32(data[8:])
+	vectorLength := binary.BigEndian.Uint32(data[8:])
 
 	// Decode the length of the metadata
-	metadataLength := binary.LittleEndian.Uint32(data[12:])
+	metadataLength := binary.BigEndian.Uint32(data[12:])
 
 	// Decode the vector
 	vector := make([]float64, vectorLength)
 	vectorOffset := 16
 	for i := range vector {
-		vector[i] = math.Float64frombits(binary.LittleEndian.Uint64(data[vectorOffset+i*8:]))
+		vector[i] = math.Float64frombits(binary.BigEndian.Uint64(data[vectorOffset+i*8:]))
 	}
 
 	// Decode the metadata
