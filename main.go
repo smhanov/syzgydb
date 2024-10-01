@@ -23,6 +23,7 @@ func main() {
 		DumpIndex(collectionName)
 		return
 	}
+
 	flag.Parse()
 	if !*resume {
 		// Delete the existing file if it exists
