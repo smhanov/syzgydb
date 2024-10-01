@@ -41,13 +41,13 @@ func main() {
 	// Create a new collection
 	collection := NewCollection(options)
 
-	if !*resume {
-		// Number of clusters and vectors
-		numClusters := 50
-		numVectors := *points
+	// Number of clusters and vectors
+	numClusters := 50
+	numVectors := *points
 
-		// Generate random cluster centers
-		clusterCenters := make([][]float64, numClusters)
+	// Generate random cluster centers
+	clusterCenters := make([][]float64, numClusters)
+	if !*resume {
 		for i := 0; i < numClusters; i++ {
 			center := make([]float64, *dims)
 			for d := 0; d < *dims; d++ {
