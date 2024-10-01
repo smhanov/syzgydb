@@ -18,13 +18,13 @@ func main() {
 	resume := flag.Bool("resume", false, "Resume from existing collection")
 
 	// Parse the flags
+	flag.Parse()
+
 	if *dump {
 		// Dump the collection and exit
 		DumpIndex(collectionName)
 		return
 	}
-
-	flag.Parse()
 	if !*resume {
 		// Delete the existing file if it exists
 		if _, err := os.Stat(collectionName); err == nil {
