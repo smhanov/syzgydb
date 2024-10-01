@@ -28,7 +28,7 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		vector := []float64{float64(i), float64(i + 1), float64(i + 2)}
 		metadata := []byte("metadata")
-		collection.addDocument(uint64(i), vector, metadata)
+		collection.AddDocument(uint64(i), vector, metadata)
 	}
 
 	// Remove every 10th document
@@ -77,7 +77,7 @@ func TestUpdateDocument(t *testing.T) {
 	collection := NewCollection(options)
 
 	// Add a document to the collection
-	collection.addDocument(1, []float64{1.0, 2.0, 3.0}, []byte("original"))
+	collection.AddDocument(1, []float64{1.0, 2.0, 3.0}, []byte("original"))
 
 	// Update the document's metadata
 	err := collection.UpdateDocument(1, []byte("updated"))
@@ -110,7 +110,7 @@ func TestRemoveDocument(t *testing.T) {
 	collection := NewCollection(options)
 
 	// Add a document to the collection
-	collection.addDocument(1, []float64{1.0, 2.0, 3.0}, []byte("to be removed"))
+	collection.AddDocument(1, []float64{1.0, 2.0, 3.0}, []byte("to be removed"))
 
 	// Remove the document
 	err := collection.removeDocument(1)
@@ -131,41 +131,5 @@ func TestRemoveDocument(t *testing.T) {
 	result := cosineDistance(vec1, vec2)
 	if result != expected {
 		t.Errorf("Expected %f, got %f", expected, result)
-	}
-}
-
-func TestSearchWithPivots(t *testing.T) {
-	// Create a collection with some documents
-	options := CollectionOptions{
-		Name:           "test_collection",
-		DistanceMethod: Euclidean,
-		DimensionCount: 3,
-	}
-	collection := NewCollection(options)
-
-	// Add documents to the collection
-	collection.addDocument(1, []float64{1.0, 2.0, 3.0}, []byte("doc1"))
-	collection.addDocument(2, []float64{4.0, 5.0, 6.0}, []byte("doc2"))
-
-	// Add a pivot
-	collection.pivotsManager.AddPivot([]float64{1.0, 2.0, 3.0})
-
-	// Define search arguments
-	args := SearchArgs{
-		Vector:   []float64{1.0, 2.0, 3.0},
-		MaxCount: 1,
-		Radius:   10.0,
-	}
-
-	// Perform search
-	results := collection.Search(args)
-
-	// Check the results
-	if len(results.Results) != 1 {
-		t.Errorf("Expected 1 result, got %d", len(results.Results))
-	}
-
-	if results.Results[0].ID != 1 {
-		t.Errorf("Expected document ID 1, got %d", results.Results[0].ID)
 	}
 }

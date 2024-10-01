@@ -15,7 +15,11 @@ type PivotsManager struct {
 	// The key is the point ID and the value is a slice of distances to each pivot.
 	// The distances are in the order specified in pivotIDs
 	distances map[uint64][]float64
+
+	distanceFn distanceFn
 }
+
+type distanceFn func(vec1, vec2 []float64) float64
 
 // approxDistance calculates the approximate minimum distance of a point from a target document using the triangle inequality.
 func (pm *PivotsManager) approxDistance(target *Document, id uint64) float64 {
@@ -29,7 +33,7 @@ func (pm *PivotsManager) approxDistance(target *Document, id uint64) float64 {
 	// Calculate the distance of each pivot from the target
 	targetPivotDistances := make([]float64, len(pm.pivots))
 	for i, pivot := range pm.pivots {
-		targetPivotDistances[i] = CalculateDistance(target.Vector, pivot.Vector, method)
+		targetPivotDistances[i] = pm.distanceFn(target.Vector, pivot.Vector)
 	}
 
 	// Use the triangle inequality to compute the minimum possible distance
@@ -70,7 +74,7 @@ func (pm *PivotsManager) pointRemoved(docID uint64) {
 }
 
 // pointAdded calculates the distance to each pivot and updates the distances map if the point doesn't already exist.
-func (pm *PivotsManager) pointAdded(doc *Document, method int) {
+func (pm *PivotsManager) pointAdded(doc *Document) {
 	// Check if the point already exists in the distances map
 	if _, exists := pm.distances[doc.ID]; exists {
 		return
@@ -79,17 +83,18 @@ func (pm *PivotsManager) pointAdded(doc *Document, method int) {
 	// Calculate the distance to each pivot
 	distances := make([]float64, len(pm.pivots))
 	for i, pivot := range pm.pivots {
-		distances[i] = CalculateDistance(doc.Vector, pivot.Vector, method)
+		distances[i] = pm.distanceFn(doc.Vector, pivot.Vector)
 	}
 
 	// Add the entry to the distances map
 	pm.distances[doc.ID] = distances
 }
 
-func newPivotsManager() *PivotsManager {
+func newPivotsManager(distanceFn distanceFn) *PivotsManager {
 	return &PivotsManager{
-		pivots:    []*Document{},
-		distances: make(map[uint64][]float64), // Initialize the map
+		pivots:     []*Document{},
+		distances:  make(map[uint64][]float64), // Initialize the map
+		distanceFn: distanceFn,
 	}
 }
 
@@ -122,7 +127,7 @@ func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
 	var firstPivot *Document
 	maxDistance := -1.0
 	c.iterateDocuments(func(d *Document) {
-		distance := CalculateDistance(randomDoc.Vector, d.Vector)
+		distance := pm.distanceFn(randomDoc.Vector, d.Vector)
 		if distance > maxDistance {
 			maxDistance = distance
 			firstPivot = d
@@ -133,7 +138,7 @@ func (pm *PivotsManager) SelectInitialPivot(c *Collection) error {
 	var secondPivot *Document
 	maxDistance = -1.0
 	c.iterateDocuments(func(d *Document) {
-		distance := CalculateDistance(firstPivot.Vector, d.Vector)
+		distance := pm.distanceFn(firstPivot.Vector, d.Vector)
 		if distance > maxDistance {
 			maxDistance = distance
 			secondPivot = d
@@ -177,7 +182,7 @@ func (pm *PivotsManager) SelectPivotWithMinVariance(c *Collection) error {
 
 	// Update the distances map with actual distances to all other points
 	c.iterateDocuments(func(d *Document) {
-		distance := CalculateDistance(doc.Vector, d.Vector)
+		distance := pm.distanceFn(doc.Vector, d.Vector)
 		pm.distances[d.ID] = append(pm.distances[d.ID], distance)
 	})
 

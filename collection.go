@@ -105,7 +105,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		}
 
 		// Calculate the minimum possible distance using the triangle inequality
-		minPossibleDistance := c.pivotsManager.approxDistance(&Document{Vector: args.Vector}, doc.ID, c.DistanceMethod)
+		minPossibleDistance := c.pivotsManager.approxDistance(&Document{Vector: args.Vector}, doc.ID)
 
 		// Debug print for minimum possible distance
 		fmt.Printf("Doc ID: %d, Min Possible Distance: %f, Radius: %f\n", doc.ID, minPossibleDistance, args.Radius)
@@ -278,9 +278,13 @@ type FilterFn func(id uint64, metadata []byte) bool
 const headerSize = 10
 
 func NewCollection(options CollectionOptions) *Collection {
+	distanceFn := euclideanDistance
+	if options.DistanceMethod == Cosine {
+		distanceFn = cosineDistance
+	}
 	c := &Collection{
 		CollectionOptions: options,
-		pivotsManager:     *newPivotsManager(), // Use newPivotsManager
+		pivotsManager:     *newPivotsManager(distanceFn), // Use newPivotsManager
 	}
 
 	header := make([]byte, headerSize)

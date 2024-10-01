@@ -47,7 +47,7 @@ func main() {
 		}
 
 		// Add the vector to the collection
-		collection.addDocument(uint64(i), vector, []byte(fmt.Sprintf("metadata_%d", i)))
+		collection.AddDocument(uint64(i), vector, []byte(fmt.Sprintf("metadata_%d", i)))
 	}
 
 	// Define a search vector (e.g., the first cluster center)
