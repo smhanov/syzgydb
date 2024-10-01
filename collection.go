@@ -62,18 +62,20 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 			continue
 		}
 
-		// Calculate distance to the nearest pivot
-		nearestPivotDistance := math.MaxFloat64
+		// Calculate the minimum possible distance using the triangle inequality
+		minPossibleDistance := math.MaxFloat64
 		for _, pivot := range c.pivotsManager.Pivots {
-			pivotDistance := euclideanDistance(args.Vector, pivot.Vector)
-			if pivotDistance < nearestPivotDistance {
-				nearestPivotDistance = pivotDistance
+			targetPivotDistance := euclideanDistance(args.Vector, pivot.Vector)
+			docPivotDistance := euclideanDistance(doc.Vector, pivot.Vector)
+			possibleDistance := math.Abs(targetPivotDistance - docPivotDistance)
+			if possibleDistance < minPossibleDistance {
+				minPossibleDistance = possibleDistance
 			}
 		}
 
-		// Debug print for pivot distance
-		fmt.Printf("Doc ID: %d, Nearest Pivot Distance: %f, Radius: %f\n", doc.ID, nearestPivotDistance, args.Radius)
-		if nearestPivotDistance > args.Radius {
+		// Debug print for minimum possible distance
+		fmt.Printf("Doc ID: %d, Min Possible Distance: %f, Radius: %f\n", doc.ID, minPossibleDistance, args.Radius)
+		if minPossibleDistance > args.Radius {
 			continue
 		}
 
