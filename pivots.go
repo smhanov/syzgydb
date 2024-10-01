@@ -18,19 +18,19 @@ type PivotsManager struct {
 
 // pointAdded calculates the distance to each pivot and updates the distances map if the point doesn't already exist.
 func (pm *PivotsManager) pointAdded(doc *Document) {
-    // Check if the point already exists in the distances map
-    if _, exists := pm.distances[doc.ID]; exists {
-        return
-    }
+	// Check if the point already exists in the distances map
+	if _, exists := pm.distances[doc.ID]; exists {
+		return
+	}
 
-    // Calculate the distance to each pivot
-    distances := make([]float64, len(pm.pivots))
-    for i, pivot := range pm.pivots {
-        distances[i] = CalculateDistance(doc.Vector, pivot.Vector)
-    }
+	// Calculate the distance to each pivot
+	distances := make([]float64, len(pm.pivots))
+	for i, pivot := range pm.pivots {
+		distances[i] = CalculateDistance(doc.Vector, pivot.Vector)
+	}
 
-    // Add the entry to the distances map
-    pm.distances[doc.ID] = distances
+	// Add the entry to the distances map
+	pm.distances[doc.ID] = distances
 }
 
 func NewPivotsManager() *PivotsManager {
@@ -134,7 +134,7 @@ func (pm *PivotsManager) SelectPivotWithMinVariance(c *Collection) error {
 // ensurePivots ensures that the number of pivots is at least the desired number
 func (pm *PivotsManager) ensurePivots(c *Collection, desiredPivots int) {
 	if len(pm.pivots) >= desiredPivots {
-		return nil
+		return
 	}
 
 	if len(pm.pivots) == 0 {
