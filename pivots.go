@@ -16,6 +16,31 @@ type PivotsManager struct {
 	distances map[uint64][]float64
 }
 
+// pointRemoved removes a point from the distances map and updates pivots if necessary.
+func (pm *PivotsManager) pointRemoved(docID uint64) {
+	// Remove the point from the distances map
+	delete(pm.distances, docID)
+
+	// Check if the point is a pivot
+	pivotIndex := -1
+	for i, pivot := range pm.pivots {
+		if pivot.ID == docID {
+			pivotIndex = i
+			break
+		}
+	}
+
+	// If the point is a pivot, remove it from the pivots array
+	if pivotIndex != -1 {
+		pm.pivots = append(pm.pivots[:pivotIndex], pm.pivots[pivotIndex+1:]...)
+
+		// Remove the corresponding entry from each entry in the distances map
+		for id, dists := range pm.distances {
+			pm.distances[id] = append(dists[:pivotIndex], dists[pivotIndex+1:]...)
+		}
+	}
+}
+
 // pointAdded calculates the distance to each pivot and updates the distances map if the point doesn't already exist.
 func (pm *PivotsManager) pointAdded(doc *Document) {
 	// Check if the point already exists in the distances map
