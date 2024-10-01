@@ -238,7 +238,7 @@ func TestCollectionPersistence(t *testing.T) {
 	collection := NewCollection(options)
 
 	// Add some records to the collection
-	numRecords := 5
+	numRecords := 100 // trigger creation of pivots.
 	for i := 0; i < numRecords; i++ {
 		vector := []float64{float64(i), float64(i + 1), float64(i + 2)}
 		metadata := []byte("metadata")
