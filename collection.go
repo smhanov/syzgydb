@@ -54,7 +54,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	return c
 }
 
-func EncodeDocument(doc *Document) []byte {
+func encodeDocument(doc *Document) []byte {
 	// 8 bytes: document ID
 	// 4 bytes: length of vector
 	// 4 bytes: length of metadata
@@ -81,7 +81,7 @@ func EncodeDocument(doc *Document) []byte {
 	return data
 }
 
-func DecodeDocument(data []byte) *Document {
+func decodeDocument(data []byte) *Document {
 	// Decode the document ID
 	id := binary.LittleEndian.Uint64(data[0:])
 
