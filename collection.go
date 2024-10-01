@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"sync"
 )
 
 // Constants for euclidean distance or cosine similarity
@@ -19,11 +20,12 @@ type Collection struct {
 	CollectionOptions
 	memfile       *memfile
 	pivotsManager PivotsManager
+	mutex         sync.Mutex
 }
 
 func (c *Collection) GetDocument(id uint64) (*Document, error) {
-	c.memfile.Lock()
-	defer c.memfile.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	return c.getDocument(id)
 }
@@ -41,8 +43,8 @@ func (c *Collection) getDocument(id uint64) (*Document, error) {
 }
 
 func (c *Collection) getRandomID() (uint64, error) {
-	c.memfile.Lock()
-	defer c.memfile.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	if len(c.memfile.idOffsets) == 0 {
 		return 0, errors.New("no documents in the collection")
@@ -86,6 +88,9 @@ func equalVectors(vec1, vec2 []float64) bool {
 }
 
 func (c *Collection) Search(args SearchArgs) SearchResults {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	var results []SearchResult
 
 	for id := range c.memfile.idOffsets {
@@ -172,6 +177,9 @@ func cosineDistance(vec1, vec2 []float64) float64 {
 }
 
 func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	doc := &Document{
 		ID:       id,
 		Vector:   vector,
@@ -192,6 +200,9 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 }
 
 func (c *Collection) removeDocument(id uint64) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	c.pivotsManager.pointRemoved(id)
 
 	// Remove the document from the memfile
@@ -199,6 +210,9 @@ func (c *Collection) removeDocument(id uint64) error {
 }
 
 func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	// Read the existing record
 	data, err := c.memfile.readRecord(id)
 	if err != nil {

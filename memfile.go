@@ -19,7 +19,6 @@ const debug = true
 
 type memfile struct {
 	*mmap.File
-	sync.Mutex
 	// Header size which we ignore
 	headerSize int64
 
@@ -41,8 +40,6 @@ Returns:
 - An error if the record is not found.
 */
 func (mf *memfile) deleteRecord(id uint64) error {
-	mf.Lock()
-	defer mf.Unlock()
 
 	// Check if the record ID exists
 	offset, exists := mf.idOffsets[id]
