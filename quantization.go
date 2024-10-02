@@ -9,10 +9,17 @@ func quantize(value float64, bits int) uint64 {
 	case 64:
 		return math.Float64bits(value)
 	}
-	// Implement quantization logic based on the number of bits
-	// Example: map the float64 value to an integer range based on bits
+	// Ensure the value is within the expected range
+	if value < -1 {
+		value = -1
+	} else if value > 1 {
+		value = 1
+	}
+
+	// Map the float64 value from [-1, 1] to [0, maxInt]
 	maxInt := (1 << bits) - 1
-	return uint64(math.Round(value * float64(maxInt)))
+	quantizedValue := (value + 1) / 2 * float64(maxInt)
+	return uint64(math.Round(quantizedValue))
 }
 
 func dequantize(value uint64, bits int) float64 {
@@ -23,7 +30,7 @@ func dequantize(value uint64, bits int) float64 {
 		return math.Float64frombits(value)
 	}
 
-	// Implement dequantization logic based on the number of bits
+	// Map the integer value from [0, maxInt] back to [-1, 1]
 	maxInt := (1 << bits) - 1
-	return float64(value) / float64(maxInt)
+	return (float64(value) / float64(maxInt)) * 2 - 1
 }
