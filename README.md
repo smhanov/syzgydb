@@ -182,7 +182,7 @@ searchVector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example search vector
 // Nearest neighbor search
 args := SearchArgs{
     Vector:   searchVector,
-    MaxCount: 5, // Return top 5 results
+    K: 5, // Return top 5 results
 }
 
 results := collection.Search(args)

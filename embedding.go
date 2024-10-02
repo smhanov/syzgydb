@@ -9,7 +9,7 @@ import (
 	"net/http"
 )
 
-type EmbedTextFunc func(text string) ([]float64, error)
+type EmbedTextFunc func(text []string) ([][]float64, error)
 
 // Default implementation of the embedding function
 var embedText EmbedTextFunc = ollama_embed_text
@@ -23,10 +23,10 @@ func ollama_embed_text(texts []string) ([][]float64, error) {
 	}
 
 	// Prepare the request payload
-    payload := map[string]interface{}{
-        "model": GlobalConfig.TextModel,
-        "input": texts,
-    }
+	payload := map[string]interface{}{
+		"model": GlobalConfig.TextModel,
+		"input": texts,
+	}
 	log.Printf("Using payload %v", payload)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -58,9 +58,9 @@ func ollama_embed_text(texts []string) ([][]float64, error) {
 	}
 
 	// Check if embeddings are present
-    if len(response.Embeddings) == 0 {
-        return nil, fmt.Errorf("no embeddings found in response")
-    }
+	if len(response.Embeddings) == 0 {
+		return nil, fmt.Errorf("no embeddings found in response")
+	}
 
-    return response.Embeddings, nil
+	return response.Embeddings, nil
 }

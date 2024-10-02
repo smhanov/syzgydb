@@ -163,12 +163,12 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 
 	// Convert text to vector if text is provided
 	if record.Text != "" {
-		vector, err := embedText(record.Text)
+		vector, err := embedText([]string{record.Text})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
 			return
 		}
-		record.Vector = vector
+		record.Vector = vector[0]
 	}
 
 	// Ensure a vector is present
@@ -322,12 +322,12 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if searchRequest.Text != "" {
-		vector, err := embedText(searchRequest.Text)
+		vector, err := embedText([]string{searchRequest.Text})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
 			return
 		}
-		searchArgs.Vector = vector
+		searchArgs.Vector = vector[0]
 	}
 
 	log.Printf("Using searchArgs: %+v", searchArgs)
