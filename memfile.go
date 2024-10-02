@@ -16,6 +16,7 @@ import (
 
 const debug = true
 const growthPercentage = 0.05
+const deletedRecordMarker = 0xffffffffffffffff
 
 type memfile struct {
 	*mmap.File
@@ -48,7 +49,7 @@ func (mf *memfile) deleteRecord(id uint64) error {
 	}
 
 	// Mark the record as deleted
-	mf.writeUint64(offset+8, 0xffffffffffffffff)
+	mf.writeUint64(offset+8, deletedRecordMarker)
 
 	// Mark the space as free
 	recordLength := mf.readUint64(offset)
@@ -113,7 +114,7 @@ func createMemFile(name string, header []byte) (*memfile, error) {
 			}
 
 			id := ret.readUint64(offset + 8)
-			if id == 0xffffffffffffffff {
+			if id == deletedRecordMarker {
 				// Record is marked as deleted, add to freemap
 				ret.freemap.markFree(int(offset), int(recordLength))
 			} else {
@@ -217,7 +218,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 
 	// If the record already existed, mark the old space as free
 	if oldOffset, exists := mf.idOffsets[id]; exists {
-		mf.writeUint64(oldOffset, 0xffffffffffffffff)
+		mf.writeUint64(oldOffset, deletedRecordMarker)
 		oldLength := mf.readUint64((oldOffset))
 		mf.freemap.markFree(int(oldOffset), int(oldLength))
 		wasNew = false

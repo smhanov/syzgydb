@@ -48,7 +48,7 @@ func DumpIndex(filename string) {
 		// Read the ID
 		recordID, _ := readUint(file, 8)
 
-		if recordID == 0xffffffffffffffff {
+		if recordID == deletedRecordMarker {
 			fmt.Printf("  Record is deleted\n")
 			file.Seek(int64(recordLength)-16, io.SeekCurrent)
 			continue
