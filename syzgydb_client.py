@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import requests
 import json
 
@@ -32,18 +33,22 @@ class SyzgyDBClient:
         response = requests.post(url, json=data)
         return response.json()
 
-    def search_records(self, collection_name, vector=None, text=None, offset=0, limit=10, include_vectors=False):
+    def search_records(self, collection_name, vector=None, text=None, offset=0, limit=0, include_vectors=False, k=0):
         url = f"{self.server_address}/api/v1/collections/{collection_name}/search"
-        params = {
+        data = {
             "offset": offset,
             "limit": limit,
-            "include_vectors": str(include_vectors).lower()
+            "include_vectors": str(include_vectors).lower(),
         }
-        data = {
-            "vector": vector,
-            "text": text
-        }
-        response = requests.get(url, params=params, json=data)
+        if k > 0:
+            data["k"] = k
+
+        if vector is not None:
+            data["vector"] = vector
+        if text is not None:
+            data["text"] = text
+        
+        response = requests.post(url, json=data)
         return response.json()
 
 # Example usage
@@ -52,14 +57,28 @@ if __name__ == "__main__":
 
     # Create a collection
     print("Creating collection...")
-    print(client.create_collection("test_collection", 384, 64, "cosine"))
+    print(client.delete_collection("pycollection"))
+
+    print(client.create_collection("pycollection", 384, 64, "cosine"))
 
     # Insert records
     print("Inserting records...")
-    print(client.insert_record("test_collection", 1, text="This is the first test record", metadata={"category": "test"}))
-    print(client.insert_record("test_collection", 2, text="This is the second test record", metadata={"category": "test"}))
-    print(client.insert_record("test_collection", 3, text="This is the third test record", metadata={"category": "test"}))
+    print(client.insert_record("pycollection", 1, text="This is the first test record", metadata={"category": "test"}))
+    print(client.insert_record("pycollection", 2, text="This is the second test record", metadata={"category": "test"}))
+    print(client.insert_record("pycollection", 3, text="This is the third test record", metadata={"category": "test"}))
 
     # Search records
     print("Searching records...")
-    print(client.search_records("test_collection", text="test record"))
+    print(client.search_records("pycollection", text="test record", k=2))
+
+def processTweets():
+    # Create a collection
+    print("Creating collection...")
+    print(client.delete_collection("tweets"))
+
+    print(client.create_collection("tweets", 384, 64, "cosine"))
+
+    # Read the csv file "training.1600000.processed.noemoticon.csv"
+    # insert all tweets from the 6th column in the collection
+
+    
