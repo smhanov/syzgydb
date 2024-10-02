@@ -237,9 +237,21 @@ func TestUpdateRecordMetadata(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
-	expected := `{"message":"Metadata updated successfully.","id":1234567890}`
-	if rr.Body.String() != expected {
-		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+	// Decode the actual response
+	var actualResponse map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&actualResponse); err != nil {
+		t.Fatal(err)
+	}
+
+	// Define the expected response
+	expectedResponse := map[string]interface{}{
+		"message": "Metadata updated successfully.",
+		"id":      float64(1234567890), // JSON numbers are decoded as float64
+	}
+
+	// Compare the actual and expected responses
+	if actualResponse["message"] != expectedResponse["message"] || actualResponse["id"] != expectedResponse["id"] {
+		t.Errorf("handler returned unexpected body: got %v want %v", actualResponse, expectedResponse)
 	}
 }
 
