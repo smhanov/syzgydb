@@ -83,6 +83,11 @@ type SearchArgs struct {
 
 	// Radius specifies the maximum distance for radius-based search.
 	Radius float64
+
+	// when MaxCount and Radius are both 0 we will return all the documents in order of id.
+	// These specify the offset and limit
+	Offset int
+	Limit  int
 }
 
 type FilterFn func(id uint64, metadata []byte) bool
