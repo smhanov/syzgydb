@@ -30,10 +30,10 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Define a temporary struct to match the JSON structure
 		var temp struct {
-			Name            string `json:"name"`
-			DistanceMethod  string `json:"distance_function"`
-			DimensionCount  int    `json:"vector_size"`
-			Quantization    int    `json:"quantization"`
+			Name           string `json:"name"`
+			DistanceMethod string `json:"distance_function"`
+			DimensionCount int    `json:"vector_size"`
+			Quantization   int    `json:"quantization"`
 		}
 
 		// Decode the JSON request into the temporary struct
@@ -334,12 +334,6 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		searchRequest.Vector = vector
-	}
-
-	// Ensure a vector is present
-	if searchRequest.Vector == nil {
-		http.Error(w, "Either vector or text must be provided", http.StatusBadRequest)
-		return
 	}
 
 	searchArgs.Vector = searchRequest.Vector
