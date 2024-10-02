@@ -11,9 +11,16 @@ import (
 func main() {
 	// Define the --serve flag
 	pflag.Bool("serve", false, "Start the server")
+	pflag.String("dump", "", "Dump the index from the specified file")
 	pflag.Parse()
 
-	// Check if --serve is specified
+	// After parsing flags, check if --dump is specified
+	dumpFile := pflag.Lookup("dump").Value.String()
+	if dumpFile != "" {
+		// Call DumpIndex with the specified filename
+		syzgydb.DumpIndex(dumpFile)
+		return
+	}
 	if pflag.Lookup("serve").Value.String() == "true" {
 		// Load configuration
 		if err := LoadConfig(); err != nil {
