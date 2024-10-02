@@ -2,7 +2,9 @@
 ![image](https://github.com/user-attachments/assets/f8cc7b60-1fd0-4319-a607-b8d3269a288d)
 
 
-SyzgyDB is a high-performance, embeddable vector database designed for applications requiring efficient handling of large datasets. Written in Go, it leverages disk-based storage to minimize memory usage, making it ideal for systems with limited resources. SyzgyDB supports a range of distance metrics, including Euclidean and Cosine, and offers multiple quantization levels to optimize storage and search performance. It is well-suited for use cases such as image and video retrieval, recommendation systems, natural language processing, anomaly detection, and bioinformatics. With its RESTful API, SyzgyDB provides easy integration and management of collections and records, enabling developers to perform fast and flexible vector similarity searches.
+SyzgyDB is a high-performance, embeddable vector database designed for applications requiring efficient handling of large datasets. Written in Go, it leverages disk-based storage to minimize memory usage, making it ideal for systems with limited resources. SyzgyDB supports a range of distance metrics, including Euclidean and Cosine, and offers multiple quantization levels to optimize storage and search performance.
+
+With built-in integration for the Ollama server, SyzgyDB can automatically generate vector embeddings from text and images, simplifying the process of adding and querying data. This makes it well-suited for use cases such as image and video retrieval, recommendation systems, natural language processing, anomaly detection, and bioinformatics. With its RESTful API, SyzgyDB provides easy integration and management of collections and records, enabling developers to perform fast and flexible vector similarity searches.
 
 
 ## What is a Vector Database?
@@ -22,6 +24,7 @@ Vector databases are used in a variety of applications, including:
 ## Features
 
 - **Disk-Based Storage**: Operates with minimal memory usage by storing data on disk.
+- **Automatic Embedding Generation**: Seamlessly integrates with the Ollama server to generate vector embeddings from text and images, reducing the need for manual preprocessing.
 - **Vector Quantization**: Supports multiple quantization levels (4, 8, 16, 32, 64 bits) to optimize storage and performance.
 - **Distance Metrics**: Supports Euclidean and Cosine distance calculations for vector similarity.
 - **Scalable**: Efficiently handles large datasets with support for adding, updating, and removing documents.
