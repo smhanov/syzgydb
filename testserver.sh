@@ -9,7 +9,7 @@ curl -X DELETE "$SERVER_ADDRESS/api/v1/collections/test_collection"
 echo "Creating collection..."
 curl -X POST "$SERVER_ADDRESS/api/v1/collections" -H "Content-Type: application/json" -d '{
   "name": "test_collection",
-  "vector_size": 128,
+  "vector_size": 384,
   "quantization": 64,
   "distance_function": "cosine"
 }'
