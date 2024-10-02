@@ -15,6 +15,7 @@ import (
 // uint64 - ID, or deleted is all 0xffffffffffffffff
 
 const debug = true
+const growthPercentage = 0.05
 
 type memfile struct {
 	*mmap.File
@@ -28,6 +29,13 @@ type memfile struct {
 
 	name string
 }
+
+// max returns the larger of x or y.
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
 
 /*
 deleteRecord marks a record as deleted and frees its space.
@@ -137,7 +145,10 @@ Parameters:
 func (mf *memfile) ensureLength(length int) {
 	curSize := mf.File.Len()
 
-	length += 4096
+	// Calculate the growth size as the maximum of 4096 or 5% of the current size
+	growthSize := max(4096, int(float64(curSize)*growthPercentage))
+
+	length += growthSize
 
 	if curSize >= length {
 		return
