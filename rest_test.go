@@ -206,6 +206,8 @@ func TestInsertRecords(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
+		// print out the body of the response.
+		t.Logf("Response body: %v", rr.Body.String())
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
 	}
 
