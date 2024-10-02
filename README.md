@@ -2,7 +2,8 @@
 ![image](https://github.com/user-attachments/assets/f8cc7b60-1fd0-4319-a607-b8d3269a288d)
 
 
-SyzgyDB is an embeddable vector database written in Go, designed to efficiently handle large datasets by keeping data on disk rather than in memory. This makes SyzgyDB ideal for systems with limited memory resources. It supports various distance metrics and quantization levels, allowing for flexible and efficient vector similarity searches.
+SyzgyDB is a high-performance, embeddable vector database designed for applications requiring efficient handling of large datasets. Written in Go, it leverages disk-based storage to minimize memory usage, making it ideal for systems with limited resources. SyzgyDB supports a range of distance metrics, including Euclidean and Cosine, and offers multiple quantization levels to optimize storage and search performance. It is well-suited for use cases such as image and video retrieval, recommendation systems, natural language processing, anomaly detection, and bioinformatics. With its RESTful API, SyzgyDB provides easy integration and management of collections and records, enabling developers to perform fast and flexible vector similarity searches.
+
 
 ## What is a Vector Database?
 
