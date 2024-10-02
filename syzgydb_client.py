@@ -34,7 +34,10 @@ class SyzgyDBClient:
         response = requests.post(url, json=data)
         return response.json()
 
-    def search_records(self, collection_name, vector=None, text=None, offset=0, limit=0, include_vectors=False, k=0):
+    def insert_records(self, collection_name, records):
+        url = f"{self.server_address}/api/v1/collections/{collection_name}/records"
+        response = requests.post(url, json=records)
+        return response.json()
         url = f"{self.server_address}/api/v1/collections/{collection_name}/search"
         data = {
             "offset": offset,
