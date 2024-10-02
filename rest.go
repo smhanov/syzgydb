@@ -2,7 +2,9 @@ package syzgydb
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,11 +16,11 @@ type Server struct {
 }
 
 func (s *Server) collectionNameToFileName(name string) string {
-    return name + ".dat"
+	return name + ".dat"
 }
 
 func (s *Server) fileNameToCollectionName(fileName string) string {
-    return strings.TrimSuffix(fileName, ".dat")
+	return strings.TrimSuffix(fileName, ".dat")
 }
 func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
@@ -31,35 +33,35 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
-		if _, exists := s.collections[opts.Name]; exists {
+		name := opts.Name
+		opts.Name = s.collectionNameToFileName(name)
+
+		if _, exists := s.collections[name]; exists {
 			http.Error(w, "Collection already exists", http.StatusBadRequest)
 			return
 		}
 
-		// Transform collection name to filename
-		fileName := s.collectionNameToFileName(opts.Name)
-
 		// Pass the transformed name to NewCollection
-		opts.Name = fileName
-		s.collections[opts.Name] = NewCollection(opts)
+		s.collections[name] = NewCollection(opts)
 		w.WriteHeader(http.StatusCreated)
-		collectionName := s.fileNameToCollectionName(opts.Name)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": collectionName})
+		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": name})
 	}
 }
 
 func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 4 {
+	if len(parts) < 5 {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
-	collectionName := s.collectionNameToFileName(parts[3])
+	collectionName := parts[4]
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	collection, exists := s.collections[collectionName]
+	log.Printf("Looked for collection name %s, found %v", collectionName, collection)
+
 	if !exists {
 		http.Error(w, "Collection not found", http.StatusNotFound)
 		return
@@ -80,6 +82,8 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodDelete:
 		delete(s.collections, collectionName)
+		collection.Close()
+		os.Remove(s.collectionNameToFileName(collectionName))
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection deleted successfully."})
 	}
@@ -90,7 +94,7 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
-	collectionName := parts[3]
+	collectionName := parts[4]
 
 	s.mutex.Lock()
 	collection, exists := s.collections[collectionName]
@@ -130,8 +134,8 @@ func (s *Server) handleUpdateMetadata(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
-	collectionName := parts[3]
-	id, err := strconv.ParseUint(parts[len(parts)-1], 10, 64)
+	collectionName := parts[4]
+	id, err := strconv.ParseUint(parts[len(parts)-2], 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid record ID", http.StatusBadRequest)
 		return
@@ -173,12 +177,13 @@ func (s *Server) handleUpdateMetadata(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 6 {
+	if len(parts) < 7 {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
-	collectionName := parts[3]
-	id, err := strconv.ParseUint(parts[5], 10, 64)
+	collectionName := parts[4]
+	id, err := strconv.ParseUint(parts[6], 10, 64)
+	log.Printf("ID: %d, err is %v parts %v '%v' '%v'", id, err, parts, parts[5], parts[4])
 	if err != nil {
 		http.Error(w, "Invalid record ID", http.StatusBadRequest)
 		return
@@ -208,7 +213,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
-	collectionName := parts[3]
+	collectionName := parts[4]
 
 	s.mutex.Lock()
 	collection, exists := s.collections[collectionName]
