@@ -254,6 +254,48 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if includeVectors {
+		// Collect all document IDs
+		ids := make([]uint64, 0, len(collection.memfile.idOffsets))
+		for id := range collection.memfile.idOffsets {
+			ids = append(ids, id)
+		}
+
+		// Sort IDs
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+
+		// Apply offset and limit
+		start := offset
+		if start > len(ids) {
+			start = len(ids)
+		}
+		end := start + limit
+		if end > len(ids) {
+			end = len(ids)
+		}
+
+		// Collect results
+		results := make([]SearchResult, 0, end-start)
+		for _, id := range ids[start:end] {
+			doc, err := collection.GetDocument(id)
+			if err != nil {
+				continue
+			}
+			results = append(results, SearchResult{
+				ID:       doc.ID,
+				Metadata: doc.Metadata,
+				Distance: 0, // Distance is not applicable here
+				Vector:   doc.Vector,
+			})
+		}
+
+		json.NewEncoder(w).Encode(SearchResults{
+			Results:         results,
+			PercentSearched: 100.0, // All records are considered
+		})
+		return
+	}
+
 	// Initialize SearchArgs
 	searchArgs := SearchArgs{
 		Offset: offset,
