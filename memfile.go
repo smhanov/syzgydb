@@ -30,13 +30,6 @@ type memfile struct {
 	name string
 }
 
-// max returns the larger of x or y.
-func max(x, y int) int {
-	if x > y {
-		return x
-	}
-	return y
-
 /*
 deleteRecord marks a record as deleted and frees its space.
 
