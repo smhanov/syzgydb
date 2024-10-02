@@ -348,6 +348,8 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	log.Printf("Using search arguments: %+v", searchArgs)
+
 	if includeVectors {
 		// Collect all document IDs
 		ids := make([]uint64, 0, len(collection.memfile.idOffsets))
