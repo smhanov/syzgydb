@@ -390,5 +390,34 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := collection.Search(searchArgs)
-	json.NewEncoder(w).Encode(results)
+
+	// Decode metadata and prepare results with lowercase JSON field names
+	type jsonSearchResult struct {
+		ID       uint64                 `json:"id"`
+		Metadata map[string]interface{} `json:"metadata"`
+		Distance float64                `json:"distance"`
+	}
+
+	jsonResults := make([]jsonSearchResult, len(results.Results))
+	for i, result := range results.Results {
+		var metadata map[string]interface{}
+		if err := json.Unmarshal(result.Metadata, &metadata); err != nil {
+			log.Printf("Error decoding metadata for ID %d: %v", result.ID, err)
+			continue
+		}
+		jsonResults[i] = jsonSearchResult{
+			ID:       result.ID,
+			Metadata: metadata,
+			Distance: result.Distance,
+		}
+	}
+
+	// Encode the results with lowercase field names
+	json.NewEncoder(w).Encode(struct {
+		Results         []jsonSearchResult `json:"results"`
+		PercentSearched float64            `json:"percent_searched"`
+	}{
+		Results:         jsonResults,
+		PercentSearched: results.PercentSearched,
+	})
 }
