@@ -256,6 +256,57 @@ func NewCollection(options CollectionOptions) *Collection {
 }
 
 /*
+ComputeAverageDistance calculates the average distance between random pairs of documents in the collection.
+It returns the average distance or 0.0 if there are fewer than two documents or if the sample size is non-positive.
+*/
+func (c *Collection) ComputeAverageDistance(samples int) float64 {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if len(c.memfile.idOffsets) < 2 || samples <= 0 {
+		return 0.0
+	}
+
+	totalDistance := 0.0
+	count := 0
+
+	// Create a slice of all document IDs
+	ids := make([]uint64, 0, len(c.memfile.idOffsets))
+	for id := range c.memfile.idOffsets {
+		ids = append(ids, id)
+	}
+
+	// Perform up to 'samples' comparisons
+	for i := 0; i < samples; i++ {
+		// Randomly select two different IDs
+		id1 := ids[rand.Intn(len(ids))]
+		id2 := ids[rand.Intn(len(ids))]
+		if id1 == id2 {
+			continue // Ensure the points are different
+		}
+
+		// Retrieve the documents
+		doc1, err1 := c.getDocument(id1)
+		doc2, err2 := c.getDocument(id2)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+
+		// Calculate the distance between the two vectors
+		distance := c.distance(doc1.Vector, doc2.Vector)
+		totalDistance += distance
+		count++
+	}
+
+	if count == 0 {
+		return 0.0
+	}
+
+	// Return the average distance
+	return totalDistance / float64(count)
+}
+
+/*
 Close closes the memfile associated with the collection.
 
 Returns:
