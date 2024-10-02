@@ -37,6 +37,40 @@ cd syzgy
 go build
 ```
 
+## Running with Docker
+
+You can run SyzgyDB using Docker to simplify the setup process. Follow these steps to build and run the Docker container:
+
+### Build the Docker Image
+
+First, ensure you have Docker installed on your system. Then, build the Docker image using the following command:
+
+```bash
+docker build -t syzgydb .
+```
+
+This command will create a Docker image named `syzgydb` using the Dockerfile in the repository.
+
+### Run the Docker Container
+
+Once the image is built, you can run the Docker container with the following command:
+
+```bash
+docker run -p 8080:8080 syzgydb
+```
+
+This command will start the SyzgyDB server inside a Docker container and map port 8080 of the container to port 8080 on your host machine. You can access the server's API at `http://localhost:8080`.
+
+### Stopping the Docker Container
+
+To stop the running Docker container, you can use the `docker ps` command to find the container ID and then stop it using:
+
+```bash
+docker stop <container_id>
+```
+
+Replace `<container_id>` with the actual ID of the running container.
+
 ## Usage
 
 ### Creating a Collection
