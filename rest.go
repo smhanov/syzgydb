@@ -112,14 +112,19 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		log.Printf("Fetching info for collection %s", collectionName)
+
+		// Use ComputeStats to get the collection statistics
+		stats := collection.ComputeStats()
+
+		// Populate the response with the statistics
 		info := map[string]interface{}{
 			"name":              s.fileNameToCollectionName(collection.Name),
-			"vector_size":       collection.DimensionCount,
-			"quantization":      collection.Quantization,
-			"distance_function": collection.DistanceMethod,
-			"storage_space":     0, // Placeholder
-			"num_vectors":       len(collection.memfile.idOffsets),
-			"average_distance":  0.0, // Placeholder
+			"vector_size":       stats.DimensionCount,
+			"quantization":      stats.Quantization,
+			"distance_function": stats.DistanceMethod,
+			"storage_space":     stats.StorageSize,
+			"num_vectors":       stats.DocumentCount,
+			"average_distance":  stats.AverageDistance,
 		}
 		json.NewEncoder(w).Encode(info)
 
