@@ -122,7 +122,14 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection.AddDocument(record.ID, record.Vector, record.Metadata)
+	// Encode metadata to JSON
+	metadataBytes, err := json.Marshal(record.Metadata)
+	if err != nil {
+		http.Error(w, "Failed to encode metadata", http.StatusInternalServerError)
+		return
+	}
+
+	collection.AddDocument(record.ID, record.Vector, metadataBytes)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Record inserted successfully.", "id": record.ID})
 }
@@ -158,7 +165,14 @@ func (s *Server) handleUpdateMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := collection.UpdateDocument(id, metadata.Metadata); err != nil {
+	// Encode new metadata to JSON
+	metadataBytes, err := json.Marshal(metadata.Metadata)
+	if err != nil {
+		http.Error(w, "Failed to encode metadata", http.StatusInternalServerError)
+		return
+	}
+
+	if err := collection.UpdateDocument(id, metadataBytes); err != nil {
 		http.Error(w, "Record not found", http.StatusNotFound)
 		return
 	}

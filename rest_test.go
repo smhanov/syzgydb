@@ -51,7 +51,7 @@ func TestSearchRecords(t *testing.T) {
 		DimensionCount: 128,
 		Quantization:   64,
 	})
-	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, map[string]string{"key1": "value1"})
+	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 
 	reqBody := `{"vector": [0.1, 0.2, 0.3, 0.4, 0.5]}`
 	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections/test_collection/search", strings.NewReader(reqBody))
@@ -178,7 +178,7 @@ func TestUpdateRecordMetadata(t *testing.T) {
 		DimensionCount: 128,
 		Quantization:   64,
 	})
-	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, map[string]string{"key1": "value1"})
+	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 
 	reqBody := `{
 		"metadata": {"key1": "new_value1"}
