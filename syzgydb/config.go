@@ -51,5 +51,11 @@ func LoadConfig() error {
 
 	// Assign the loaded configuration to the global variable
 	syzgydb.Configure(cfg)
+	// Print out the configuration values
+	fmt.Println("Configuration values:")
+	fmt.Printf("Ollama Server: %s\n", viper.GetString("ollama_server"))
+	fmt.Printf("Text Model: %s\n", viper.GetString("text_model"))
+	fmt.Printf("Image Model: %s\n", viper.GetString("image_model"))
+
 	return nil
 }
