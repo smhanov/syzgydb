@@ -34,6 +34,45 @@ type CollectionOptions struct {
 }
 
 /*
+ComputeStats gathers and returns statistics about the collection.
+It returns a CollectionStats object filled with the relevant statistics.
+*/
+func (c *Collection) ComputeStats() CollectionStats {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	// Calculate the number of documents
+	documentCount := len(c.memfile.idOffsets)
+
+	// Calculate the storage size
+	storageSize := c.memfile.Len()
+
+	// Calculate the average distance
+	averageDistance := c.ComputeAverageDistance(100) // Example: use 100 samples
+
+	// Determine the distance method as a string
+	var distanceMethod string
+	switch c.DistanceMethod {
+	case Euclidean:
+		distanceMethod = "euclidean"
+	case Cosine:
+		distanceMethod = "cosine"
+	default:
+		distanceMethod = "unknown"
+	}
+
+	// Create and return the CollectionStats
+	return CollectionStats{
+		DocumentCount:   documentCount,
+		DimensionCount:  c.DimensionCount,
+		Quantization:    c.Quantization,
+		DistanceMethod:  distanceMethod,
+		StorageSize:     int64(storageSize),
+		AverageDistance: averageDistance,
+	}
+}
+
+/*
 Document represents a single document in the collection, consisting of an ID, vector, and metadata.
 */
 type Document struct {
