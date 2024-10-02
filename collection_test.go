@@ -17,6 +17,42 @@ func TestEuclideanDistance(t *testing.T) {
 	}
 }
 
+func TestComputeAverageDistance(t *testing.T) {
+	// Define collection options
+	options := CollectionOptions{
+		Name:           "test_collection_avg_distance.dat",
+		DistanceMethod: Euclidean,
+		DimensionCount: 3,
+		Create:         true,
+	}
+
+	// Remove any existing file
+	os.Remove(options.Name)
+
+	// Create a new collection
+	collection := NewCollection(options)
+	defer collection.Close()
+
+	// Add documents to the collection
+	numDocuments := 100
+	for i := 0; i < numDocuments; i++ {
+		vector := []float64{rand.Float64() * 100, rand.Float64() * 100, rand.Float64() * 100}
+		collection.AddDocument(uint64(i), vector, []byte("metadata"))
+	}
+
+	// Compute the average distance
+	samples := 50
+	averageDistance := collection.ComputeAverageDistance(samples)
+
+	// Check that the average distance is greater than zero
+	if averageDistance <= 0 {
+		t.Errorf("Expected average distance to be greater than zero, got %f", averageDistance)
+	}
+
+	// Optionally, log the average distance for manual verification
+	t.Logf("Average distance: %f", averageDistance)
+}
+
 func TestRemoveDocumentRealWorld(t *testing.T) {
 	// Create a collection with some documents
 	collectionName := "test_collection.dat"
