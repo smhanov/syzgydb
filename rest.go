@@ -19,7 +19,19 @@ func main() {
 	}
 
 	http.HandleFunc("/api/v1/collections", server.handleCollections)
-	http.HandleFunc("/api/v1/collections/", server.handleCollection)
+	http.HandleFunc("/api/v1/collections/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/records") && r.Method == http.MethodPost {
+			server.handleInsertRecord(w, r)
+		} else if strings.Contains(r.URL.Path, "/records/") && r.Method == http.MethodPut {
+			server.handleUpdateMetadata(w, r)
+		} else if strings.Contains(r.URL.Path, "/records/") && r.Method == http.MethodDelete {
+			server.handleDeleteRecord(w, r)
+		} else if strings.HasSuffix(r.URL.Path, "/search") && r.Method == http.MethodGet {
+			server.handleSearchRecords(w, r)
+		} else {
+			server.handleCollection(w, r)
+		}
+	})
 
 	http.ListenAndServe(":8080", nil)
 }
@@ -81,4 +93,134 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection deleted successfully."})
 	}
+}
+func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 5 {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	collectionName := parts[3]
+
+	s.mutex.Lock()
+	collection, exists := s.collections[collectionName]
+	s.mutex.Unlock()
+
+	if !exists {
+		http.Error(w, "Collection not found", http.StatusNotFound)
+		return
+	}
+
+	var record struct {
+		ID       uint64            `json:"id"`
+		Vector   []float64         `json:"vector"`
+		Metadata map[string]string `json:"metadata"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&record); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	collection.AddDocument(record.ID, record.Vector, record.Metadata)
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Record inserted successfully.", "id": record.ID})
+}
+
+func (s *Server) handleUpdateMetadata(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 6 {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	collectionName := parts[3]
+	id, err := strconv.ParseUint(parts[5], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid record ID", http.StatusBadRequest)
+		return
+	}
+
+	s.mutex.Lock()
+	collection, exists := s.collections[collectionName]
+	s.mutex.Unlock()
+
+	if !exists {
+		http.Error(w, "Collection not found", http.StatusNotFound)
+		return
+	}
+
+	var metadata struct {
+		Metadata map[string]string `json:"metadata"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&metadata); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := collection.UpdateDocument(id, metadata.Metadata); err != nil {
+		http.Error(w, "Record not found", http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Metadata updated successfully.", "id": id})
+}
+
+func (s *Server) handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 6 {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	collectionName := parts[3]
+	id, err := strconv.ParseUint(parts[5], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid record ID", http.StatusBadRequest)
+		return
+	}
+
+	s.mutex.Lock()
+	collection, exists := s.collections[collectionName]
+	s.mutex.Unlock()
+
+	if !exists {
+		http.Error(w, "Collection not found", http.StatusNotFound)
+		return
+	}
+
+	if err := collection.removeDocument(id); err != nil {
+		http.Error(w, "Record not found", http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Record deleted successfully.", "id": id})
+}
+
+func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 5 {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	collectionName := parts[3]
+
+	s.mutex.Lock()
+	collection, exists := s.collections[collectionName]
+	s.mutex.Unlock()
+
+	if !exists {
+		http.Error(w, "Collection not found", http.StatusNotFound)
+		return
+	}
+
+	var searchArgs SearchArgs
+	if err := json.NewDecoder(r.Body).Decode(&searchArgs); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	results := collection.Search(searchArgs)
+	json.NewEncoder(w).Encode(results)
 }
