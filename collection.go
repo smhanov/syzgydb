@@ -161,36 +161,59 @@ NewCollection creates a new Collection with the specified options.
 It initializes the collection's memory file and pivots manager.
 */
 func NewCollection(options CollectionOptions) *Collection {
+	// Define the header size and create a buffer to read it
+	header := make([]byte, headerSize)
+
+	// Check if the file exists
+	fileExists := false
+	if _, err := os.Stat(options.Name); err == nil {
+		fileExists = true
+	}
+
+	// Open or create the memory-mapped file
+	var err error
+	var memFile *memfile
+	if fileExists {
+		// Open the existing file and read the header
+		memFile, err = createMemFile(options.Name, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		// Read the header from the file
+		if _, err := memFile.ReadAt(header, 0); err != nil {
+			panic(err)
+		}
+
+		// Extract the values from the header
+		options.DistanceMethod = int(header[8])
+		options.DimensionCount = int(binary.BigEndian.Uint32(header[9:]))
+		options.Quantization = int(header[13])
+	} else {
+		// Create a new file and write the header
+		memFile, err = createMemFile(options.Name, header)
+		if err != nil {
+			panic(err)
+		}
+
+		// Fill in the header
+		binary.BigEndian.PutUint32(header[0:], 1)                  // version
+		binary.BigEndian.PutUint32(header[4:], uint32(headerSize)) // length of the header
+		header[8] = byte(options.DistanceMethod)
+		binary.BigEndian.PutUint32(header[9:], uint32(options.DimensionCount))
+		header[13] = byte(options.Quantization)
+	}
+
+	// Determine the distance function
 	distanceFn := euclideanDistance
 	if options.DistanceMethod == Cosine {
 		distanceFn = cosineDistance
 	}
 
-	// Validate and set Quantization
-	if options.Quantization == 0 {
-		options.Quantization = 64
-	} else if options.Quantization != 4 && options.Quantization != 8 && options.Quantization != 16 && options.Quantization != 32 && options.Quantization != 64 {
-		panic("Quantization must be one of 0, 4, 8, 16, 32, or 64")
-	}
-
 	c := &Collection{
 		CollectionOptions: options,
-		pivotsManager:     *newPivotsManager(distanceFn), // Use newPivotsManager
-	}
-
-	header := make([]byte, headerSize)
-
-	// Fill in the header
-	binary.BigEndian.PutUint32(header[0:], 1)                  // version
-	binary.BigEndian.PutUint32(header[4:], uint32(headerSize)) // length of the header
-	header[8] = byte(options.DistanceMethod)
-	binary.BigEndian.PutUint32(header[9:], uint32(options.DimensionCount))
-	header[13] = byte(options.Quantization) // Add this line
-
-	var err error
-	c.memfile, err = createMemFile(c.Name, header)
-	if err != nil {
-		panic(err)
+		memfile:           memFile,
+		pivotsManager:     *newPivotsManager(distanceFn),
 	}
 
 	c.pivotsManager.ensurePivots(c, getDesiredPivots(len(c.memfile.idOffsets)))
