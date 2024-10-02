@@ -357,6 +357,46 @@ It returns the search results, including the list of matching documents and the 
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	if args.MaxCount == 0 && args.Radius == 0 {
+		// Collect all document IDs
+		ids := make([]uint64, 0, len(c.memfile.idOffsets))
+		for id := range c.memfile.idOffsets {
+			ids = append(ids, id)
+		}
+
+		// Sort IDs
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+
+		// Apply offset and limit
+		start := args.Offset
+		if start > len(ids) {
+			start = len(ids)
+		}
+		end := start + args.Limit
+		if end > len(ids) {
+			end = len(ids)
+		}
+
+		// Collect results
+		results := make([]SearchResult, 0, end-start)
+		for _, id := range ids[start:end] {
+			doc, err := c.getDocument(id)
+			if err != nil {
+				continue
+			}
+			results = append(results, SearchResult{
+				ID:       doc.ID,
+				Metadata: doc.Metadata,
+				Distance: 0, // Distance is not applicable here
+			})
+		}
+
+		return SearchResults{
+			Results:         results,
+			PercentSearched: 100.0, // All records are considered
+		}
+	}
+
 	if args.MaxCount > 0 {
 		return c.searchNearestNeighbours(args)
 	} else if args.Radius > 0 {
