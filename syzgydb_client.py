@@ -67,10 +67,6 @@ def processTweets():
             }
             records.append(record)
 
-            # Limit to 1000 records for this example
-            if len(records) == 1000:
-                break
-
     # Insert all records at once
     print("Inserting records...")
     response = client.insert_records("tweets", records)
