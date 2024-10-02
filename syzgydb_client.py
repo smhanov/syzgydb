@@ -38,22 +38,6 @@ class SyzgyDBClient:
         url = f"{self.server_address}/api/v1/collections/{collection_name}/records"
         response = requests.post(url, json=records)
         return response.json()
-        url = f"{self.server_address}/api/v1/collections/{collection_name}/search"
-        data = {
-            "offset": offset,
-            "limit": limit,
-            "include_vectors": str(include_vectors).lower(),
-        }
-        if k > 0:
-            data["k"] = k
-
-        if vector is not None:
-            data["vector"] = vector
-        if text is not None:
-            data["text"] = text
-        
-        response = requests.post(url, json=data)
-        return response.json()
 
 def processTweets():
     # Create a collection
