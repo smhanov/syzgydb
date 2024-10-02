@@ -27,6 +27,76 @@ Vector databases are used in a variety of applications, including:
 - **Scalable**: Efficiently handles large datasets with support for adding, updating, and removing documents.
 - **Search Capabilities**: Provides nearest neighbor and radius-based search functionalities.
 
+## Configuration for Ollama Server
+
+SyzgyDB can be configured to use the Ollama server for generating embeddings from text and images. This setup allows you to automatically convert text and image data into vector representations, which can be stored and queried in the database.
+
+### Configuring the Ollama Server
+
+1. **Ollama Server Address**: By default, the Ollama server is expected to run on `localhost:11434`. You can change this by setting the `ollama-server` flag or environment variable.
+
+2. **Text and Image Models**: Specify the models to be used for text and image embeddings. The default models are `all-minilm` for text and `minicpm-v` for images. These can be configured using command-line flags, environment variables, or a configuration file.
+
+### Command-Line Flags
+
+You can specify the Ollama server configuration using command-line flags when starting the SyzgyDB server:
+
+```bash
+./syzgydb --ollama-server="your-server-address:port" --text-model="your-text-model" --image-model="your-image-model"
+```
+
+### Environment Variables
+
+Alternatively, you can set environment variables to configure the Ollama server:
+
+```bash
+export SYZGY_OLLAMA_SERVER="your-server-address:port"
+export SYZGY_TEXT_MODEL="your-text-model"
+export SYZGY_IMAGE_MODEL="your-image-model"
+```
+
+### Configuration File
+
+You can also use a configuration file (`syzgy.conf`) to set these options. Place the file in the current directory or `/etc/syzgydb/`:
+
+```ini
+ollama_server = "your-server-address:port"
+text_model = "your-text-model"
+image_model = "your-image-model"
+```
+
+### Example Configuration
+
+Here is an example of how you might configure the Ollama server:
+
+- **Server Address**: `ollama.example.com:12345`
+- **Text Model**: `bert-base-uncased`
+- **Image Model**: `resnet50`
+
+Using command-line flags:
+
+```bash
+./syzgydb --ollama-server="ollama.example.com:12345" --text-model="bert-base-uncased" --image-model="resnet50"
+```
+
+Using environment variables:
+
+```bash
+export SYZGY_OLLAMA_SERVER="ollama.example.com:12345"
+export SYZGY_TEXT_MODEL="bert-base-uncased"
+export SYZGY_IMAGE_MODEL="resnet50"
+```
+
+Using a configuration file (`syzgy.conf`):
+
+```ini
+ollama_server = "ollama.example.com:12345"
+text_model = "bert-base-uncased"
+image_model = "resnet50"
+```
+
+This section provides users with multiple ways to configure the Ollama server, ensuring flexibility and ease of integration into different environments.
+
 ## Installation
 
 To use SyzgyDB in your Go project, you can clone the repository and build the project using the following commands:
