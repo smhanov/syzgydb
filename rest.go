@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -285,7 +286,6 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 				ID:       doc.ID,
 				Metadata: doc.Metadata,
 				Distance: 0, // Distance is not applicable here
-				Vector:   doc.Vector,
 			})
 		}
 
