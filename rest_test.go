@@ -10,9 +10,17 @@ import (
 )
 
 func setupTestServer() *Server {
-	return &Server{
+	server := &Server{
 		collections: make(map[string]*Collection),
 	}
+	// Initialize a default collection for testing
+	server.collections["test_collection"] = NewCollection(CollectionOptions{
+		Name:           "test_collection",
+		DistanceMethod: Cosine,
+		DimensionCount: 128,
+		Quantization:   64,
+	})
+	return server
 }
 
 func TestDeleteCollection(t *testing.T) {
@@ -99,7 +107,7 @@ func TestCreateCollection(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
 	}
 
-	expected := `{"message":"Collection created successfully.","collection_name":"test_collection"}`
+	expected := `{"collection_name":"test_collection","message":"Collection created successfully."}`
 	if rr.Body.String() != expected {
 		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
 	}

@@ -118,7 +118,7 @@ func (s *Server) handleUpdateMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	collectionName := parts[3]
-	id, err := strconv.ParseUint(parts[5], 10, 64)
+	id, err := strconv.ParseUint(parts[len(parts)-1], 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid record ID", http.StatusBadRequest)
 		return
