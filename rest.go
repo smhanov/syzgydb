@@ -119,7 +119,7 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 
 	// Convert text to vector if text is provided
 	if record.Text != "" {
-		vector, err := ollama_embed_text(record.Text)
+		vector, err := embedText(record.Text)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
 			return

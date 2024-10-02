@@ -8,6 +8,11 @@ import (
     "net/http"
 )
 
+type EmbedTextFunc func(text string) ([]float64, error)
+
+// Default implementation of the embedding function
+var embedText EmbedTextFunc = ollama_embed_text
+
 // ollama_embed_text connects to the configured Ollama server and runs the configured text model
 // to generate an embedding for the given text.
 func ollama_embed_text(text string) ([]float64, error) {
