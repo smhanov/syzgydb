@@ -47,8 +47,9 @@ func TestDeleteCollection(t *testing.T) {
 	}
 
 	expected := `{"message":"Collection deleted successfully."}`
-	if rr.Body.String() != expected {
-		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+	actual := strings.TrimSpace(rr.Body.String())
+	if actual != expected {
+		t.Errorf("handler returned unexpected body: got %v want %v", actual, expected)
 	}
 }
 
