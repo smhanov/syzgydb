@@ -16,17 +16,17 @@ var embedText EmbedTextFunc = ollama_embed_text
 
 // ollama_embed_text connects to the configured Ollama server and runs the configured text model
 // to generate an embedding for the given text.
-func ollama_embed_text(text string) ([]float64, error) {
+func ollama_embed_text(texts []string) ([][]float64, error) {
 	// Ensure the global configuration is set
 	if GlobalConfig == nil {
 		return nil, fmt.Errorf("global configuration is not set")
 	}
 
 	// Prepare the request payload
-	payload := map[string]interface{}{
-		"model": GlobalConfig.TextModel,
-		"input": text,
-	}
+    payload := map[string]interface{}{
+        "model": GlobalConfig.TextModel,
+        "input": texts,
+    }
 	log.Printf("Using payload %v", payload)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -58,9 +58,9 @@ func ollama_embed_text(text string) ([]float64, error) {
 	}
 
 	// Check if embeddings are present
-	if len(response.Embeddings) == 0 || len(response.Embeddings[0]) == 0 {
-		return nil, fmt.Errorf("no embeddings found in response")
-	}
+    if len(response.Embeddings) == 0 {
+        return nil, fmt.Errorf("no embeddings found in response")
+    }
 
-	return response.Embeddings[0], nil
+    return response.Embeddings, nil
 }
