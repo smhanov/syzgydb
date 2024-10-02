@@ -47,25 +47,34 @@ def processTweets():
     print(client.create_collection("tweets", 384, 64, "cosine"))
 
     # Read the csv file "training.1600000.processed.noemoticon.csv"
-    # insert all tweets from the 6th column in the collection
+    # Collect all tweets from the 6th column in the collection
 
-    
+    records = []
     with open("training.1600000.processed.noemoticon.csv", mode='r', encoding='utf-8') as file:
         csv_reader = csv.reader(file)
         
         # Iterate over each row in the CSV
-        i =0
         for row in csv_reader:
             # Extract the tweet from the 6th column (index 5)
             tweet_text = row[5]
             
-            # Insert the tweet into the collection
-            # Assuming each tweet has a unique ID, you can use the row index as the ID
+            # Create a record for the tweet
             record_id = csv_reader.line_num  # or any other unique identifier
-            print(client.insert_record("tweets", record_id, text=tweet_text, metadata={"text": tweet_text}))
-            i += 1
-            if i == 1000:
+            record = {
+                "id": record_id,
+                "text": tweet_text,
+                "metadata": {"text": tweet_text}
+            }
+            records.append(record)
+
+            # Limit to 1000 records for this example
+            if len(records) == 1000:
                 break
+
+    # Insert all records at once
+    print("Inserting records...")
+    response = client.insert_records("tweets", records)
+    print(response)
             
             # Example usage
 if __name__ == "__main__":
