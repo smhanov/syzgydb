@@ -225,6 +225,11 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
+	// Check if the vector size matches the expected dimensions
+	if len(vector) != c.DimensionCount {
+		panic("vector size does not match the expected number of dimensions")
+	}
+
 	doc := &Document{
 		Vector:   vector,
 		Metadata: metadata,
