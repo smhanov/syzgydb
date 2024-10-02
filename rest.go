@@ -106,7 +106,8 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 
 	var record struct {
 		ID       uint64            `json:"id"`
-		Vector   []float64         `json:"vector"`
+		Vector   []float64         `json:"vector,omitempty"`
+		Text     string            `json:"text,omitempty"`
 		Metadata map[string]string `json:"metadata"`
 	}
 
@@ -115,7 +116,21 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Encode metadata to JSON
+	// Convert text to vector if text is provided
+	if record.Text != "" {
+		vector, err := ollama_embed_text(record.Text)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
+			return
+		}
+		record.Vector = vector
+	}
+
+	// Ensure a vector is present
+	if record.Vector == nil {
+		http.Error(w, "Either vector or text must be provided", http.StatusBadRequest)
+		return
+	}
 	metadataBytes, err := json.Marshal(record.Metadata)
 	if err != nil {
 		http.Error(w, "Failed to encode metadata", http.StatusInternalServerError)
@@ -258,15 +273,35 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		Limit:  limit,
 	}
 
-	// Parse optional body for vector
+	// Parse optional body for vector or text
+	var searchRequest struct {
+		Vector []float64 `json:"vector,omitempty"`
+		Text   string    `json:"text,omitempty"`
+	}
 	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&searchArgs); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&searchRequest); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 	}
 
-	// Set radius and k if provided
+	// Convert text to vector if text is provided
+	if searchRequest.Text != "" {
+		vector, err := ollama_embed_text(searchRequest.Text)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
+			return
+		}
+		searchRequest.Vector = vector
+	}
+
+	// Ensure a vector is present
+	if searchRequest.Vector == nil {
+		http.Error(w, "Either vector or text must be provided", http.StatusBadRequest)
+		return
+	}
+
+	searchArgs.Vector = searchRequest.Vector
 	if radiusStr != "" {
 		if radius, err := strconv.ParseFloat(radiusStr, 64); err == nil {
 			searchArgs.Radius = radius
