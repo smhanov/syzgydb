@@ -216,7 +216,7 @@ func TestUpdateRecordMetadata(t *testing.T) {
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
 		Name:           "test_collection",
 		DistanceMethod: Cosine,
-		DimensionCount: 128,
+		DimensionCount: 5,
 		Quantization:   64,
 	})
 	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
