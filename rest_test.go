@@ -60,7 +60,7 @@ func TestSearchRecords(t *testing.T) {
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
 		Name:           "test_collection",
 		DistanceMethod: Cosine,
-		DimensionCount: 128,
+		DimensionCount: 5,
 		Quantization:   64,
 	})
 	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
@@ -171,7 +171,7 @@ func TestInsertRecord(t *testing.T) {
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
 		Name:           "test_collection",
 		DistanceMethod: Cosine,
-		DimensionCount: 128,
+		DimensionCount: 5,
 		Quantization:   64,
 	})
 
@@ -260,7 +260,7 @@ func TestDeleteRecord(t *testing.T) {
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
 		Name:           "test_collection",
 		DistanceMethod: Cosine,
-		DimensionCount: 128,
+		DimensionCount: 5,
 		Quantization:   64,
 	})
 	metadata, err := json.Marshal(map[string]string{"key1": "value1"})
