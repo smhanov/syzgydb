@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -13,6 +14,8 @@ func setupTestServer() *Server {
 	server := &Server{
 		collections: make(map[string]*Collection),
 	}
+
+	os.Remove("test_collection.dat")
 	// Initialize a default collection for testing
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
 		Name:           "test_collection",
