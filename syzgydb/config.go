@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 
+	"sync"
+
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -16,8 +18,19 @@ type Config struct {
 }
 
 var GlobalConfig *Config
+var configMutex sync.Mutex
 
-// LoadConfig initializes and loads the configuration settings.
+/*
+Configure sets the global configuration for the syzgydb package.
+
+Parameters:
+- cfg: The configuration struct to set as the global configuration.
+*/
+func Configure(cfg Config) {
+	configMutex.Lock()
+	defer configMutex.Unlock()
+	GlobalConfig = &cfg
+}
 func LoadConfig() error {
 	// Set default values
 	viper.SetDefault("ollama_server", "localhost:8080")
