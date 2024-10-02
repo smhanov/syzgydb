@@ -352,12 +352,40 @@ This update to the `README.md` provides clear instructions on how to use the tex
 
 #### Search Records
 
-- **Endpoint**: `GET /api/v1/collections/{collection_name}/search`
-- **Description**: Searches for records based on criteria.
+- **Endpoint**: `POST /api/v1/collections/{collection_name}/search`
+- **Description**: Searches for records based on the provided criteria. If no search parameters are provided, it lists all records in the collection, allowing pagination with `limit` and `offset`.
+
+- **Request Body** (JSON):
+  ```json
+  {
+    "vector": [0.1, 0.2, 0.3, ..., 0.5], // Optional: Provide a vector for similarity search
+    "text": "example text",              // Optional: Provide text to generate vector for search
+    "k": 5,                              // Optional: Number of nearest neighbors to return
+    "radius": 0.5,                       // Optional: Radius for range search
+    "limit": 10,                         // Optional: Maximum number of records to return
+    "offset": 0                          // Optional: Number of records to skip for pagination
+  }
+  ```
+
+- **Parameters Explanation**:
+  - **`vector`**: A numerical array representing the query vector. Used for similarity searches. If provided, the search will be based on this vector.
+  - **`text`**: A string input that will be converted into a vector using the Ollama server. This is an alternative to providing a `vector` directly.
+  - **`k`**: Specifies the number of nearest neighbors to return. Used when performing a k-nearest neighbor search.
+  - **`radius`**: Defines the radius for a range search. All records within this distance from the query vector will be returned.
+  - **`limit`**: Limits the number of records returned in the response. Useful for paginating results.
+  - **`offset`**: Skips the specified number of records before starting to return results. Used in conjunction with `limit` for pagination.
+
 - **Example `curl`**:
   ```bash
-  curl -X GET "http://localhost:8080/api/v1/collections/collection_name/search?offset=0&limit=10&include_vectors=false&radius=0.5&k=5" -H "Content-Type: application/json" -d '{"vector":[0.1,0.2,0.3,0.4,0.5]}'
+  curl -X POST http://localhost:8080/api/v1/collections/collection_name/search -H "Content-Type: application/json" -d '{"vector":[0.1,0.2,0.3,0.4,0.5],"k":5,"limit":10,"offset":0}'
   ```
+
+- **Usage Scenarios**:
+  - **List All Records**: Call the endpoint with no parameters to list all records, using `limit` and `offset` to paginate.
+  - **Text-Based Search**: Provide a `text` parameter to perform a search based on the text's vector representation.
+  - **Vector-Based Search**: Use the `vector` parameter for direct vector similarity searches.
+  - **Range Query**: Specify a `radius` to perform a range query, returning all records within the specified distance.
+  - **K-Nearest Neighbors**: Use the `k` parameter to find the top `k` nearest records to the query vector.
 
 ## Contributing
 
