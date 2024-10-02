@@ -26,6 +26,11 @@ func setupTestServer() *Server {
 func TestDeleteCollection(t *testing.T) {
 	server := setupTestServer()
 
+	// Debug print to verify collection existence
+	if _, exists := server.collections["test_collection"]; !exists {
+		t.Fatal("Collection 'test_collection' not found in setup")
+	}
+
 	req, err := http.NewRequest(http.MethodDelete, "/api/v1/collections/test_collection", nil)
 	if err != nil {
 		t.Fatal(err)

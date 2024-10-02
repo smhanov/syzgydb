@@ -69,6 +69,8 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 		delete(s.collections, collectionName)
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection deleted successfully."})
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Collection deleted successfully."})
 	}
 }
 func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
