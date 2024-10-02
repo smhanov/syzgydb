@@ -109,9 +109,21 @@ func TestCreateCollection(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
 	}
 
-	expected := `{"collection_name":"test_collection","message":"Collection created successfully."}`
-	if rr.Body.String() != expected {
-		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+	// Decode the actual response
+	var actualResponse map[string]string
+	if err := json.NewDecoder(rr.Body).Decode(&actualResponse); err != nil {
+		t.Fatal(err)
+	}
+
+	// Define the expected response
+	expectedResponse := map[string]string{
+		"message":         "Collection created successfully.",
+		"collection_name": "test_collection",
+	}
+
+	// Compare the actual and expected responses
+	if actualResponse["message"] != expectedResponse["message"] || actualResponse["collection_name"] != expectedResponse["collection_name"] {
+		t.Errorf("handler returned unexpected body: got %v want %v", actualResponse, expectedResponse)
 	}
 }
 
