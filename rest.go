@@ -255,6 +255,24 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Initialize SearchArgs
+	searchArgs := SearchArgs{
+		Offset: offset,
+		Limit:  limit,
+	}
+
+	// Set radius and k if provided
+	if radiusStr != "" {
+		if radius, err := strconv.ParseFloat(radiusStr, 64); err == nil {
+			searchArgs.Radius = radius
+		}
+	}
+	if kStr != "" {
+		if k, err := strconv.Atoi(kStr); err == nil {
+			searchArgs.MaxCount = k
+		}
+	}
+
 	if includeVectors {
 		// Collect all document IDs
 		ids := make([]uint64, 0, len(collection.memfile.idOffsets))
@@ -286,6 +304,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 				ID:       doc.ID,
 				Metadata: doc.Metadata,
 				Distance: 0, // Distance is not applicable here
+				Vector:   doc.Vector,
 			})
 		}
 
@@ -296,29 +315,11 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Initialize SearchArgs
-	searchArgs := SearchArgs{
-		Offset: offset,
-		Limit:  limit,
-	}
-
 	// Parse optional body for vector
 	if r.Body != nil {
 		if err := json.NewDecoder(r.Body).Decode(&searchArgs); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
-		}
-	}
-
-	// Set radius and k if provided
-	if radiusStr != "" {
-		if radius, err := strconv.ParseFloat(radiusStr, 64); err == nil {
-			searchArgs.Radius = radius
-		}
-	}
-	if kStr != "" {
-		if k, err := strconv.Atoi(kStr); err == nil {
-			searchArgs.K = k
 		}
 	}
 
