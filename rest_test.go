@@ -25,12 +25,6 @@ func setupTestServer() *Server {
 
 func TestDeleteCollection(t *testing.T) {
 	server := setupTestServer()
-	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection",
-		DistanceMethod: Cosine,
-		DimensionCount: 128,
-		Quantization:   64,
-	})
 
 	req, err := http.NewRequest(http.MethodDelete, "/api/v1/collections/test_collection", nil)
 	if err != nil {
