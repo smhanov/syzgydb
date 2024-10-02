@@ -82,6 +82,7 @@ func TestUpdateDocument(t *testing.T) {
 		Name:           "test_collection",
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
+		Create:         true,
 	}
 	collection := NewCollection(options)
 

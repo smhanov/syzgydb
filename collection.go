@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"os"
 	"sort"
 	"sync"
 )
@@ -28,6 +29,9 @@ type CollectionOptions struct {
 	// Quantization specifies the bit-level quantization for storing vectors.
 	// Supported values are 4, 8, 16, 32, and 64, with 64 as the default.
 	Quantization int
+
+	// Overwrite any existing database
+	Create bool
 }
 
 /*
@@ -161,6 +165,14 @@ NewCollection creates a new Collection with the specified options.
 It initializes the collection's memory file and pivots manager.
 */
 func NewCollection(options CollectionOptions) *Collection {
+
+	if options.Create {
+		// Remove the existing file if it exists
+		if _, err := os.Stat(options.Name); err == nil {
+			os.Remove(options.Name)
+		}
+	}
+
 	// Define the header size and create a buffer to read it
 	header := make([]byte, headerSize)
 
@@ -175,7 +187,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	var memFile *memfile
 	if fileExists {
 		// Open the existing file and read the header
-		memFile, err = createMemFile(options.Name, nil)
+		memFile, err = createMemFile(options.Name, header)
 		if err != nil {
 			panic(err)
 		}
@@ -190,10 +202,8 @@ func NewCollection(options CollectionOptions) *Collection {
 		options.DimensionCount = int(binary.BigEndian.Uint32(header[9:]))
 		options.Quantization = int(header[13])
 	} else {
-		// Create a new file and write the header
-		memFile, err = createMemFile(options.Name, header)
-		if err != nil {
-			panic(err)
+		if options.Quantization == 0 {
+			options.Quantization = 64
 		}
 
 		// Fill in the header
@@ -202,6 +212,13 @@ func NewCollection(options CollectionOptions) *Collection {
 		header[8] = byte(options.DistanceMethod)
 		binary.BigEndian.PutUint32(header[9:], uint32(options.DimensionCount))
 		header[13] = byte(options.Quantization)
+
+		// Create a new file and write the header
+		memFile, err = createMemFile(options.Name, header)
+		if err != nil {
+			panic(err)
+		}
+
 	}
 
 	// Determine the distance function
@@ -281,7 +298,7 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 
 // Calculate the desired number of pivots using a logarithmic function
 func getDesiredPivots(numDocs int) int {
-	return int(math.Log2(float64(numDocs)) - 6)
+	return int(math.Log2(float64(numDocs))-6) * 10
 }
 
 /*
@@ -524,8 +541,8 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		item := heap.Pop(approxHeap).(distanceIndex)
 
 		//log.Printf("Top of approx heap: %v", item.distance)
-		//	if resultsHeap.Len() > 0 {
-		//	log.Printf("Top of results heap: %v", (*resultsHeap)[0].Distance)
+		//if resultsHeap.Len() > 0 {
+		//log.Printf("Top of results heap: %v", (*resultsHeap)[0].Distance)
 		//}
 
 		if resultsHeap.Len() == args.K && item.distance >= (*resultsHeap)[0].Distance {

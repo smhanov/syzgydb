@@ -200,6 +200,7 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 
 		collection.AddDocument(record.ID, record.Vector, metadataBytes)
 	}
+	log.Printf("Done")
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Records inserted successfully."})
@@ -283,7 +284,6 @@ func (s *Server) handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Record deleted successfully.", "id": id})
 }
 func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
-	log.Printf("In handleSearchRecords")
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
@@ -299,8 +299,6 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Collection not found", http.StatusNotFound)
 		return
 	}
-
-	log.Printf("HERE 1")
 
 	var searchArgs SearchArgs
 
@@ -348,7 +346,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		searchArgs.Vector = vector[0]
 	}
 
-	log.Printf("Using searchArgs: %+v", searchArgs)
+	//log.Printf("Using searchArgs: %+v", searchArgs)
 	results := collection.Search(searchArgs)
 
 	type jsonSearchResult struct {

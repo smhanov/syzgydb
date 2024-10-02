@@ -235,7 +235,6 @@ func (pm *PivotsManager) ensurePivots(c *Collection, desiredPivots int) {
 	for len(pm.pivots) < desiredPivots {
 		if len(pm.pivots) == 0 {
 			pm.SelectInitialPivot(c)
-			return
 		}
 
 		pm.SelectPivotWithMinVariance(c)

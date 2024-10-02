@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import csv
 import requests
-import json
 
 class SyzgyDBClient:
     def __init__(self, server_address):
@@ -21,7 +20,7 @@ class SyzgyDBClient:
     def delete_collection(self, name):
         url = f"{self.server_address}/api/v1/collections/{name}"
         response = requests.delete(url)
-        return response.json()
+        return response.json()  
 
     def insert_record(self, collection_name, record_id, text=None, vector=None, metadata=None):
         url = f"{self.server_address}/api/v1/collections/{collection_name}/records"
@@ -41,8 +40,11 @@ class SyzgyDBClient:
 
 def processTweets():
     # Create a collection
-    print("Creating collection...")
+    print("Deleting collection...")
     print(client.delete_collection("tweets"))
+
+
+    print("Creating collection...")
     print(client.create_collection("tweets", 384, 64, "cosine"))
 
     # Read the csv file "training.1600000.processed.noemoticon.csv"
@@ -79,39 +81,9 @@ def processTweets():
         print(f"Inserting final batch of {len(records)} records...")
         response = client.insert_records("tweets", records)
         print(response)
-    # Create a collection
-    print("Creating collection...")
-    print(client.delete_collection("tweets"))
-
-    print(client.create_collection("tweets", 384, 64, "cosine"))
-
-    # Read the csv file "training.1600000.processed.noemoticon.csv"
-    # Collect all tweets from the 6th column in the collection
-
-    records = []
-    with open("training.1600000.processed.noemoticon.csv", mode='r', encoding='utf-8') as file:
-        csv_reader = csv.reader(file)
-        
-        # Iterate over each row in the CSV
-        for row in csv_reader:
-            # Extract the tweet from the 6th column (index 5)
-            tweet_text = row[5]
             
-            # Create a record for the tweet
-            record_id = csv_reader.line_num  # or any other unique identifier
-            record = {
-                "id": record_id,
-                "text": tweet_text,
-                "metadata": {"text": tweet_text}
-            }
-            records.append(record)
-
-    # Insert all records at once
-    print("Inserting records...")
-    response = client.insert_records("tweets", records)
-    print(response)
             
-            # Example usage
+# Example usage
 if __name__ == "__main__":
     client = SyzgyDBClient("http://localhost:8080")
     processTweets()

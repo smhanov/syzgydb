@@ -27,6 +27,8 @@ func RunServer() {
 		server.collections[collectionName] = NewCollection(opts)
 		log.Printf("Collection %s loaded successfully", collectionName)
 	}
+
+	http.HandleFunc("/api/v1/collections", server.handleCollections)
 	http.HandleFunc("/api/v1/collections/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/records") && r.Method == http.MethodPost {
 			server.handleInsertRecord(w, r)
