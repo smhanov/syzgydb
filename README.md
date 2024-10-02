@@ -284,29 +284,34 @@ SyzgyDB provides a RESTful API for managing collections and records. Below are t
 
 ### Data API
 
-#### Insert One Record
+#### Insert Multiple Records
 
 - **Endpoint**: `POST /api/v1/collections/{collection_name}/records`
-- **Description**: Inserts a record into a collection. Overwrites if the ID exists. You can provide either a `vector` or a `text` field. If a `text` field is provided, the server will automatically generate the vector embedding using the Ollama server.
+- **Description**: Inserts multiple records into a collection. Overwrites if the ID exists. You can provide either a `vector` or a `text` field for each record. If a `text` field is provided, the server will automatically generate the vector embedding using the Ollama server.
 - **Request Body** (JSON):
   ```json
-  {
-    "id": 1234567890,
-    "text": "example text", // Optional: Provide text to generate vector
-    "vector": [0.1, 0.2, ..., 0.5], // Optional: Directly provide a vector
-    "metadata": {
-      "key1": "value1",
-      "key2": "value2"
+  [
+    {
+      "id": 1234567890,
+      "text": "example text", // Optional: Provide text to generate vector
+      "vector": [0.1, 0.2, ..., 0.5], // Optional: Directly provide a vector
+      "metadata": {
+        "key1": "value1",
+        "key2": "value2"
+      }
+    },
+    {
+      "id": 1234567891,
+      "text": "another example text",
+      "metadata": {
+        "key1": "value3"
+      }
     }
-  }
+  ]
   ```
 - **Example `curl`**:
   ```bash
-  # Using a vector
-  curl -X POST http://localhost:8080/api/v1/collections/collection_name/records -H "Content-Type: application/json" -d '{"id":1234567890,"vector":[0.1,0.2,0.3,0.4,0.5],"metadata":{"key1":"value1","key2":"value2"}}'
-
-  # Using text to generate a vector
-  curl -X POST http://localhost:8080/api/v1/collections/collection_name/records -H "Content-Type: application/json" -d '{"id":1234567891,"text":"example text","metadata":{"key1":"value1","key2":"value2"}}'
+  curl -X POST http://localhost:8080/api/v1/collections/collection_name/records -H "Content-Type: application/json" -d '[{"id":1234567890,"vector":[0.1,0.2,0.3,0.4,0.5],"metadata":{"key1":"value1","key2":"value2"}},{"id":1234567891,"text":"example text","metadata":{"key1":"value1","key2":"value2"}}]'
   ```
 
 ### Explanation

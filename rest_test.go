@@ -173,7 +173,7 @@ func TestGetCollectionInfo(t *testing.T) {
 	}
 }
 
-func TestInsertRecord(t *testing.T) {
+func TestInsertRecords(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
@@ -184,11 +184,18 @@ func TestInsertRecord(t *testing.T) {
 		Quantization:   64,
 	})
 
-	reqBody := `{
-		"id": 1234567890,
-		"vector": [0.1, 0.2, 0.3, 0.4, 0.5],
-		"metadata": {"key1": "value1"}
-	}`
+	reqBody := `[
+		{
+			"id": 1234567890,
+			"vector": [0.1, 0.2, 0.3, 0.4, 0.5],
+			"metadata": {"key1": "value1"}
+		},
+		{
+			"id": 1234567891,
+			"text": "example text",
+			"metadata": {"key2": "value2"}
+		}
+	]`
 	req, err := http.NewRequest(http.MethodPost, "/api/v1/collections/test_collection/records", bytes.NewBufferString(reqBody))
 	if err != nil {
 		t.Fatal(err)
@@ -210,12 +217,11 @@ func TestInsertRecord(t *testing.T) {
 
 	// Define the expected response
 	expectedResponse := map[string]interface{}{
-		"message": "Record inserted successfully.",
-		"id":      float64(1234567890), // JSON numbers are decoded as float64
+		"message": "Records inserted successfully.",
 	}
 
 	// Compare the actual and expected responses
-	if actualResponse["message"] != expectedResponse["message"] || actualResponse["id"] != expectedResponse["id"] {
+	if actualResponse["message"] != expectedResponse["message"] {
 		t.Errorf("handler returned unexpected body: got %v want %v", actualResponse, expectedResponse)
 	}
 }

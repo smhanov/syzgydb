@@ -149,42 +149,46 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var record struct {
+	var records []struct {
 		ID       uint64            `json:"id"`
 		Vector   []float64         `json:"vector,omitempty"`
 		Text     string            `json:"text,omitempty"`
 		Metadata map[string]string `json:"metadata"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&record); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&records); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Convert text to vector if text is provided
-	if record.Text != "" {
-		vector, err := embedText([]string{record.Text})
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
+	for _, record := range records {
+		// Convert text to vector if text is provided
+		if record.Text != "" {
+			vector, err := embedText([]string{record.Text})
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
+				return
+			}
+			record.Vector = vector[0]
+		}
+
+		// Ensure a vector is present
+		if record.Vector == nil {
+			http.Error(w, "Either vector or text must be provided", http.StatusBadRequest)
 			return
 		}
-		record.Vector = vector[0]
+
+		metadataBytes, err := json.Marshal(record.Metadata)
+		if err != nil {
+			http.Error(w, "Failed to encode metadata", http.StatusInternalServerError)
+			return
+		}
+
+		collection.AddDocument(record.ID, record.Vector, metadataBytes)
 	}
 
-	// Ensure a vector is present
-	if record.Vector == nil {
-		http.Error(w, "Either vector or text must be provided", http.StatusBadRequest)
-		return
-	}
-	metadataBytes, err := json.Marshal(record.Metadata)
-	if err != nil {
-		http.Error(w, "Failed to encode metadata", http.StatusInternalServerError)
-		return
-	}
-
-	collection.AddDocument(record.ID, record.Vector, metadataBytes)
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Record inserted successfully.", "id": record.ID})
+	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Records inserted successfully."})
 }
 
 func (s *Server) handleUpdateMetadata(w http.ResponseWriter, r *http.Request) {
