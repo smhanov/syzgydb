@@ -1,4 +1,4 @@
-package main
+package syzgydb
 
 import (
 	"encoding/json"
@@ -78,13 +78,13 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		info := map[string]interface{}{
-			"name":             collection.Name,
-			"vector_size":     collection.DimensionCount,
-			"quantization":    collection.Quantization,
+			"name":              collection.Name,
+			"vector_size":       collection.DimensionCount,
+			"quantization":      collection.Quantization,
 			"distance_function": collection.DistanceMethod,
-			"storage_space":   0, // Placeholder
-			"num_vectors":     len(collection.memfile.idOffsets),
-			"average_distance": 0.0, // Placeholder
+			"storage_space":     0, // Placeholder
+			"num_vectors":       len(collection.memfile.idOffsets),
+			"average_distance":  0.0, // Placeholder
 		}
 		json.NewEncoder(w).Encode(info)
 
