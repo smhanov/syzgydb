@@ -43,6 +43,45 @@ def processTweets():
     # Create a collection
     print("Creating collection...")
     print(client.delete_collection("tweets"))
+    print(client.create_collection("tweets", 384, 64, "cosine"))
+
+    # Read the csv file "training.1600000.processed.noemoticon.csv"
+    # Collect all tweets from the 6th column in the collection
+
+    batch_size = 100
+    records = []
+    with open("training.1600000.processed.noemoticon.csv", mode='r', encoding='utf-8') as file:
+        csv_reader = csv.reader(file)
+        
+        # Iterate over each row in the CSV
+        for row in csv_reader:
+            # Extract the tweet from the 6th column (index 5)
+            tweet_text = row[5]
+            
+            # Create a record for the tweet
+            record_id = csv_reader.line_num  # or any other unique identifier
+            record = {
+                "id": record_id,
+                "text": tweet_text,
+                "metadata": {"text": tweet_text}
+            }
+            records.append(record)
+
+            # Insert records in batches of 100
+            if len(records) == batch_size:
+                print(f"Inserting batch of {batch_size} records...")
+                response = client.insert_records("tweets", records)
+                print(response)
+                records = []  # Clear the batch
+
+    # Insert any remaining records
+    if records:
+        print(f"Inserting final batch of {len(records)} records...")
+        response = client.insert_records("tweets", records)
+        print(response)
+    # Create a collection
+    print("Creating collection...")
+    print(client.delete_collection("tweets"))
 
     print(client.create_collection("tweets", 384, 64, "cosine"))
 
