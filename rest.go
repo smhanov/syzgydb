@@ -2,7 +2,6 @@ package syzgydb
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"sort"
@@ -61,7 +60,6 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	defer s.mutex.Unlock()
 
 	collection, exists := s.collections[collectionName]
-	log.Printf("Looked for collection name %s, found %v", collectionName, collection)
 
 	if !exists {
 		http.Error(w, "Collection not found", http.StatusNotFound)
@@ -184,7 +182,6 @@ func (s *Server) handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 	collectionName := parts[4]
 	id, err := strconv.ParseUint(parts[6], 10, 64)
-	log.Printf("ID: %d, err is %v parts %v '%v' '%v'", id, err, parts, parts[5], parts[4])
 	if err != nil {
 		http.Error(w, "Invalid record ID", http.StatusBadRequest)
 		return
@@ -261,6 +258,14 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		Limit:  limit,
 	}
 
+	// Parse optional body for vector
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&searchArgs); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+	}
+
 	// Set radius and k if provided
 	if radiusStr != "" {
 		if radius, err := strconv.ParseFloat(radiusStr, 64); err == nil {
@@ -304,7 +309,6 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 				ID:       doc.ID,
 				Metadata: doc.Metadata,
 				Distance: 0, // Distance is not applicable here
-				Vector:   doc.Vector,
 			})
 		}
 
@@ -313,14 +317,6 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 			PercentSearched: 100.0, // All records are considered
 		})
 		return
-	}
-
-	// Parse optional body for vector
-	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&searchArgs); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
 	}
 
 	results := collection.Search(searchArgs)

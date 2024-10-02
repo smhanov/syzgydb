@@ -58,7 +58,7 @@ func TestSearchRecords(t *testing.T) {
 
 	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection",
+		Name:           "test_collection.dat",
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
@@ -135,7 +135,7 @@ func TestGetCollectionInfo(t *testing.T) {
 
 	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection",
+		Name:           "test_collection.dat",
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
@@ -169,7 +169,7 @@ func TestInsertRecord(t *testing.T) {
 
 	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection",
+		Name:           "test_collection.dat",
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
@@ -214,7 +214,7 @@ func TestInsertRecord(t *testing.T) {
 func TestUpdateRecordMetadata(t *testing.T) {
 	server := setupTestServer()
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection",
+		Name:           "test_collection.dat",
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
@@ -257,8 +257,9 @@ func TestUpdateRecordMetadata(t *testing.T) {
 
 func TestDeleteRecord(t *testing.T) {
 	server := setupTestServer()
+
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection",
+		Name:           "test_collection.dat",
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
