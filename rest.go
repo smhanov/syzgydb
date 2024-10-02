@@ -224,10 +224,61 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var searchArgs SearchArgs
-	if err := json.NewDecoder(r.Body).Decode(&searchArgs); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
+	// Parse query parameters
+	query := r.URL.Query()
+	offsetStr := query.Get("offset")
+	limitStr := query.Get("limit")
+	includeVectorsStr := query.Get("include_vectors")
+	radiusStr := query.Get("radius")
+	kStr := query.Get("k")
+
+	// Set defaults
+	offset := 0
+	limit := 10
+	includeVectors := false
+
+	// Convert query parameters to appropriate types
+	if offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil {
+			offset = o
+		}
+	}
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil {
+			limit = l
+		}
+	}
+	if includeVectorsStr != "" {
+		if iv, err := strconv.ParseBool(includeVectorsStr); err == nil {
+			includeVectors = iv
+		}
+	}
+
+	// Initialize SearchArgs
+	searchArgs := SearchArgs{
+		Offset:        offset,
+		Limit:         limit,
+		IncludeVectors: includeVectors,
+	}
+
+	// Parse optional body for vector
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&searchArgs); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Set radius and k if provided
+	if radiusStr != "" {
+		if radius, err := strconv.ParseFloat(radiusStr, 64); err == nil {
+			searchArgs.Radius = radius
+		}
+	}
+	if kStr != "" {
+		if k, err := strconv.Atoi(kStr); err == nil {
+			searchArgs.K = k
+		}
 	}
 
 	results := collection.Search(searchArgs)
