@@ -94,6 +94,30 @@ type SearchArgs struct {
 	Limit  int
 }
 
+/*
+Contains statistics about the collection
+*/
+type CollectionStats struct {
+	// Number of documents in the collection
+	DocumentCount int `json:"document_count"`
+
+	// Number of dimensions in each document vector
+	DimensionCount int `json:"dimension_count"`
+
+	// Quantization level used for storing vectors
+	Quantization int `json:"quantization"`
+
+	// Distance method used for calculating distances
+	// cosine or euclidean
+	DistanceMethod string `json:"distance_method"`
+
+	// Storage on disk used by the collection
+	StorageSize int64 `json:"storage_size"`
+
+	// Average distance between random pairs of documents
+	AverageDistance float64 `json:"average_distance"`
+}
+
 type FilterFn func(id uint64, metadata []byte) bool
 
 // 4 bytes: version
