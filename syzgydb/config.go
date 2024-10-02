@@ -15,8 +15,10 @@ type Config struct {
     ImageModel   string `mapstructure:"image_model"`
 }
 
+var GlobalConfig *Config
+
 // LoadConfig initializes and loads the configuration settings.
-func LoadConfig() (*Config, error) {
+func LoadConfig() error {
     // Set default values
     viper.SetDefault("ollama_server", "localhost:8080")
     viper.SetDefault("text_model", "default-text-model")
@@ -59,5 +61,8 @@ func LoadConfig() (*Config, error) {
         return nil, fmt.Errorf("Ollama Server configuration is required")
     }
 
-    return &cfg, nil
+    // Assign the loaded configuration to the global variable
+    GlobalConfig = &cfg
+
+    return nil
 }
