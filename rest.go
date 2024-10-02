@@ -28,17 +28,44 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received %s request for %s", r.Method, r.URL.Path)
 
 	if r.Method == http.MethodPost {
-		var opts CollectionOptions
-		if err := json.NewDecoder(r.Body).Decode(&opts); err != nil {
+		// Define a temporary struct to match the JSON structure
+		var temp struct {
+			Name            string `json:"name"`
+			DistanceMethod  string `json:"distance_function"`
+			DimensionCount  int    `json:"vector_size"`
+			Quantization    int    `json:"quantization"`
+		}
+
+		// Decode the JSON request into the temporary struct
+		if err := json.NewDecoder(r.Body).Decode(&temp); err != nil {
 			log.Printf("Error decoding request body: %v", err)
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		log.Printf("Creating collection with options: %+v", opts)
+		log.Printf("Creating collection with options: %+v", temp)
 
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
+
+		// Map the fields from the temporary struct to the CollectionOptions struct
+		opts := CollectionOptions{
+			Name:           temp.Name,
+			DimensionCount: temp.DimensionCount,
+			Quantization:   temp.Quantization,
+		}
+
+		// Convert DistanceMethod from string to int
+		switch temp.DistanceMethod {
+		case "euclidean":
+			opts.DistanceMethod = Euclidean
+		case "cosine":
+			opts.DistanceMethod = Cosine
+		default:
+			log.Printf("Invalid distance method: %s", temp.DistanceMethod)
+			http.Error(w, "Invalid distance method", http.StatusBadRequest)
+			return
+		}
 
 		name := opts.Name
 		opts.Name = s.collectionNameToFileName(name)
@@ -49,7 +76,6 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Pass the transformed name to NewCollection
 		s.collections[name] = NewCollection(opts)
 		log.Printf("Collection %s created successfully", name)
 		w.WriteHeader(http.StatusCreated)
