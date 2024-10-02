@@ -210,7 +210,11 @@ func TestDeleteRecord(t *testing.T) {
 		DimensionCount: 128,
 		Quantization:   64,
 	})
-	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, map[string]string{"key1": "value1"})
+	metadata, err := json.Marshal(map[string]string{"key1": "value1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(metadata))
 
 	req, err := http.NewRequest(http.MethodDelete, "/api/v1/collections/test_collection/records/1234567890", nil)
 	if err != nil {
