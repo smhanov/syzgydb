@@ -130,6 +130,106 @@ To dump the collection for inspection or backup, use the `DumpIndex` function:
 DumpIndex("example_collection")
 ```
 
+## RESTful API
+
+SyzgyDB provides a RESTful API for managing collections and records. Below are the available endpoints and example `curl` requests.
+
+### Collections API
+
+#### Create a Collection
+
+- **Endpoint**: `POST /api/v1/collections`
+- **Description**: Creates a new collection with specified parameters.
+- **Request Body** (JSON):
+  ```json
+  {
+    "name": "collection_name",
+    "vector_size": 128,
+    "quantization": 64,
+    "distance_function": "cosine"
+  }
+  ```
+- **Example `curl`**:
+  ```bash
+  curl -X POST http://localhost:8080/api/v1/collections -H "Content-Type: application/json" -d '{"name":"collection_name","vector_size":128,"quantization":64,"distance_function":"cosine"}'
+  ```
+
+#### Drop a Collection
+
+- **Endpoint**: `DELETE /api/v1/collections/{collection_name}`
+- **Description**: Deletes the specified collection.
+- **Example `curl`**:
+  ```bash
+  curl -X DELETE http://localhost:8080/api/v1/collections/collection_name
+  ```
+
+#### Get Collection Info
+
+- **Endpoint**: `GET /api/v1/collections/{collection_name}`
+- **Description**: Retrieves information about a collection.
+- **Example `curl`**:
+  ```bash
+  curl -X GET http://localhost:8080/api/v1/collections/collection_name
+  ```
+
+### Data API
+
+#### Insert One Record
+
+- **Endpoint**: `POST /api/v1/collections/{collection_name}/records`
+- **Description**: Inserts a record into a collection. Overwrites if the ID exists.
+- **Request Body** (JSON):
+  ```json
+  {
+    "id": 1234567890,
+    "vector": [0.1, 0.2, ..., 0.5],
+    "metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    }
+  }
+  ```
+- **Example `curl`**:
+  ```bash
+  curl -X POST http://localhost:8080/api/v1/collections/collection_name/records -H "Content-Type: application/json" -d '{"id":1234567890,"vector":[0.1,0.2,0.3,0.4,0.5],"metadata":{"key1":"value1","key2":"value2"}}'
+  ```
+
+#### Update a Record's Metadata
+
+- **Endpoint**: `PUT /api/v1/collections/{collection_name}/records/{id}/metadata`
+- **Description**: Updates metadata for a record.
+- **Request Body** (JSON):
+  ```json
+  {
+    "metadata": {
+      "key1": "new_value1",
+      "key3": "value3"
+    }
+  }
+  ```
+- **Example `curl`**:
+  ```bash
+  curl -X PUT http://localhost:8080/api/v1/collections/collection_name/records/1234567890/metadata -H "Content-Type: application/json" -d '{"metadata":{"key1":"new_value1","key3":"value3"}}'
+  ```
+
+#### Delete a Record
+
+- **Endpoint**: `DELETE /api/v1/collections/{collection_name}/records/{id}`
+- **Description**: Deletes a record.
+- **Example `curl`**:
+  ```bash
+  curl -X DELETE http://localhost:8080/api/v1/collections/collection_name/records/1234567890
+  ```
+
+#### Search Records
+
+- **Endpoint**: `GET /api/v1/collections/{collection_name}/search`
+- **Description**: Searches for records based on criteria.
+- **Example `curl`**:
+  ```bash
+  curl -X GET "http://localhost:8080/api/v1/collections/collection_name/search?offset=0&limit=10&include_vectors=false&radius=0.5&k=5" -H "Content-Type: application/json" -d '{"vector":[0.1,0.2,0.3,0.4,0.5]}'
+  ```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a pull request or open an issue to discuss improvements or report bugs.
