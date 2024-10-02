@@ -15,24 +15,19 @@ func setupTestServer() *Server {
 		collections: make(map[string]*Collection),
 	}
 
-	os.Remove("test_collection.dat")
-	// Initialize a default collection for testing
-	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection",
-		DistanceMethod: Cosine,
-		DimensionCount: 128,
-		Quantization:   64,
-	})
 	return server
 }
 
 func TestDeleteCollection(t *testing.T) {
 	server := setupTestServer()
 
-	// Debug print to verify collection existence
-	if _, exists := server.collections["test_collection"]; !exists {
-		t.Fatal("Collection 'test_collection' not found in setup")
-	}
+	// Create the collection explicitly for this test
+	server.collections["test_collection"] = NewCollection(CollectionOptions{
+		Name:           "test_collection",
+		DistanceMethod: Cosine,
+		DimensionCount: 128,
+		Quantization:   64,
+	})
 
 	req, err := http.NewRequest(http.MethodDelete, "/api/v1/collections/test_collection", nil)
 	if err != nil {
@@ -55,6 +50,8 @@ func TestDeleteCollection(t *testing.T) {
 
 func TestSearchRecords(t *testing.T) {
 	server := setupTestServer()
+
+	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
 		Name:           "test_collection",
 		DistanceMethod: Cosine,
@@ -90,12 +87,7 @@ func TestSearchRecords(t *testing.T) {
 func TestCreateCollection(t *testing.T) {
 	server := setupTestServer()
 
-	reqBody := `{
-		"name": "test_collection",
-		"vector_size": 128,
-		"quantization": 64,
-		"distance_function": "cosine"
-	}`
+	// No need to create a collection here as it's being tested for creation
 	req, err := http.NewRequest(http.MethodPost, "/api/v1/collections", bytes.NewBufferString(reqBody))
 	if err != nil {
 		t.Fatal(err)
@@ -117,6 +109,8 @@ func TestCreateCollection(t *testing.T) {
 
 func TestGetCollectionInfo(t *testing.T) {
 	server := setupTestServer()
+
+	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
 		Name:           "test_collection",
 		DistanceMethod: Cosine,
@@ -149,6 +143,8 @@ func TestGetCollectionInfo(t *testing.T) {
 
 func TestInsertRecord(t *testing.T) {
 	server := setupTestServer()
+
+	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
 		Name:           "test_collection",
 		DistanceMethod: Cosine,
