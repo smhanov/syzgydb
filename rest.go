@@ -20,6 +20,7 @@ func (s *Server) collectionNameToFileName(name string) string {
 func (s *Server) fileNameToCollectionName(fileName string) string {
     return strings.TrimSuffix(fileName, ".dat")
 }
+func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var opts CollectionOptions
 		if err := json.NewDecoder(r.Body).Decode(&opts); err != nil {
