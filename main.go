@@ -1,7 +1,9 @@
 package syzgydb
 
 import (
+	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 )
 
@@ -10,7 +12,21 @@ func RunServer() {
 		collections: make(map[string]*Collection),
 	}
 
-	http.HandleFunc("/api/v1/collections", server.handleCollections)
+	// Scan for existing .dat files and create collections
+	files, err := filepath.Glob("*.dat")
+	if err != nil {
+		log.Fatalf("Failed to list .dat files: %v", err)
+	}
+
+	for _, file := range files {
+		collectionName := strings.TrimSuffix(file, ".dat")
+		log.Printf("Loading collection from file: %s", file)
+
+		// Create a collection with empty CollectionOptions
+		opts := CollectionOptions{Name: file}
+		server.collections[collectionName] = NewCollection(opts)
+		log.Printf("Collection %s loaded successfully", collectionName)
+	}
 	http.HandleFunc("/api/v1/collections/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/records") && r.Method == http.MethodPost {
 			server.handleInsertRecord(w, r)
