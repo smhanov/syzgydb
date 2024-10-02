@@ -161,17 +161,31 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, record := range records {
-		// Convert text to vector if text is provided
-		if record.Text != "" {
-			vector, err := embedText([]string{record.Text})
-			if err != nil {
-				http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
-				return
-			}
-			record.Vector = vector[0]
+	// Collect all texts that need to be embedded
+	var textsToEmbed []string
+	textIndices := make(map[int]int) // Map from text index to record index
+	for i, record := range records {
+		if record.Text != "" && record.Vector == nil {
+			textIndices[len(textsToEmbed)] = i
+			textsToEmbed = append(textsToEmbed, record.Text)
+		}
+	}
+
+	// Call embedText once for all texts
+	if len(textsToEmbed) > 0 {
+		vectors, err := embedText(textsToEmbed)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
+			return
 		}
 
+		// Assign the resulting vectors back to the corresponding records
+		for textIndex, recordIndex := range textIndices {
+			records[recordIndex].Vector = vectors[textIndex]
+		}
+	}
+
+	for _, record := range records {
 		// Ensure a vector is present
 		if record.Vector == nil {
 			http.Error(w, "Either vector or text must be provided", http.StatusBadRequest)
