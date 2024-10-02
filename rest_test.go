@@ -5,12 +5,76 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 )
 
 func setupTestServer() *Server {
 	return &Server{
 		collections: make(map[string]*Collection),
+	}
+}
+
+func TestDeleteCollection(t *testing.T) {
+	server := setupTestServer()
+	server.collections["test_collection"] = NewCollection(CollectionOptions{
+		Name:           "test_collection",
+		DistanceMethod: Cosine,
+		DimensionCount: 128,
+		Quantization:   64,
+	})
+
+	req, err := http.NewRequest(http.MethodDelete, "/api/v1/collections/test_collection", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(server.handleCollection)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	expected := `{"message":"Collection deleted successfully."}`
+	if rr.Body.String() != expected {
+		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+	}
+}
+
+func TestSearchRecords(t *testing.T) {
+	server := setupTestServer()
+	server.collections["test_collection"] = NewCollection(CollectionOptions{
+		Name:           "test_collection",
+		DistanceMethod: Cosine,
+		DimensionCount: 128,
+		Quantization:   64,
+	})
+	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, map[string]string{"key1": "value1"})
+
+	reqBody := `{"vector": [0.1, 0.2, 0.3, 0.4, 0.5]}`
+	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections/test_collection/search", strings.NewReader(reqBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(server.handleSearchRecords)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	var response SearchResults
+	if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(response.Results) == 0 {
+		t.Errorf("expected at least one search result, got %v", len(response.Results))
 	}
 }
 
