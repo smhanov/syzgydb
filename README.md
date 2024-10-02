@@ -214,12 +214,13 @@ SyzgyDB provides a RESTful API for managing collections and records. Below are t
 #### Insert One Record
 
 - **Endpoint**: `POST /api/v1/collections/{collection_name}/records`
-- **Description**: Inserts a record into a collection. Overwrites if the ID exists.
+- **Description**: Inserts a record into a collection. Overwrites if the ID exists. You can provide either a `vector` or a `text` field. If a `text` field is provided, the server will automatically generate the vector embedding using the Ollama server.
 - **Request Body** (JSON):
   ```json
   {
     "id": 1234567890,
-    "vector": [0.1, 0.2, ..., 0.5],
+    "text": "example text", // Optional: Provide text to generate vector
+    "vector": [0.1, 0.2, ..., 0.5], // Optional: Directly provide a vector
     "metadata": {
       "key1": "value1",
       "key2": "value2"
@@ -228,8 +229,21 @@ SyzgyDB provides a RESTful API for managing collections and records. Below are t
   ```
 - **Example `curl`**:
   ```bash
+  # Using a vector
   curl -X POST http://localhost:8080/api/v1/collections/collection_name/records -H "Content-Type: application/json" -d '{"id":1234567890,"vector":[0.1,0.2,0.3,0.4,0.5],"metadata":{"key1":"value1","key2":"value2"}}'
+
+  # Using text to generate a vector
+  curl -X POST http://localhost:8080/api/v1/collections/collection_name/records -H "Content-Type: application/json" -d '{"id":1234567891,"text":"example text","metadata":{"key1":"value1","key2":"value2"}}'
   ```
+
+### Explanation
+
+- **Text Field**: The `text` field can be used as an alternative to the `vector` field. When provided, the server will use the Ollama server to generate the vector embedding.
+- **Automatic Embedding**: This feature allows users to submit raw text, which is then converted into a vector representation, simplifying the process of adding records to the database.
+
+### Summary
+
+This update to the `README.md` provides clear instructions on how to use the text-to-vector conversion feature, making it easier for users to understand and utilize this functionality in their applications.
 
 #### Update a Record's Metadata
 
