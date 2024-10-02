@@ -1,7 +1,6 @@
 package syzgydb
 
 import (
-	"container/heap"
 	"encoding/binary"
 	"errors"
 	"log"
@@ -155,9 +154,10 @@ Collection represents a collection of documents, supporting operations such as a
 */
 type Collection struct {
 	CollectionOptions
-	memfile       *memfile
-	pivotsManager PivotsManager
-	mutex         sync.Mutex
+	memfile  *memfile
+	lshTable *LSHTable // Add this line
+	mutex    sync.Mutex
+	distance func([]float64, []float64) float64 // Add this line
 }
 
 /*
@@ -222,18 +222,35 @@ func NewCollection(options CollectionOptions) *Collection {
 	}
 
 	// Determine the distance function
-	distanceFn := euclideanDistance
-	if options.DistanceMethod == Cosine {
-		distanceFn = cosineDistance
+	var distanceFunc func([]float64, []float64) float64
+	switch options.DistanceMethod {
+	case Euclidean:
+		distanceFunc = euclideanDistance
+	case Cosine:
+		distanceFunc = cosineDistance
+	default:
+		panic("Unsupported distance method")
 	}
+	lshTable := NewLSHTable(10, options.DimensionCount, 4.0) // Example parameters
 
 	c := &Collection{
 		CollectionOptions: options,
 		memfile:           memFile,
-		pivotsManager:     *newPivotsManager(distanceFn),
+		lshTable:          lshTable,
+		distance:          distanceFunc,
 	}
 
-	c.pivotsManager.ensurePivots(c, getDesiredPivots(len(c.memfile.idOffsets)))
+	// If the file exists, iterate through all existing documents and add them to the LSH table
+	if fileExists {
+		for id := range memFile.idOffsets {
+			data, err := memFile.readRecord(id)
+			if err != nil {
+				continue
+			}
+			doc := c.decodeDocument(data, id)
+			c.lshTable.AddPoint(id, doc.Vector)
+		}
+	}
 
 	return c
 }
@@ -282,18 +299,14 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 		ID:       id,
 	}
 
-	numDocs := len(c.memfile.idOffsets)
-
-	// Manage pivots
-	c.pivotsManager.ensurePivots(c, getDesiredPivots(numDocs+1))
-
 	// Encode the document
 	encodedData := encodeDocument(doc, c.Quantization)
 
 	// Add or update the document in the memfile
 	c.memfile.addRecord(id, encodedData)
 
-	c.pivotsManager.pointAdded(doc)
+	// Add the document's vector to the LSH table
+	c.lshTable.AddPoint(id, vector)
 }
 
 // Calculate the desired number of pivots using a logarithmic function
@@ -357,9 +370,11 @@ func (c *Collection) removeDocument(id uint64) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	c.pivotsManager.pointRemoved(id)
-
-	// Remove the document from the memfile
+	// Remove the document's vector from the LSH table
+	doc, err := c.getDocument(id)
+	if err == nil {
+		c.lshTable.removePoint(id, doc.Vector)
+	}
 	return c.memfile.deleteRecord(id)
 }
 
@@ -451,46 +466,39 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 	results := []SearchResult{}
 	pointsSearched := 0
 
-	// Calculate distances from the target to each pivot
-	// Calculate distances to pivots
-	distances := make([]float64, len(c.pivotsManager.pivots))
-	for i, pivot := range c.pivotsManager.pivots {
-		distances[i] = c.pivotsManager.distanceFn(args.Vector, pivot.Vector)
-	}
-	for i, pivot := range c.pivotsManager.pivots {
-		dist := c.pivotsManager.distanceFn(args.Vector, pivot.Vector)
-		pointsSearched++
-		if dist <= args.Radius {
-			results = append(results, SearchResult{ID: pivot.ID, Metadata: pivot.Metadata, Distance: dist})
+	var candidateIDs []uint64
+	if len(c.memfile.idOffsets) < 100 {
+		// Use all document IDs as candidate IDs
+		for id := range c.memfile.idOffsets {
+			candidateIDs = append(candidateIDs, id)
 		}
-		distances[i] = dist
+	} else {
+		// Use LSH to get candidate IDs
+		candidateIDs = c.lshTable.Query(args.Vector)
 	}
 
-	// Iterate over all points
-	for id := range c.memfile.idOffsets {
-		if c.pivotsManager.isPivot(id) {
+	// Process candidates
+	for _, id := range candidateIDs {
+		data, err := c.memfile.readRecord(id)
+		if err != nil {
 			continue
 		}
 
-		minDistance := c.pivotsManager.approxDistance(args.Vector, id)
+		pointsSearched++
 
-		if minDistance <= args.Radius {
-			data, err := c.memfile.readRecord(id)
-			if err != nil {
-				continue
-			}
+		doc := c.decodeDocument(data, id)
 
-			doc := c.decodeDocument(data, id)
+		// Apply filter function if provided
+		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
+			continue
+		}
 
-			// Apply filter function if provided
-			if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-				continue
-			}
-			actualDistance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
+		// Calculate the distance between the search vector and the document vector
+		distance := c.distance(args.Vector, doc.Vector) // Use the configured distance function
 
-			if actualDistance <= args.Radius {
-				results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: actualDistance})
-			}
+		// Check if the distance is within the specified radius
+		if distance <= args.Radius {
+			results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
 		}
 	}
 
@@ -510,72 +518,47 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		return SearchResults{}
 	}
 
+	var candidateIDs []uint64
+	if len(c.memfile.idOffsets) < 100 {
+		// Use all document IDs as candidate IDs
+		for id := range c.memfile.idOffsets {
+			candidateIDs = append(candidateIDs, id)
+		}
+	} else {
+		// Use LSH to get candidate IDs
+		candidateIDs = c.lshTable.Query(args.Vector)
+	}
+
+	results := []SearchResult{}
 	pointsSearched := 0
 
-	// Initialize heaps
-	approxHeap := &approxHeap{}
-	heap.Init(approxHeap)
-
-	resultsHeap := &resultHeap{}
-	heap.Init(resultsHeap)
-
-	// Calculate distances to pivots
-	distances := make([]float64, len(c.pivotsManager.pivots))
-	for i, pivot := range c.pivotsManager.pivots {
-		distances[i] = c.pivotsManager.distanceFn(args.Vector, pivot.Vector)
-		pointsSearched++
-	}
-
-	// Populate the approximate heap
-	for id := range c.memfile.idOffsets {
-		if c.pivotsManager.isPivot(id) {
-			continue
-		}
-
-		minDistance := c.pivotsManager.approxDistance(args.Vector, id)
-		heap.Push(approxHeap, distanceIndex{distance: minDistance, index: id})
-	}
-
-	// Process the approximate heap
-	for approxHeap.Len() > 0 {
-		item := heap.Pop(approxHeap).(distanceIndex)
-
-		//log.Printf("Top of approx heap: %v", item.distance)
-		//if resultsHeap.Len() > 0 {
-		//log.Printf("Top of results heap: %v", (*resultsHeap)[0].Distance)
-		//}
-
-		if resultsHeap.Len() == args.K && item.distance >= (*resultsHeap)[0].Distance {
-			break
-		}
-
-		data, err := c.memfile.readRecord(item.index)
+	// Process candidates
+	for _, id := range candidateIDs {
+		data, err := c.memfile.readRecord(id)
 		if err != nil {
 			continue
 		}
 
 		pointsSearched++
 
-		doc := c.decodeDocument(data, item.index)
+		doc := c.decodeDocument(data, id)
 
 		// Apply filter function if provided
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
 			continue
 		}
 
-		distance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
-		if resultsHeap.Len() < args.K {
-			heap.Push(resultsHeap, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
-		} else if distance < (*resultsHeap)[0].Distance {
-			heap.Pop(resultsHeap)
-			heap.Push(resultsHeap, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
-		}
+		distance := c.distance(args.Vector, doc.Vector) // Use the configured distance function
+		results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
 	}
 
-	// Collect results
-	results := make([]SearchResult, resultsHeap.Len())
-	for i := len(results) - 1; i >= 0; i-- {
-		results[i] = heap.Pop(resultsHeap).(SearchResult)
+	// Sort results by distance
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Distance < results[j].Distance
+	})
+
+	if len(results) > args.K {
+		results = results[:args.K]
 	}
 
 	return SearchResults{
