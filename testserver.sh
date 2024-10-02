@@ -41,3 +41,7 @@ curl -X POST "$SERVER_ADDRESS/api/v1/collections/test_collection/records" -H "Co
 }'
 
 echo "Test records added successfully."
+
+# Search and list all records
+echo "Listing all records..."
+curl -X GET "$SERVER_ADDRESS/api/v1/collections/test_collection/search?offset=0&limit=10&include_vectors=false" -H "Content-Type: application/json" -d '{}'
