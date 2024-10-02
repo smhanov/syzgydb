@@ -73,29 +73,29 @@ image_model = "your-image-model"
 Here is an example of how you might configure the Ollama server:
 
 - **Server Address**: `ollama.example.com:12345`
-- **Text Model**: `bert-base-uncased`
-- **Image Model**: `resnet50`
+- **Text Model**: `all-minilm`
+- **Image Model**: `minicpm-v`
 
 Using command-line flags:
 
 ```bash
-./syzgydb --ollama-server="ollama.example.com:12345" --text-model="bert-base-uncased" --image-model="resnet50"
+./syzgydb --ollama-server="ollama.example.com:12345" --text-model="all-minilm" --image-model="minicpm-v"
 ```
 
 Using environment variables:
 
 ```bash
 export OLLAMA_SERVER="ollama.example.com:12345"
-export TEXT_MODEL="bert-base-uncased"
-export IMAGE_MODEL="resnet50"
+export TEXT_MODEL="all-minilm"
+export IMAGE_MODEL="minicpm-v"
 ```
 
 Using a configuration file (`syzgy.conf`):
 
 ```ini
 ollama_server = "ollama.example.com:12345"
-text_model = "bert-base-uncased"
-image_model = "resnet50"
+text_model = "all-minilm"
+image_model = "minicpm-v"
 ```
 
 This section provides users with multiple ways to configure the Ollama server, ensuring flexibility and ease of integration into different environments.
