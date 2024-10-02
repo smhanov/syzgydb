@@ -3,6 +3,7 @@ package syzgydb
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"sort"
@@ -24,12 +25,17 @@ func (s *Server) fileNameToCollectionName(fileName string) string {
 	return strings.TrimSuffix(fileName, ".dat")
 }
 func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Received %s request for %s", r.Method, r.URL.Path)
+
 	if r.Method == http.MethodPost {
 		var opts CollectionOptions
 		if err := json.NewDecoder(r.Body).Decode(&opts); err != nil {
+			log.Printf("Error decoding request body: %v", err)
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
+
+		log.Printf("Creating collection with options: %+v", opts)
 
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
@@ -38,20 +44,25 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		opts.Name = s.collectionNameToFileName(name)
 
 		if _, exists := s.collections[name]; exists {
+			log.Printf("Collection %s already exists", name)
 			http.Error(w, "Collection already exists", http.StatusBadRequest)
 			return
 		}
 
 		// Pass the transformed name to NewCollection
 		s.collections[name] = NewCollection(opts)
+		log.Printf("Collection %s created successfully", name)
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": name})
 	}
 }
 
 func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Received %s request for %s", r.Method, r.URL.Path)
+
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 {
+		log.Println("Invalid path")
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
@@ -63,12 +74,14 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	collection, exists := s.collections[collectionName]
 
 	if !exists {
+		log.Printf("Collection %s not found", collectionName)
 		http.Error(w, "Collection not found", http.StatusNotFound)
 		return
 	}
 
 	switch r.Method {
 	case http.MethodGet:
+		log.Printf("Fetching info for collection %s", collectionName)
 		info := map[string]interface{}{
 			"name":              s.fileNameToCollectionName(collection.Name),
 			"vector_size":       collection.DimensionCount,
@@ -81,6 +94,7 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(info)
 
 	case http.MethodDelete:
+		log.Printf("Deleting collection %s", collectionName)
 		delete(s.collections, collectionName)
 		collection.Close()
 		os.Remove(s.collectionNameToFileName(collectionName))
