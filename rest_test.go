@@ -89,7 +89,13 @@ func TestSearchRecords(t *testing.T) {
 func TestCreateCollection(t *testing.T) {
 	server := setupTestServer()
 
-	// No need to create a collection here as it's being tested for creation
+	// Define the request body for creating a collection
+	reqBody := `{
+		"name": "test_collection",
+		"vector_size": 128,
+		"quantization": 64,
+		"distance_function": "cosine"
+	}`
 	req, err := http.NewRequest(http.MethodPost, "/api/v1/collections", bytes.NewBufferString(reqBody))
 	if err != nil {
 		t.Fatal(err)
