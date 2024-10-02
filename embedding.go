@@ -18,8 +18,8 @@ func ollama_embed_text(text string) ([]float64, error) {
 
     // Prepare the request payload
     payload := map[string]interface{}{
-        "text":  text,
         "model": GlobalConfig.TextModel,
+        "input": text,
     }
     payloadBytes, err := json.Marshal(payload)
     if err != nil {
@@ -27,7 +27,7 @@ func ollama_embed_text(text string) ([]float64, error) {
     }
 
     // Construct the request URL
-    url := fmt.Sprintf("http://%s/embed", GlobalConfig.OllamaServer)
+    url := fmt.Sprintf("http://%s/api/embed", GlobalConfig.OllamaServer)
 
     // Make the HTTP request
     resp, err := http.Post(url, "application/json", bytes.NewBuffer(payloadBytes))
@@ -44,11 +44,16 @@ func ollama_embed_text(text string) ([]float64, error) {
 
     // Parse the response
     var response struct {
-        Embedding []float64 `json:"embedding"`
+        Embeddings [][]float64 `json:"embeddings"`
     }
     if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
         return nil, fmt.Errorf("failed to decode response: %v", err)
     }
 
-    return response.Embedding, nil
+    // Check if embeddings are present
+    if len(response.Embeddings) == 0 || len(response.Embeddings[0]) == 0 {
+        return nil, fmt.Errorf("no embeddings found in response")
+    }
+
+    return response.Embeddings[0], nil
 }
