@@ -13,6 +13,10 @@ type Server struct {
 	mutex       sync.Mutex
 }
 
+func (s *Server) collectionNameToFileName(name string) string {
+    return name + ".dat"
+}
+
 func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var opts CollectionOptions
@@ -29,6 +33,11 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Transform collection name to filename
+		fileName := s.collectionNameToFileName(opts.Name)
+
+		// Pass the transformed name to NewCollection
+		opts.Name = fileName
 		s.collections[opts.Name] = NewCollection(opts)
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": opts.Name})
