@@ -3,7 +3,9 @@
 # Set server address
 SERVER_ADDRESS="http://localhost:8080"
 
-# Create a new collection
+# Drop the collection if it exists
+echo "Dropping existing collection..."
+curl -X DELETE "$SERVER_ADDRESS/api/v1/collections/test_collection"
 echo "Creating collection..."
 curl -X POST "$SERVER_ADDRESS/api/v1/collections" -H "Content-Type: application/json" -d '{
   "name": "test_collection",
