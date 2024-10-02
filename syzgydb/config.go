@@ -30,7 +30,6 @@ func LoadConfig() error {
 
 	// Bind environment variables
 	viper.AutomaticEnv()
-	viper.SetEnvPrefix("SYZGY")
 
 	// Read configuration file if specified
 	configFile := viper.GetString("config")

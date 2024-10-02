@@ -218,8 +218,8 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 
 	// If the record already existed, mark the old space as free
 	if oldOffset, exists := mf.idOffsets[id]; exists {
-		mf.writeUint64(oldOffset, deletedRecordMarker)
-		oldLength := mf.readUint64((oldOffset))
+		oldLength := mf.readUint64(oldOffset)
+		mf.writeUint64(oldOffset+8, deletedRecordMarker)
 		mf.freemap.markFree(int(oldOffset), int(oldLength))
 		wasNew = false
 	}

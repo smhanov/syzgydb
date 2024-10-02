@@ -65,8 +65,8 @@ func TestSearchRecords(t *testing.T) {
 	})
 	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 
-	reqBody := `{"vector": [0.1, 0.2, 0.3, 0.4, 0.5]}`
-	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections/test_collection/search", strings.NewReader(reqBody))
+	reqBody := `{"vector": [0.1, 0.2, 0.3, 0.4, 0.5], "k": 1}`
+	req, err := http.NewRequest(http.MethodPost, "/api/v1/collections/test_collection/search", strings.NewReader(reqBody))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,16 @@ func TestSearchRecords(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
-	var response SearchResults
+	type JSSearchResult struct {
+		SearchResult
+		Metadata interface{} `json:"metadata"`
+	}
+
+	type JSSearchResults struct {
+		Results []JSSearchResult `json:"results"`
+	}
+
+	var response JSSearchResults
 	if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
 		t.Fatal(err)
 	}

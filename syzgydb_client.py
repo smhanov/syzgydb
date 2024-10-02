@@ -52,26 +52,6 @@ class SyzgyDBClient:
         response = requests.post(url, json=data)
         return response.json()
 
-# Example usage
-if __name__ == "__main__":
-    client = SyzgyDBClient("http://localhost:8080")
-
-    # Create a collection
-    print("Creating collection...")
-    print(client.delete_collection("pycollection"))
-
-    print(client.create_collection("pycollection", 384, 64, "cosine"))
-
-    # Insert records
-    print("Inserting records...")
-    print(client.insert_record("pycollection", 1, text="This is the first test record", metadata={"category": "test"}))
-    print(client.insert_record("pycollection", 2, text="This is the second test record", metadata={"category": "test"}))
-    print(client.insert_record("pycollection", 3, text="This is the third test record", metadata={"category": "test"}))
-
-    # Search records
-    print("Searching records...")
-    print(client.search_records("pycollection", text="test record", k=2))
-
 def processTweets():
     # Create a collection
     print("Creating collection...")
@@ -87,6 +67,7 @@ def processTweets():
         csv_reader = csv.reader(file)
         
         # Iterate over each row in the CSV
+        i =0
         for row in csv_reader:
             # Extract the tweet from the 6th column (index 5)
             tweet_text = row[5]
@@ -94,4 +75,29 @@ def processTweets():
             # Insert the tweet into the collection
             # Assuming each tweet has a unique ID, you can use the row index as the ID
             record_id = csv_reader.line_num  # or any other unique identifier
-            print(client.insert_record("tweets", record_id, text=tweet_text, metadata={"source": "csv"}))
+            print(client.insert_record("tweets", record_id, text=tweet_text, metadata={"text": tweet_text}))
+            i += 1
+            if i == 1000:
+                break
+            
+            # Example usage
+if __name__ == "__main__":
+    client = SyzgyDBClient("http://localhost:8080")
+    processTweets()
+    if 0:
+        # Create a collection
+        print("Creating collection...")
+        print(client.delete_collection("pycollection"))
+
+        print(client.create_collection("pycollection", 384, 64, "cosine"))
+
+        # Insert records
+        print("Inserting records...")
+        print(client.insert_record("pycollection", 1, text="This is the first test record", metadata={"category": "test"}))
+        print(client.insert_record("pycollection", 2, text="This is the second test record", metadata={"category": "test"}))
+        print(client.insert_record("pycollection", 3, text="This is the third test record", metadata={"category": "test"}))
+
+        # Search records
+        print("Searching records...")
+        print(client.search_records("pycollection", text="test record", k=2))
+

@@ -161,8 +161,8 @@ func TestCollectionSearch(t *testing.T) {
 		defer emptyCollection.Close()
 		searchVector := []float64{50, 50}
 		args := SearchArgs{
-			Vector:   searchVector,
-			MaxCount: 5,
+			Vector: searchVector,
+			K:      5,
 		}
 		results := emptyCollection.Search(args)
 		if len(results.Results) != 0 {
@@ -185,8 +185,8 @@ func TestCollectionSearch(t *testing.T) {
 	t.Run("Basic Search", func(t *testing.T) {
 		searchVector := []float64{50, 50}
 		args := SearchArgs{
-			Vector:   searchVector,
-			MaxCount: 5,
+			Vector: searchVector,
+			K:      5,
 		}
 		results := collection.Search(args)
 		if len(results.Results) == 0 {
@@ -198,8 +198,8 @@ func TestCollectionSearch(t *testing.T) {
 	t.Run("Max Count", func(t *testing.T) {
 		searchVector := []float64{50, 50}
 		args := SearchArgs{
-			Vector:   searchVector,
-			MaxCount: 3,
+			Vector: searchVector,
+			K:      3,
 		}
 		results := collection.Search(args)
 		if len(results.Results) > 3 {
@@ -226,8 +226,8 @@ func TestCollectionSearch(t *testing.T) {
 	t.Run("Filter Function", func(t *testing.T) {
 		searchVector := []float64{50, 50}
 		args := SearchArgs{
-			Vector:   searchVector,
-			MaxCount: 5,
+			Vector: searchVector,
+			K:      5,
 			Filter: func(id uint64, metadata []byte) bool {
 				return id%2 == 0 // Exclude odd IDs
 			},
@@ -287,8 +287,8 @@ func TestCollectionPersistence(t *testing.T) {
 	// Perform a search to test pivot usage
 	searchVector := []float64{50, 51, 52}
 	args := SearchArgs{
-		Vector:   searchVector,
-		MaxCount: 5,
+		Vector: searchVector,
+		K:      5,
 	}
 	results := collection.Search(args)
 
@@ -336,8 +336,8 @@ func TestVectorSearchWith4BitQuantization(t *testing.T) {
 
 	// Define search arguments
 	args := SearchArgs{
-		Vector:   searchVector,
-		MaxCount: 5, // Limit to top 5 results
+		Vector: searchVector,
+		K:      5, // Limit to top 5 results
 	}
 
 	// Perform the search

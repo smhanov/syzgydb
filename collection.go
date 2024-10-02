@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"encoding/binary"
 	"errors"
+	"log"
 	"math"
 	"math/rand"
 	"sort"
@@ -78,8 +79,8 @@ type SearchArgs struct {
 	// Filter is an optional function to filter documents based on their ID and metadata.
 	Filter FilterFn
 
-	// MaxCount specifies the maximum number of nearest neighbors to return.
-	MaxCount int
+	// K specifies the maximum number of nearest neighbors to return.
+	K int
 
 	// Radius specifies the maximum distance for radius-based search.
 	Radius float64
@@ -232,7 +233,7 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 
 	// Check if the vector size matches the expected dimensions
 	if len(vector) != c.DimensionCount {
-		panic("vector size does not match the expected number of dimensions")
+		log.Panicf("vector size does not match the expected number of dimensions: expected %d, got %d", c.DimensionCount, len(vector))
 	}
 
 	doc := &Document{
@@ -357,7 +358,7 @@ It returns the search results, including the list of matching documents and the 
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	if args.MaxCount == 0 && args.Radius == 0 {
+	if args.K == 0 && args.Radius == 0 {
 		// Collect all document IDs
 		ids := make([]uint64, 0, len(c.memfile.idOffsets))
 		for id := range c.memfile.idOffsets {
@@ -397,7 +398,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		}
 	}
 
-	if args.MaxCount > 0 {
+	if args.K > 0 {
 		return c.searchNearestNeighbours(args)
 	} else if args.Radius > 0 {
 		return c.searchRadius(args)
@@ -465,7 +466,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 }
 
 func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
-	if args.MaxCount <= 0 {
+	if args.K <= 0 {
 		return SearchResults{}
 	}
 
@@ -504,7 +505,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		//	log.Printf("Top of results heap: %v", (*resultsHeap)[0].Distance)
 		//}
 
-		if resultsHeap.Len() == args.MaxCount && item.distance >= (*resultsHeap)[0].Distance {
+		if resultsHeap.Len() == args.K && item.distance >= (*resultsHeap)[0].Distance {
 			break
 		}
 
@@ -523,7 +524,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		}
 
 		distance := c.pivotsManager.distanceFn(args.Vector, doc.Vector)
-		if resultsHeap.Len() < args.MaxCount {
+		if resultsHeap.Len() < args.K {
 			heap.Push(resultsHeap, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
 		} else if distance < (*resultsHeap)[0].Distance {
 			heap.Pop(resultsHeap)

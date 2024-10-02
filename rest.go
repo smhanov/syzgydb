@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -101,6 +100,11 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 
 	if !exists {
 		log.Printf("Collection %s not found", collectionName)
+		if r.Method == http.MethodDelete {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]string{"message": "Collection did not exist."})
+			return
+		}
 		http.Error(w, "Collection not found", http.StatusNotFound)
 		return
 	}
@@ -260,8 +264,8 @@ func (s *Server) handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Record deleted successfully.", "id": id})
 }
-
 func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
+	log.Printf("In handleSearchRecords")
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
@@ -278,122 +282,57 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse query parameters
-	query := r.URL.Query()
-	offsetStr := query.Get("offset")
-	limitStr := query.Get("limit")
-	includeVectorsStr := query.Get("include_vectors")
-	radiusStr := query.Get("radius")
-	kStr := query.Get("k")
+	log.Printf("HERE 1")
 
-	// Set defaults
-	offset := 0
-	limit := 10
-	includeVectors := false
+	var searchArgs SearchArgs
 
-	// Convert query parameters to appropriate types
-	if offsetStr != "" {
-		if o, err := strconv.Atoi(offsetStr); err == nil {
-			offset = o
-		}
-	}
-	if limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil {
-			limit = l
-		}
-	}
-	if includeVectorsStr != "" {
-		if iv, err := strconv.ParseBool(includeVectorsStr); err == nil {
-			includeVectors = iv
-		}
-	}
-
-	// Initialize SearchArgs
-	searchArgs := SearchArgs{
-		Offset: offset,
-		Limit:  limit,
-	}
-
-	// Parse optional body for vector or text
 	var searchRequest struct {
 		Vector []float64 `json:"vector,omitempty"`
 		Text   string    `json:"text,omitempty"`
+		Offset int       `json:"offset,omitempty"`
+		Limit  int       `json:"limit,omitempty"`
+		Radius float64   `json:"radius,omitempty"`
+		K      int       `json:"k,omitempty"`
 	}
-	if r.Body != nil {
+
+	if r.Method == http.MethodGet {
+		query := r.URL.Query()
+		searchArgs.Offset, _ = strconv.Atoi(query.Get("offset"))
+		searchArgs.Limit, _ = strconv.Atoi(query.Get("limit"))
+		searchArgs.Radius, _ = strconv.ParseFloat(query.Get("radius"), 64)
+		searchArgs.Radius, _ = strconv.ParseFloat(query.Get("radius"), 64)
+		searchArgs.K, _ = strconv.Atoi(query.Get("k"))
+		searchRequest.Text = query.Get("text")
+	} else if r.Method == http.MethodPost {
 		if err := json.NewDecoder(r.Body).Decode(&searchRequest); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
+
+		searchArgs = SearchArgs{
+			Vector: searchRequest.Vector,
+			Offset: searchRequest.Offset,
+			Limit:  searchRequest.Limit,
+			Radius: searchRequest.Radius,
+			K:      searchRequest.K,
+		}
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
 
-	// Convert text to vector if text is provided
 	if searchRequest.Text != "" {
-		vector, err := ollama_embed_text(searchRequest.Text)
+		vector, err := embedText(searchRequest.Text)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
 			return
 		}
-		searchRequest.Vector = vector
+		searchArgs.Vector = vector
 	}
 
-	searchArgs.Vector = searchRequest.Vector
-	if radiusStr != "" {
-		if radius, err := strconv.ParseFloat(radiusStr, 64); err == nil {
-			searchArgs.Radius = radius
-		}
-	}
-	if kStr != "" {
-		if k, err := strconv.Atoi(kStr); err == nil {
-			searchArgs.MaxCount = k
-		}
-	}
-
-	log.Printf("Using search arguments: %+v", searchArgs)
-
-	if includeVectors {
-		// Collect all document IDs
-		ids := make([]uint64, 0, len(collection.memfile.idOffsets))
-		for id := range collection.memfile.idOffsets {
-			ids = append(ids, id)
-		}
-
-		// Sort IDs
-		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-
-		// Apply offset and limit
-		start := offset
-		if start > len(ids) {
-			start = len(ids)
-		}
-		end := start + limit
-		if end > len(ids) {
-			end = len(ids)
-		}
-
-		// Collect results
-		results := make([]SearchResult, 0, end-start)
-		for _, id := range ids[start:end] {
-			doc, err := collection.GetDocument(id)
-			if err != nil {
-				continue
-			}
-			results = append(results, SearchResult{
-				ID:       doc.ID,
-				Metadata: doc.Metadata,
-				Distance: 0, // Distance is not applicable here
-			})
-		}
-
-		json.NewEncoder(w).Encode(SearchResults{
-			Results:         results,
-			PercentSearched: 100.0, // All records are considered
-		})
-		return
-	}
-
+	log.Printf("Using searchArgs: %+v", searchArgs)
 	results := collection.Search(searchArgs)
 
-	// Decode metadata and prepare results with lowercase JSON field names
 	type jsonSearchResult struct {
 		ID       uint64                 `json:"id"`
 		Metadata map[string]interface{} `json:"metadata"`
@@ -414,7 +353,6 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Encode the results with lowercase field names
 	json.NewEncoder(w).Encode(struct {
 		Results         []jsonSearchResult `json:"results"`
 		PercentSearched float64            `json:"percent_searched"`

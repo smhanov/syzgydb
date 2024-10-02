@@ -18,7 +18,7 @@ func RunServer() {
 			server.handleUpdateMetadata(w, r)
 		} else if strings.Contains(r.URL.Path, "/records/") && r.Method == http.MethodDelete {
 			server.handleDeleteRecord(w, r)
-		} else if strings.HasSuffix(r.URL.Path, "/search") && r.Method == http.MethodGet {
+		} else if strings.HasSuffix(r.URL.Path, "/search") && (r.Method == http.MethodGet || r.Method == http.MethodPost) {
 			server.handleSearchRecords(w, r)
 		} else {
 			server.handleCollection(w, r)
