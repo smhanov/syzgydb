@@ -256,9 +256,8 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 
 	// Initialize SearchArgs
 	searchArgs := SearchArgs{
-		Offset:        offset,
-		Limit:         limit,
-		IncludeVectors: includeVectors,
+		Offset: offset,
+		Limit:  limit,
 	}
 
 	// Parse optional body for vector
