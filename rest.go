@@ -17,7 +17,9 @@ func (s *Server) collectionNameToFileName(name string) string {
     return name + ".dat"
 }
 
-func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
+func (s *Server) fileNameToCollectionName(fileName string) string {
+    return strings.TrimSuffix(fileName, ".dat")
+}
 	if r.Method == http.MethodPost {
 		var opts CollectionOptions
 		if err := json.NewDecoder(r.Body).Decode(&opts); err != nil {
@@ -40,7 +42,8 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		opts.Name = fileName
 		s.collections[opts.Name] = NewCollection(opts)
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": opts.Name})
+		collectionName := s.fileNameToCollectionName(opts.Name)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": collectionName})
 	}
 }
 
@@ -64,7 +67,7 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		info := map[string]interface{}{
-			"name":              collection.Name,
+			"name":              s.fileNameToCollectionName(collection.Name),
 			"vector_size":       collection.DimensionCount,
 			"quantization":      collection.Quantization,
 			"distance_function": collection.DistanceMethod,
