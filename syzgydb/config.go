@@ -22,11 +22,11 @@ func LoadConfig() error {
 	viper.SetDefault("text_model", "all-minilm")
 	viper.SetDefault("image_model", "minicpm-v")
 
-	// Parse command-line flags
-	pflag.Parse()
-
 	// Bind command-line flags to Viper
 	viper.BindPFlags(pflag.CommandLine)
+
+	// Parse command-line flags
+	pflag.Parse()
 
 	// Bind environment variables
 	viper.AutomaticEnv()

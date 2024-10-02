@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type EmbedTextFunc func(text []string) ([][]float64, error)
@@ -27,14 +28,18 @@ func ollama_embed_text(texts []string) ([][]float64, error) {
 		"model": GlobalConfig.TextModel,
 		"input": texts,
 	}
-	log.Printf("Using payload %v", payload)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request payload: %v", err)
 	}
 
 	// Construct the request URL
-	url := fmt.Sprintf("%s/api/embed", GlobalConfig.OllamaServer)
+	url := GlobalConfig.OllamaServer
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		url = "http://" + url
+	}
+	url = fmt.Sprintf("%s/api/embed", url)
+	log.Printf("Sending to %v %v", url, payload)
 
 	// Make the HTTP request
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payloadBytes))

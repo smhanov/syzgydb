@@ -144,102 +144,6 @@ docker stop <container_id>
 
 Replace `<container_id>` with the actual ID of the running container.
 
-## Usage
-
-### Creating a Collection
-
-To create a new collection, define the collection options and initialize the collection:
-
-```go
-options := CollectionOptions{
-    Name:           "example.dat",
-    DistanceMethod: Euclidean, // or Cosine
-    DimensionCount: 128,       // Number of dimensions for each vector
-    Quantization:   64,        // Quantization level (4, 8, 16, 32, 64)
-}
-
-collection := NewCollection(options)
-```
-
-### Adding Documents
-
-Add documents to the collection by specifying an ID, vector, and optional metadata:
-
-```go
-vector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example vector
-metadata := []byte("example metadata")
-
-collection.AddDocument(1, vector, metadata)
-```
-
-### Searching
-
-Perform a search to find similar vectors using either nearest neighbor or radius-based search:
-
-```go
-searchVector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example search vector
-
-// Nearest neighbor search
-args := SearchArgs{
-    Vector:   searchVector,
-    K: 5, // Return top 5 results
-}
-
-results := collection.Search(args)
-
-// Radius-based search
-args = SearchArgs{
-    Vector: searchVector,
-    Radius: 0.5, // Search within a radius of 0.5
-}
-
-results = collection.Search(args)
-```
-
-#### Using a Filter Function
-
-You can also apply a filter function during the search to include only documents that meet certain criteria. The filter function takes a document's ID and metadata as arguments and returns a boolean indicating whether the document should be included in the search results.
-
-```go
-searchVector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example search vector
-
-// Define a filter function to exclude documents with odd IDs
-filterFn := func(id uint64, metadata []byte) bool {
-    return id%2 == 0 // Include only documents with even IDs
-}
-
-// Search with a filter function
-args := SearchArgs{
-    Vector:   searchVector,
-    MaxCount: 5, // Return top 5 results
-    Filter:   filterFn,
-}
-
-results := collection.Search(args)
-```
-
-This allows you to customize the search process by excluding certain documents based on their IDs or metadata, providing more control over the search results.
-
-### Updating and Removing Documents
-
-Update the metadata of an existing document or remove a document from the collection:
-
-```go
-// Update document metadata
-err := collection.UpdateDocument(1, []byte("updated metadata"))
-
-// Remove a document
-err = collection.removeDocument(1)
-```
-
-### Dumping the Collection
-
-To dump the collection for inspection or backup, use the `DumpIndex` function:
-
-```go
-DumpIndex("example_collection")
-```
-
 ## RESTful API
 
 SyzgyDB provides a RESTful API for managing collections and records. Below are the available endpoints and example `curl` requests.
@@ -386,6 +290,104 @@ This update to the `README.md` provides clear instructions on how to use the tex
   - **Vector-Based Search**: Use the `vector` parameter for direct vector similarity searches.
   - **Range Query**: Specify a `radius` to perform a range query, returning all records within the specified distance.
   - **K-Nearest Neighbors**: Use the `k` parameter to find the top `k` nearest records to the query vector.
+
+## Usage in a GO project
+
+You don't need to use the REST api. You can build it right in to your go project. Here's how.
+
+### Creating a Collection
+
+To create a new collection, define the collection options and initialize the collection:
+
+```go
+options := CollectionOptions{
+    Name:           "example.dat",
+    DistanceMethod: Euclidean, // or Cosine
+    DimensionCount: 128,       // Number of dimensions for each vector
+    Quantization:   64,        // Quantization level (4, 8, 16, 32, 64)
+}
+
+collection := NewCollection(options)
+```
+
+### Adding Documents
+
+Add documents to the collection by specifying an ID, vector, and optional metadata:
+
+```go
+vector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example vector
+metadata := []byte("example metadata")
+
+collection.AddDocument(1, vector, metadata)
+```
+
+### Searching
+
+Perform a search to find similar vectors using either nearest neighbor or radius-based search:
+
+```go
+searchVector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example search vector
+
+// Nearest neighbor search
+args := SearchArgs{
+    Vector:   searchVector,
+    K: 5, // Return top 5 results
+}
+
+results := collection.Search(args)
+
+// Radius-based search
+args = SearchArgs{
+    Vector: searchVector,
+    Radius: 0.5, // Search within a radius of 0.5
+}
+
+results = collection.Search(args)
+```
+
+#### Using a Filter Function
+
+You can also apply a filter function during the search to include only documents that meet certain criteria. The filter function takes a document's ID and metadata as arguments and returns a boolean indicating whether the document should be included in the search results.
+
+```go
+searchVector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example search vector
+
+// Define a filter function to exclude documents with odd IDs
+filterFn := func(id uint64, metadata []byte) bool {
+    return id%2 == 0 // Include only documents with even IDs
+}
+
+// Search with a filter function
+args := SearchArgs{
+    Vector:   searchVector,
+    MaxCount: 5, // Return top 5 results
+    Filter:   filterFn,
+}
+
+results := collection.Search(args)
+```
+
+This allows you to customize the search process by excluding certain documents based on their IDs or metadata, providing more control over the search results.
+
+### Updating and Removing Documents
+
+Update the metadata of an existing document or remove a document from the collection:
+
+```go
+// Update document metadata
+err := collection.UpdateDocument(1, []byte("updated metadata"))
+
+// Remove a document
+err = collection.removeDocument(1)
+```
+
+### Dumping the Collection
+
+To dump the collection for inspection or backup, use the `DumpIndex` function:
+
+```go
+DumpIndex("example_collection")
+```
 
 ## Contributing
 

@@ -36,6 +36,8 @@ class SyzgyDBClient:
     def insert_records(self, collection_name, records):
         url = f"{self.server_address}/api/v1/collections/{collection_name}/records"
         response = requests.post(url, json=records)
+        if response.status_code != 200:
+            print(f"HTTP Error: {response.status_code} - {response.text}")
         return response.json()
 
 def processTweets():
