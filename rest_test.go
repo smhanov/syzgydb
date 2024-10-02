@@ -15,6 +15,8 @@ func setupTestServer() *Server {
 		collections: make(map[string]*Collection),
 	}
 
+	os.Remove("test_collection.dat")
+
 	return server
 }
 
