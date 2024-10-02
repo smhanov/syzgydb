@@ -54,7 +54,7 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
-	collectionName := parts[3]
+	collectionName := s.collectionNameToFileName(parts[3])
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
