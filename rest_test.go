@@ -24,8 +24,10 @@ func TestDeleteCollection(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection",
+	collectionName := "test_collection"
+	fileName := server.collectionNameToFileName(collectionName)
+	server.collections[fileName] = NewCollection(CollectionOptions{
+		Name:           fileName,
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
