@@ -53,9 +53,9 @@ You can specify the Ollama server configuration using command-line flags when st
 Alternatively, you can set environment variables to configure the Ollama server:
 
 ```bash
-export SYZGY_OLLAMA_SERVER="your-server-address:port"
-export SYZGY_TEXT_MODEL="your-text-model"
-export SYZGY_IMAGE_MODEL="your-image-model"
+export OLLAMA_SERVER="your-server-address:port"
+export TEXT_MODEL="your-text-model"
+export IMAGE_MODEL="your-image-model"
 ```
 
 ### Configuration File
@@ -85,9 +85,9 @@ Using command-line flags:
 Using environment variables:
 
 ```bash
-export SYZGY_OLLAMA_SERVER="ollama.example.com:12345"
-export SYZGY_TEXT_MODEL="bert-base-uncased"
-export SYZGY_IMAGE_MODEL="resnet50"
+export OLLAMA_SERVER="ollama.example.com:12345"
+export TEXT_MODEL="bert-base-uncased"
+export IMAGE_MODEL="resnet50"
 ```
 
 Using a configuration file (`syzgy.conf`):
