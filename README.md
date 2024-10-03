@@ -135,25 +135,19 @@ This section provides users with multiple ways to configure the Ollama server, e
 
 You can run SyzgyDB using Docker to simplify the setup process. Follow these steps to build and run the Docker container:
 
-### Build the Docker Image
-
-First, ensure you have Docker installed on your system. Then, build the Docker image using the following command:
-
-```bash
-docker build -t syzgydb .
-```
-
-This command will create a Docker image named `syzgydb` using the Dockerfile in the repository.
-
 ### Run the Docker Container
 
-Once the image is built, you can run the Docker container with the following command:
+You can run the SyzgyDB Docker image directly from Docker Hub. Use the following command to start the container:
 
 ```bash
-docker run -p 8080:8080 syzgydb
+docker run -p 8080:8080 -v /path/to/your/data:/data smhanov/syzydb
 ```
 
-This command will start the SyzgyDB server inside a Docker container and map port 8080 of the container to port 8080 on your host machine. You can access the server's API at `http://localhost:8080`.
+This command will:
+
+- Pull the `smhanov/syzydb` image from Docker Hub.
+- Map port 8080 of the container to port 8080 on your host machine.
+- Map the `/data` directory inside the container to `/path/to/your/data` on your host system, ensuring that your data is persisted outside the container.
 
 ### Stopping the Docker Container
 
