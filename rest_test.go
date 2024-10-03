@@ -11,6 +11,7 @@ import (
 )
 
 func setupTestServer() *Server {
+	GlobalConfig.DataFolder = "." // Set the data folder to the current directory
 	server := &Server{
 		collections: make(map[string]*Collection),
 	}
@@ -174,18 +175,18 @@ func TestGetCollectionInfo(t *testing.T) {
 }
 
 func mockEmbedText(texts []string) ([][]float64, error) {
-    // Return a fixed vector for each input text
-    mockVector := []float64{0.1, 0.2, 0.3, 0.4, 0.5}
-    vectors := make([][]float64, len(texts))
-    for i := range texts {
-        vectors[i] = mockVector
-    }
-    return vectors, nil
+	// Return a fixed vector for each input text
+	mockVector := []float64{0.1, 0.2, 0.3, 0.4, 0.5}
+	vectors := make([][]float64, len(texts))
+	for i := range texts {
+		vectors[i] = mockVector
+	}
+	return vectors, nil
 }
 
 func TestInsertRecords(t *testing.T) {
-    // Set up the mock embedding function
-    embedText = mockEmbedText
+	// Set up the mock embedding function
+	embedText = mockEmbedText
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
