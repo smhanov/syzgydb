@@ -11,6 +11,9 @@ import (
 )
 
 func setupTestServer() *Server {
+	if GlobalConfig == nil {
+		GlobalConfig = &Config{}
+	}
 	GlobalConfig.DataFolder = "." // Set the data folder to the current directory
 	server := &Server{
 		collections: make(map[string]*Collection),
