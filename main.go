@@ -28,8 +28,8 @@ func RunServer() {
 		log.Printf("Collection %s loaded successfully", collectionName)
 	}
 
-	http.HandleFunc("/api/v1/collections", server.handleCollections)
-	http.HandleFunc("/api/v1/collections/", func(w http.ResponseWriter, r *http.Request) {
+	http.Handle("/api/v1/collections", gzipMiddleware(http.HandlerFunc(server.handleCollections)))
+	http.Handle("/api/v1/collections/", gzipMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/records") && r.Method == http.MethodPost {
 			server.handleInsertRecord(w, r)
 		} else if strings.Contains(r.URL.Path, "/records/") && r.Method == http.MethodPut {
@@ -41,7 +41,7 @@ func RunServer() {
 		} else {
 			server.handleCollection(w, r)
 		}
-	})
+	})))
 
 	http.ListenAndServe(":8080", nil)
 }
