@@ -2,6 +2,7 @@ package syzgydb
 
 import (
 	"container/list"
+	"sync"
 )
 
 const maxCacheSize = 100
@@ -9,6 +10,7 @@ const maxCacheSize = 100
 type cacheItem struct {
 	key   string
 	value []float64
+	mutex    sync.Mutex
 }
 
 type LRUCache struct {
@@ -26,6 +28,12 @@ func NewLRUCache(capacity int) *LRUCache {
 }
 
 func (c *LRUCache) Get(key string) ([]float64, bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	if element, found := c.items[key]; found {
 		c.order.MoveToFront(element)
 		return element.Value.(*cacheItem).value, true
