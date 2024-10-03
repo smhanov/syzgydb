@@ -1,7 +1,7 @@
 # Define the name of the Docker image
-IMAGE_NAME = syzydb
+IMAGE_NAME = syzgydb
 # Define the name of the Docker container
-CONTAINER_NAME = syzydb-container
+CONTAINER_NAME = syzgydb-container
 # Define the port on which the server will run
 PORT = 8080
 
@@ -27,9 +27,9 @@ update: stop build run
 .PHONY: cmd
 
 cmd: 
-	cd cmd && go build -o ../syzydb
+	cd cmd && go build -o ../syzgydb
 
 # Push the Docker image to Docker Hub
 push-hub: update
-	docker tag $(IMAGE_NAME) smhanov/syzydb:latest
-	docker push smhanov/syzydb:latest
+	docker tag $(IMAGE_NAME) smhanov/syzgydb:latest
+	docker push smhanov/syzgydb:latest

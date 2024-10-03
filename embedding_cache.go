@@ -29,9 +29,6 @@ func (c *LRUCache) Get(key string) ([]float64, bool) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
 	if element, found := c.items[key]; found {
 		c.order.MoveToFront(element)
 		return element.Value.(*cacheItem).value, true

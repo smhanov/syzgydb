@@ -17,11 +17,11 @@ var embeddingCache = NewLRUCache(maxCacheSize)
 type EmbedTextFunc func(text []string) ([][]float64, error)
 
 // Default implementation of the embedding function
-var embedText EmbedTextFunc = ollama_embed_text
+var embedText EmbedTextFunc = EmbedText
 
-// ollama_embed_text connects to the configured Ollama server and runs the configured text model
+// EmbedText connects to the configured Ollama server and runs the configured text model
 // to generate an embedding for the given text.
-func ollama_embed_text(texts []string) ([][]float64, error) {
+func EmbedText(texts []string) ([][]float64, error) {
 	// Check the cache first
 	cachedEmbeddings := make([][]float64, len(texts))
 	allCached := true

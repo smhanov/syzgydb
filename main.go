@@ -30,6 +30,7 @@ func RunServer() {
 
 	http.Handle("/api/v1/collections", gzipMiddleware(http.HandlerFunc(server.handleCollections)))
 	http.Handle("/api/v1/collections/", gzipMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL.Path)
 		if strings.HasSuffix(r.URL.Path, "/records") && r.Method == http.MethodPost {
 			server.handleInsertRecord(w, r)
 		} else if strings.Contains(r.URL.Path, "/records/") && r.Method == http.MethodPut {
