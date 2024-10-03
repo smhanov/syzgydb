@@ -40,7 +40,38 @@ SyzgyDB can be configured to use the Ollama server for generating embeddings fro
 
 2. **Text and Image Models**: Specify the models to be used for text and image embeddings. The default models are `all-minilm` for text and `minicpm-v` for images. These can be configured using command-line flags, environment variables, or a configuration file.
 
-### Command-Line Flags
+## Configuration Options
+
+SyzgyDB provides several configuration options that can be set using command-line flags, environment variables, or a configuration file. These options allow you to customize the behavior of the database server.
+
+### Data Folder
+
+- **Description**: Specifies the directory where collection files are stored.
+- **Default**: `./data`
+- **Command-Line Flag**: `--data-folder`
+- **Environment Variable**: `DATA_FOLDER`
+- **Configuration File**: `data_folder`
+
+#### Example Usage
+
+You can specify the data folder using any of the following methods:
+
+- **Command-Line Flag**:
+  ```bash
+  ./syzgydb --data-folder="/path/to/data"
+  ```
+
+- **Environment Variable**:
+  ```bash
+  export DATA_FOLDER="/path/to/data"
+  ```
+
+- **Configuration File** (`syzgy.conf`):
+  ```ini
+  data_folder = "/path/to/data"
+  ```
+
+This option ensures that all collection files are stored in the specified directory. If the directory does not exist, it will be created automatically.
 
 You can specify the Ollama server configuration using command-line flags when starting the SyzgyDB server:
 
