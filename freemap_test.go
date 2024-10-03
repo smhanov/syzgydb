@@ -18,7 +18,7 @@ func TestMarkFreeAndGetFreeRange(t *testing.T) {
 	}
 
 	// Test getting a free range
-	start, err := fm.getFreeRange(5)
+	start, remaining, err := fm.getFreeRange(5)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestMarkFreeAndGetFreeRange(t *testing.T) {
 	}
 
 	// Test getting another free range
-	start, err = fm.getFreeRange(10)
+	start, remaining, err = fm.getFreeRange(10)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -39,5 +39,22 @@ func TestMarkFreeAndGetFreeRange(t *testing.T) {
 	_, err = fm.getFreeRange(10)
 	if err == nil {
 		t.Errorf("Expected error due to insufficient space, got nil")
+	}
+	// Test remaining space
+	if remaining != 0 {
+		t.Errorf("Expected remaining to be 0, got %d", remaining)
+	}
+
+	// Test getting a free range with remaining space
+	fm.markFree(30, 20)
+	start, remaining, err = fm.getFreeRange(10)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if start != 30 {
+		t.Errorf("Expected start to be 30, got %d", start)
+	}
+	if remaining != 10 {
+		t.Errorf("Expected remaining to be 10, got %d", remaining)
 	}
 }
