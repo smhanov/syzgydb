@@ -29,7 +29,6 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPost:
-		// Existing code for creating a collection
 		var temp struct {
 			Name           string `json:"name"`
 			DistanceMethod string `json:"distance_function"`
@@ -38,8 +37,7 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&temp); err != nil {
-			log.Printf("Error decoding request body: %v", err)
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			writeErrorResponse(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
@@ -60,8 +58,7 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		case "cosine":
 			opts.DistanceMethod = Cosine
 		default:
-			log.Printf("Invalid distance method: %s", temp.DistanceMethod)
-			http.Error(w, "Invalid distance method", http.StatusBadRequest)
+			writeErrorResponse(w, "Invalid distance method", http.StatusBadRequest)
 			return
 		}
 
@@ -69,8 +66,7 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		opts.Name = s.collectionNameToFileName(name)
 
 		if _, exists := s.collections[name]; exists {
-			log.Printf("Collection %s already exists", name)
-			http.Error(w, "Collection already exists", http.StatusBadRequest)
+			writeErrorResponse(w, "Collection already exists", http.StatusBadRequest)
 			return
 		}
 
@@ -80,24 +76,13 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": name})
 
 	case http.MethodGet:
-		// New code to handle GET request
 		var collectionsInfo []map[string]interface{}
 
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
 		for _, collection := range s.collections {
-			stats := collection.ComputeStats()
-			info := map[string]interface{}{
-				"name":              s.fileNameToCollectionName(collection.Name),
-				"vector_size":       stats.DimensionCount,
-				"quantization":      stats.Quantization,
-				"distance_function": stats.DistanceMethod,
-				"storage_space":     stats.StorageSize,
-				"num_vectors":       stats.DocumentCount,
-				"average_distance":  stats.AverageDistance,
-			}
-			collectionsInfo = append(collectionsInfo, info)
+			collectionsInfo = append(collectionsInfo, s.getCollectionStats(collection))
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -110,8 +95,7 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 {
-		log.Println("Invalid path")
-		http.Error(w, "Invalid path", http.StatusBadRequest)
+		writeErrorResponse(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
 	collectionName := parts[4]
@@ -122,34 +106,19 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	collection, exists := s.collections[collectionName]
 
 	if !exists {
-		log.Printf("Collection %s not found", collectionName)
 		if r.Method == http.MethodDelete {
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]string{"message": "Collection did not exist."})
 			return
 		}
-		http.Error(w, "Collection not found", http.StatusNotFound)
+		writeErrorResponse(w, "Collection not found", http.StatusNotFound)
 		return
 	}
 
 	switch r.Method {
 	case http.MethodGet:
 		log.Printf("Fetching info for collection %s", collectionName)
-
-		// Use ComputeStats to get the collection statistics
-		stats := collection.ComputeStats()
-
-		// Populate the response with the statistics
-		info := map[string]interface{}{
-			"name":              s.fileNameToCollectionName(collection.Name),
-			"vector_size":       stats.DimensionCount,
-			"quantization":      stats.Quantization,
-			"distance_function": stats.DistanceMethod,
-			"storage_space":     stats.StorageSize,
-			"num_vectors":       stats.DocumentCount,
-			"average_distance":  stats.AverageDistance,
-		}
-		json.NewEncoder(w).Encode(info)
+		json.NewEncoder(w).Encode(s.getCollectionStats(collection))
 
 	case http.MethodDelete:
 		log.Printf("Deleting collection %s", collectionName)
@@ -404,4 +373,21 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		Results:         jsonResults,
 		PercentSearched: results.PercentSearched,
 	})
+}
+func (s *Server) getCollectionStats(collection *Collection) map[string]interface{} {
+	stats := collection.ComputeStats()
+	return map[string]interface{}{
+		"name":              s.fileNameToCollectionName(collection.Name),
+		"vector_size":       stats.DimensionCount,
+		"quantization":      stats.Quantization,
+		"distance_function": stats.DistanceMethod,
+		"storage_space":     stats.StorageSize,
+		"num_vectors":       stats.DocumentCount,
+		"average_distance":  stats.AverageDistance,
+	}
+}
+
+func writeErrorResponse(w http.ResponseWriter, message string, statusCode int) {
+	http.Error(w, message, statusCode)
+	log.Printf("Error: %s, Status Code: %d", message, statusCode)
 }
