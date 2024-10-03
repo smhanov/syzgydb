@@ -13,7 +13,8 @@ RUN go mod download
 # Copy the entire project to the working directory
 COPY . .
 
-# Build the Go application
+# Set the default data folder environment variable
+ENV DATA_FOLDER=/data
 RUN go build -o syzgydb ./syzgydb/main.go
 
 # Expose the port that the application will run on
