@@ -197,7 +197,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 	wasNew := true
 
 	// Find a free location for the new record
-	start, err := mf.freemap.getFreeRange(recordLength)
+	start, remaining, err := mf.freemap.getFreeRange(recordLength)
 	if err != nil {
 		// If no free space, ensure the file is large enough
 		mf.ensureLength(mf.File.Len() + recordLength)
@@ -207,7 +207,14 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 		}
 	}
 
-	// Write the record to the file
+	// Adjust the record length if the remaining space is 16 bytes or less
+	if remaining > 0 && remaining <= 16 {
+		recordLength += remaining
+		mf.freemap.markFree(start+recordLength, remaining)
+		remaining = 0
+	}
+
+	// Write the record to the file with the adjusted length
 	offset := start
 	mf.writeUint64(offset, uint64(recordLength))
 	log.Printf("Write record at %d, length %d", offset, recordLength)
@@ -221,7 +228,12 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 	mf.WriteAt(data, offset+16)
 	log.Printf("Write data at %d, length %d", offset+16, len(data))
 
-	//mf.File.Sync()
+	// If there is remaining space greater than 16 bytes, mark it as a deleted record
+	if remaining > 16 {
+		mf.writeUint64(offset+int64(recordLength), uint64(remaining))
+		mf.writeUint64(offset+int64(recordLength)+8, deletedRecordMarker)
+		mf.freemap.markFree(start+recordLength, remaining)
+	}
 
 	// If the record already existed, mark the old space as free
 	if oldOffset, exists := mf.idOffsets[id]; exists {

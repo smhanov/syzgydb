@@ -48,7 +48,7 @@ func (fm *FreeMap) markFree(start, length int) {
 }
 
 // getFreeRange finds a free range of the specified length and marks it as used.
-func (fm *FreeMap) getFreeRange(length int) (int64, error) {
+func (fm *FreeMap) getFreeRange(length int) (int64, int, error) {
 	if length <= 0 {
 		return 0, errors.New("length must be positive")
 	}
@@ -63,7 +63,8 @@ func (fm *FreeMap) getFreeRange(length int) (int64, error) {
 				fm.freeSpaces = append(fm.freeSpaces[:i], fm.freeSpaces[i+1:]...)
 			}
 
-			return int64(start), nil
+			remaining := s.length - length
+			return int64(start), remaining, nil
 		}
 	}
 
