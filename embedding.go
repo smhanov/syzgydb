@@ -8,7 +8,12 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"container/list"
 )
+
+const maxCacheSize = 100
+
+var embeddingCache = NewLRUCache(maxCacheSize)
 
 type EmbedTextFunc func(text []string) ([][]float64, error)
 
@@ -18,7 +23,21 @@ var embedText EmbedTextFunc = ollama_embed_text
 // ollama_embed_text connects to the configured Ollama server and runs the configured text model
 // to generate an embedding for the given text.
 func ollama_embed_text(texts []string) ([][]float64, error) {
-	// Ensure the global configuration is set
+	// Check the cache first
+	cachedEmbeddings := make([][]float64, len(texts))
+	allCached := true
+	for i, text := range texts {
+		if embedding, found := embeddingCache.Get(text); found {
+			cachedEmbeddings[i] = embedding
+		} else {
+			allCached = false
+			break
+		}
+	}
+
+	if allCached {
+		return cachedEmbeddings, nil
+	}
 	if GlobalConfig == nil {
 		return nil, fmt.Errorf("global configuration is not set")
 	}
@@ -65,6 +84,11 @@ func ollama_embed_text(texts []string) ([][]float64, error) {
 	// Check if embeddings are present
 	if len(response.Embeddings) == 0 {
 		return nil, fmt.Errorf("no embeddings found in response")
+	}
+
+	// Store the new embeddings in the cache
+	for i, text := range texts {
+		embeddingCache.Put(text, response.Embeddings[i])
 	}
 
 	return response.Embeddings, nil
