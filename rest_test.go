@@ -333,3 +333,50 @@ func TestDeleteRecord(t *testing.T) {
 		t.Errorf("handler returned unexpected body: got %v want %v", actualResponse, expectedResponse)
 	}
 }
+func TestGetAllCollections(t *testing.T) {
+    server := setupTestServer()
+
+    // Create some collections for testing
+    server.collections["collection1"] = NewCollection(CollectionOptions{
+        Name:           "collection1.dat",
+        DistanceMethod: Cosine,
+        DimensionCount: 128,
+        Quantization:   64,
+    })
+    server.collections["collection2"] = NewCollection(CollectionOptions{
+        Name:           "collection2.dat",
+        DistanceMethod: Euclidean,
+        DimensionCount: 64,
+        Quantization:   32,
+    })
+
+    req, err := http.NewRequest(http.MethodGet, "/api/v1/collections", nil)
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    rr := httptest.NewRecorder()
+    handler := http.HandlerFunc(server.handleCollections)
+    handler.ServeHTTP(rr, req)
+
+    if status := rr.Code; status != http.StatusOK {
+        t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+    }
+
+    var response []map[string]interface{}
+    if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+        t.Fatal(err)
+    }
+
+    if len(response) != 2 {
+        t.Errorf("expected 2 collections, got %v", len(response))
+    }
+
+    expectedNames := map[string]bool{"collection1": true, "collection2": true}
+    for _, collectionInfo := range response {
+        name := collectionInfo["name"].(string)
+        if !expectedNames[name] {
+            t.Errorf("unexpected collection name: %v", name)
+        }
+    }
+}
