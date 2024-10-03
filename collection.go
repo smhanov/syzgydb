@@ -2,7 +2,6 @@ package syzgydb
 
 import (
 	"encoding/binary"
-	"errors"
 	"log"
 	"math"
 	"math/rand"
@@ -164,48 +163,6 @@ type FilterFn func(id uint64, metadata []byte) bool
 // 1 byte: distance method
 // 4 bytes: number of dimensions
 const headerSize = 14 // Update the header size to 14
-
-type distanceIndex struct {
-	distance     float64
-	index        uint64
-	Quantization int // Add this line
-}
-
-type approxHeap []distanceIndex
-
-func (h approxHeap) Len() int           { return len(h) }
-func (h approxHeap) Less(i, j int) bool { return h[i].distance < h[j].distance }
-func (h approxHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-
-func (h *approxHeap) Push(x interface{}) {
-	*h = append(*h, x.(distanceIndex))
-}
-
-func (h *approxHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	x := old[n-1]
-	*h = old[0 : n-1]
-	return x
-}
-
-type resultHeap []SearchResult
-
-func (h resultHeap) Len() int           { return len(h) }
-func (h resultHeap) Less(i, j int) bool { return h[i].Distance > h[j].Distance }
-func (h resultHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-
-func (h *resultHeap) Push(x interface{}) {
-	*h = append(*h, x.(SearchResult))
-}
-
-func (h *resultHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	x := old[n-1]
-	*h = old[0 : n-1]
-	return x
-}
 
 const (
 	Euclidean = iota
@@ -420,11 +377,6 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	c.lshTable.AddPoint(id, vector)
 }
 
-// Calculate the desired number of pivots using a logarithmic function
-func getDesiredPivots(numDocs int) int {
-	return int(math.Log2(float64(numDocs))-6) * 10
-}
-
 /*
 GetDocument retrieves a document from the collection by its ID.
 It returns the document or an error if the document is not found.
@@ -489,23 +441,8 @@ func (c *Collection) removeDocument(id uint64) error {
 	return c.memfile.deleteRecord(id)
 }
 
-func (c *Collection) getRandomID() (uint64, error) {
-	if len(c.memfile.idOffsets) == 0 {
-		return 0, errors.New("no documents in the collection")
-	}
-
-	// Create a slice of IDs
-	ids := make([]uint64, 0, len(c.memfile.idOffsets))
-	for id := range c.memfile.idOffsets {
-		ids = append(ids, id)
-	}
-
-	// Select a random ID
-	randomIndex := rand.Intn(len(ids))
-	return ids[randomIndex], nil
-}
-
 // iterateDocuments applies a function to each document in the collection.
+/*
 func (c *Collection) iterateDocuments(fn func(doc *Document)) {
 	for id := range c.memfile.idOffsets {
 		data, err := c.memfile.readRecord(id)
@@ -515,7 +452,7 @@ func (c *Collection) iterateDocuments(fn func(doc *Document)) {
 		doc := c.decodeDocument(data, id)
 		fn(doc)
 	}
-}
+}*/
 
 /*
 Search performs a search in the collection based on the specified search arguments.
