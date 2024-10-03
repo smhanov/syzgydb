@@ -108,7 +108,6 @@ func createMemFile(name string, header []byte) (*memfile, error) {
 		offset := ret.headerSize
 		for offset < int64(ret.Len()) {
 			recordLength := ret.readUint64(offset)
-			log.Printf("Record at %d, length %d", offset, recordLength)
 			if recordLength == 0 {
 				// Mark the remaining space in the file as free
 				remainingLength := int(int64(ret.Len()) - offset)
@@ -217,16 +216,12 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 	// Write the record to the file with the adjusted length
 	offset := start
 	mf.writeUint64(offset, uint64(recordLength))
-	log.Printf("Write record at %d, length %d", offset, recordLength)
 
 	// Write the ID
 	mf.writeUint64(offset+8, id)
 
-	log.Printf("Write ID at %d, value %d", offset+8, id)
-
 	// Write the data
 	mf.WriteAt(data, offset+16)
-	log.Printf("Write data at %d, length %d", offset+16, len(data))
 
 	// If there is remaining space greater than 16 bytes, mark it as a deleted record
 	if remaining > 16 {
@@ -241,7 +236,6 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 		mf.writeUint64(oldOffset+8, deletedRecordMarker)
 		mf.freemap.markFree(int(oldOffset), int(oldLength))
 		wasNew = false
-		log.Printf("Remove old record at %d, length %d", oldOffset, oldLength)
 	}
 
 	// Update the idOffsets map
