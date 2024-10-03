@@ -53,7 +53,13 @@ func LoadConfig() error {
 		return fmt.Errorf("unable to decode into struct, %v", err)
 	}
 
-	// Print out the configuration values
+	// Ensure the data folder exists
+	dataFolder := viper.GetString("data_folder")
+	if _, err := os.Stat(dataFolder); os.IsNotExist(err) {
+		if err := os.MkdirAll(dataFolder, os.ModePerm); err != nil {
+			return fmt.Errorf("failed to create data folder: %v", err)
+		}
+	}
 	fmt.Println("Configuration values:")
 	fmt.Printf("Ollama Server: %s\n", viper.GetString("ollama_server"))
 	fmt.Printf("Text Model: %s\n", viper.GetString("text_model"))
