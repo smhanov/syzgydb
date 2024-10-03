@@ -27,8 +27,9 @@ func (s *Server) fileNameToCollectionName(fileName string) string {
 func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received %s request for %s", r.Method, r.URL.Path)
 
-	if r.Method == http.MethodPost {
-		// Define a temporary struct to match the JSON structure
+	switch r.Method {
+	case http.MethodPost:
+		// Existing code for creating a collection
 		var temp struct {
 			Name           string `json:"name"`
 			DistanceMethod string `json:"distance_function"`
@@ -36,7 +37,6 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 			Quantization   int    `json:"quantization"`
 		}
 
-		// Decode the JSON request into the temporary struct
 		if err := json.NewDecoder(r.Body).Decode(&temp); err != nil {
 			log.Printf("Error decoding request body: %v", err)
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -48,14 +48,12 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
-		// Map the fields from the temporary struct to the CollectionOptions struct
 		opts := CollectionOptions{
 			Name:           temp.Name,
 			DimensionCount: temp.DimensionCount,
 			Quantization:   temp.Quantization,
 		}
 
-		// Convert DistanceMethod from string to int
 		switch temp.DistanceMethod {
 		case "euclidean":
 			opts.DistanceMethod = Euclidean
@@ -80,6 +78,30 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Collection %s created successfully", name)
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": name})
+
+	case http.MethodGet:
+		// New code to handle GET request
+		var collectionsInfo []map[string]interface{}
+
+		s.mutex.Lock()
+		defer s.mutex.Unlock()
+
+		for name, collection := range s.collections {
+			stats := collection.ComputeStats()
+			info := map[string]interface{}{
+				"name":              s.fileNameToCollectionName(collection.Name),
+				"vector_size":       stats.DimensionCount,
+				"quantization":      stats.Quantization,
+				"distance_function": stats.DistanceMethod,
+				"storage_space":     stats.StorageSize,
+				"num_vectors":       stats.DocumentCount,
+				"average_distance":  stats.AverageDistance,
+			}
+			collectionsInfo = append(collectionsInfo, info)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(collectionsInfo)
 	}
 }
 
