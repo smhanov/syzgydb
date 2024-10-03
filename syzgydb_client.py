@@ -46,8 +46,8 @@ def processTweets():
     print(client.delete_collection("tweets"))
 
 
-    print("Creating collection...")
-    print(client.create_collection("tweets", 384, 64, "cosine"))
+    #print("Creating collection...")
+    print(client.create_collection("tweets", 384, 16, "cosine"))
 
     # Read the csv file "training.1600000.processed.noemoticon.csv"
     # Collect all tweets from the 6th column in the collection
