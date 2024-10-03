@@ -201,7 +201,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 	if err != nil {
 		// If no free space, ensure the file is large enough
 		mf.ensureLength(mf.File.Len() + recordLength)
-		start, err = mf.freemap.getFreeRange(recordLength)
+		start, remaining, err = mf.freemap.getFreeRange(recordLength)
 		if err != nil {
 			log.Panic("Failed to allocate space for the new record")
 		}
@@ -209,8 +209,8 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 
 	// Adjust the record length if the remaining space is 16 bytes or less
 	if remaining > 0 && remaining <= 16 {
-		recordLength += remaining
-		mf.freemap.markFree(start+recordLength, remaining)
+		recordLength += int(remaining)
+		mf.freemap.markFree(int(start)+recordLength, int(remaining))
 		remaining = 0
 	}
 
@@ -232,7 +232,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 	if remaining > 16 {
 		mf.writeUint64(offset+int64(recordLength), uint64(remaining))
 		mf.writeUint64(offset+int64(recordLength)+8, deletedRecordMarker)
-		mf.freemap.markFree(start+recordLength, remaining)
+		mf.freemap.markFree(int(start)+recordLength, int(remaining))
 	}
 
 	// If the record already existed, mark the old space as free

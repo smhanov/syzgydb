@@ -406,6 +406,8 @@ func TestCollectionAddDeleteAndRetrieve(t *testing.T) {
 		t.Errorf("Expected vector %v, got %v", expectedVector, doc.Vector)
 	}
 }
+
+func TestVectorSearchWith4BitQuantization(t *testing.T) {
 	// Define collection options with 4-bit quantization
 	collectionName := "test_collection_4bit.dat"
 	options := CollectionOptions{
