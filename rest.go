@@ -86,7 +86,7 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
-		for name, collection := range s.collections {
+		for _, collection := range s.collections {
 			stats := collection.ComputeStats()
 			info := map[string]interface{}{
 				"name":              s.fileNameToCollectionName(collection.Name),
