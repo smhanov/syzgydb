@@ -1,25 +1,10 @@
 # Syzgy DB
+
 ![image](https://github.com/user-attachments/assets/f8cc7b60-1fd0-4319-a607-b8d3269a288d)
 
+## Introduction
 
-SyzgyDB is a high-performance, embeddable vector database designed for applications requiring efficient handling of large datasets. Written in Go, it leverages disk-based storage to minimize memory usage, making it ideal for systems with limited resources. SyzgyDB supports a range of distance metrics, including Euclidean and Cosine, and offers multiple quantization levels to optimize storage and search performance.
-
-With built-in integration for the Ollama server, SyzgyDB can automatically generate vector embeddings from text and images, simplifying the process of adding and querying data. This makes it well-suited for use cases such as image and video retrieval, recommendation systems, natural language processing, anomaly detection, and bioinformatics. With its RESTful API, SyzgyDB provides easy integration and management of collections and records, enabling developers to perform fast and flexible vector similarity searches.
-
-
-## What is a Vector Database?
-
-A vector database is a specialized database designed to store and query high-dimensional vector data. Vectors are numerical representations of data points, often used in machine learning and data science to represent features of objects, such as images, text, or audio. Vector databases enable efficient similarity searches, allowing users to find vectors that are close to a given query vector based on a specified distance metric.
-
-## Applications of Vector Databases
-
-Vector databases are used in a variety of applications, including:
-
-- **Image and Video Retrieval**: Finding similar images or videos based on visual features.
-- **Recommendation Systems**: Suggesting products or content based on user preferences and behavior.
-- **Natural Language Processing**: Semantic search and document similarity based on text embeddings.
-- **Anomaly Detection**: Identifying unusual patterns or outliers in data.
-- **Bioinformatics**: Analyzing genetic sequences and protein structures.
+SyzgyDB is a high-performance, embeddable vector database designed for applications requiring efficient handling of large datasets. Written in Go, it leverages disk-based storage to minimize memory usage, making it ideal for systems with limited resources.
 
 ## Features
 
@@ -30,106 +15,27 @@ Vector databases are used in a variety of applications, including:
 - **Scalable**: Efficiently handles large datasets with support for adding, updating, and removing documents.
 - **Search Capabilities**: Provides nearest neighbor and radius-based search functionalities.
 
-## Configuration for Ollama Server
+## Applications of Vector Databases
 
-SyzgyDB can be configured to use the Ollama server for generating embeddings from text and images. This setup allows you to automatically convert text and image data into vector representations, which can be stored and queried in the database.
+Vector databases are used in a variety of applications, including:
+
+- **Image and Video Retrieval**
+- **Recommendation Systems**
+- **Natural Language Processing**
+- **Anomaly Detection**
+- **Bioinformatics**
+
+## Configuration
 
 ### Configuring the Ollama Server
 
-1. **Ollama Server Address**: By default, the Ollama server is expected to run on `localhost:11434`. You can change this by setting the `ollama-server` flag or environment variable.
-
-2. **Text and Image Models**: Specify the models to be used for text and image embeddings. The default models are `all-minilm` for text and `minicpm-v` for images. These can be configured using command-line flags, environment variables, or a configuration file.
-
-## Configuration Options
-
-SyzgyDB provides several configuration options that can be set using command-line flags, environment variables, or a configuration file. These options allow you to customize the behavior of the database server.
+1. **Ollama Server Address**: By default, the Ollama server is expected to run on `localhost:11434`.
+2. **Text and Image Models**: Specify the models to be used for text and image embeddings.
 
 ### Data Folder
 
 - **Description**: Specifies the directory where collection files are stored.
 - **Default**: `./data`
-- **Command-Line Flag**: `--data-folder`
-- **Environment Variable**: `DATA_FOLDER`
-- **Configuration File**: `data_folder`
-
-#### Example Usage
-
-You can specify the data folder using any of the following methods:
-
-- **Command-Line Flag**:
-  ```bash
-  ./syzgydb --data-folder="/path/to/data"
-  ```
-
-- **Environment Variable**:
-  ```bash
-  export DATA_FOLDER="/path/to/data"
-  ```
-
-- **Configuration File** (`syzgy.conf`):
-  ```ini
-  data_folder = "/path/to/data"
-  ```
-
-This option ensures that all collection files are stored in the specified directory. If the directory does not exist, it will be created automatically.
-
-You can specify the Ollama server configuration using command-line flags when starting the SyzgyDB server:
-
-```bash
-./syzgydb --ollama-server="your-server-address:port" --text-model="your-text-model" --image-model="your-image-model"
-```
-
-### Environment Variables
-
-Alternatively, you can set environment variables to configure the Ollama server:
-
-```bash
-export OLLAMA_SERVER="your-server-address:port"
-export TEXT_MODEL="your-text-model"
-export IMAGE_MODEL="your-image-model"
-```
-
-### Configuration File
-
-You can also use a configuration file (`syzgy.conf`) to set these options. Place the file in the current directory or `/etc/syzgydb/`:
-
-```ini
-ollama_server = "your-server-address:port"
-text_model = "your-text-model"
-image_model = "your-image-model"
-```
-
-### Example Configuration
-
-Here is an example of how you might configure the Ollama server:
-
-- **Server Address**: `ollama.example.com:11434`
-- **Text Model**: `all-minilm`
-- **Image Model**: `minicpm-v`
-
-Using command-line flags:
-
-```bash
-./syzgydb --ollama-server="ollama.example.com:11434" --text-model="all-minilm" --image-model="minicpm-v"
-```
-
-Using environment variables:
-
-```bash
-export OLLAMA_SERVER="ollama.example.com:11434"
-export TEXT_MODEL="all-minilm"
-export IMAGE_MODEL="minicpm-v"
-```
-
-Using a configuration file (`syzgy.conf`):
-
-```ini
-ollama_server = "ollama.example.com:11434"
-text_model = "all-minilm"
-image_model = "minicpm-v"
-```
-
-This section provides users with multiple ways to configure the Ollama server, ensuring flexibility and ease of integration into different environments.
 
 ## Running with Docker
 
@@ -292,7 +198,7 @@ This update to the `README.md` provides clear instructions on how to use the tex
   - **Range Query**: Specify a `radius` to perform a range query, returning all records within the specified distance.
   - **K-Nearest Neighbors**: Use the `k` parameter to find the top `k` nearest records to the query vector.
 
-## Usage in a GO project
+## Usage in a Go Project
 
 You don't need to use the REST api. You can build it right in to your go project. Here's how.
 
