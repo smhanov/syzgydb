@@ -107,7 +107,9 @@ func (s *Server) handleGetCollectionIDs(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	log.Printf("Fetching all IDs for collection %s", collectionName)
 	ids := collection.GetAllIDs()
+	log.Printf("Writing header...")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(ids)
 }
@@ -123,9 +125,8 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	collectionName := parts[4]
 
 	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	collection, exists := s.collections[collectionName]
+	s.mutex.Unlock()
 
 	if !exists {
 		if r.Method == http.MethodDelete {
@@ -139,11 +140,11 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		log.Printf("Fetching info for collection %s", collectionName)
 		if len(parts) == 6 && parts[5] == "ids" {
 			s.handleGetCollectionIDs(w, r)
 			return
 		}
+		log.Printf("Fetching info for collection %s", collectionName)
 		json.NewEncoder(w).Encode(s.getCollectionStats(collection))
 
 	case http.MethodDelete:
@@ -155,6 +156,7 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection deleted successfully."})
 	}
 }
+
 func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 {
