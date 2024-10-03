@@ -1,5 +1,5 @@
 # Use the official Golang image as the base image
-FROM golang:1.20-alpine
+FROM golang:1.21
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -15,10 +15,10 @@ COPY . .
 
 # Set the default data folder environment variable
 ENV DATA_FOLDER=/data
-RUN go build -o syzgydb ./syzgydb/main.go
+RUN cd cmd && go build -o ../syzgydb 
 
 # Expose the port that the application will run on
 EXPOSE 8080
 
 # Command to run the executable
-CMD ["./syzgydb"]
+CMD ["./syzgydb", "--serve"]

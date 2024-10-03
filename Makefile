@@ -1,37 +1,30 @@
-# Variables
-IMAGE_NAME = syzgydb
-DOCKER_USER = your_dockerhub_username
-TAG = latest
+# Define the name of the Docker image
+IMAGE_NAME = syzydb
+# Define the name of the Docker container
+CONTAINER_NAME = syzydb-container
+# Define the port on which the server will run
+PORT = 8080
 
-# Default target
-all: build
+# Declare phony targets to avoid conflicts with files of the same name
+.PHONY: stop build run update push-hub
+
+# Stop and remove the running container if it exists
+stop:
+	docker stop $(CONTAINER_NAME) || true
+	docker rm $(CONTAINER_NAME) || true
 
 # Build the Docker image
 build:
-	docker build -t $(DOCKER_USER)/$(IMAGE_NAME):$(TAG) .
-
-# Push the Docker image to Docker Hub
-push: build
-	docker push $(DOCKER_USER)/$(IMAGE_NAME):$(TAG)
-
-# Clean up local Docker images
-clean:
-	docker rmi $(DOCKER_USER)/$(IMAGE_NAME):$(TAG)
+	docker build -t $(IMAGE_NAME) .
 
 # Run the Docker container
 run:
-	docker run -p 8080:8080 $(DOCKER_USER)/$(IMAGE_NAME):$(TAG)
+	docker run -d --name $(CONTAINER_NAME) -p $(PORT):8080 -e SERVER_PASSWORD=$${SERVER_PASSWORD:-1234} -e STORAGE_FOLDER=/data -v $(PWD)/data:/data $(IMAGE_NAME)
 
-# Login to Docker Hub
-login:
-	docker login
+# Update the Docker container by stopping, building, and running it again
+update: stop build run
 
-# Help message
-help:
-	@echo "Makefile commands:"
-	@echo "  make build   - Build the Docker image"
-	@echo "  make push    - Push the Docker image to Docker Hub"
-	@echo "  make clean   - Remove the local Docker image"
-	@echo "  make run     - Run the Docker container"
-	@echo "  make login   - Login to Docker Hub"
-	@echo "  make help    - Show this help message"
+# Push the Docker image to Docker Hub
+push-hub: update
+	docker tag $(IMAGE_NAME) smhanov/syzydb:latest
+	docker push smhanov/syzydb:latest
