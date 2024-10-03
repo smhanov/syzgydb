@@ -24,6 +24,55 @@ func setupTestServer() *Server {
 	return server
 }
 
+func TestGetCollectionIDs(t *testing.T) {
+	server := setupTestServer()
+
+	// Create the collection explicitly for this test
+	server.collections["test_collection"] = NewCollection(CollectionOptions{
+		Name:           "test_collection.dat",
+		DistanceMethod: Cosine,
+		DimensionCount: 5,
+		Quantization:   64,
+	})
+	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
+	server.collections["test_collection"].AddDocument(1234567891, []float64{0.5, 0.4, 0.3, 0.2, 0.1}, []byte(`{"key2":"value2"}`))
+
+	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections/test_collection/ids", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(server.handleGetCollectionIDs)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	var ids []uint64
+	if err := json.NewDecoder(rr.Body).Decode(&ids); err != nil {
+		t.Fatal(err)
+	}
+
+	expectedIDs := []uint64{1234567890, 1234567891}
+	if !equalUint64Slices(ids, expectedIDs) {
+		t.Errorf("handler returned unexpected IDs: got %v want %v", ids, expectedIDs)
+	}
+}
+
+func equalUint64Slices(a, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestDeleteCollection(t *testing.T) {
 	server := setupTestServer()
 

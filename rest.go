@@ -90,6 +90,28 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleGetCollectionIDs(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 6 {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	collectionName := parts[4]
+
+	s.mutex.Lock()
+	collection, exists := s.collections[collectionName]
+	s.mutex.Unlock()
+
+	if !exists {
+		http.Error(w, "Collection not found", http.StatusNotFound)
+		return
+	}
+
+	ids := collection.GetAllIDs()
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(ids)
+}
+
 func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received %s request for %s", r.Method, r.URL.Path)
 
@@ -118,7 +140,11 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		log.Printf("Fetching info for collection %s", collectionName)
-		json.NewEncoder(w).Encode(s.getCollectionStats(collection))
+		if len(parts) == 6 && parts[5] == "ids" {
+			s.handleGetCollectionIDs(w, r)
+			return
+		}
+		log.Printf("Fetching info for collection %s", collectionName)
 
 	case http.MethodDelete:
 		log.Printf("Deleting collection %s", collectionName)

@@ -146,6 +146,15 @@ A collection is a database, and you can create them and get information about th
   curl -X DELETE http://localhost:8080/api/v1/collections/collection_name/records/1234567890
   ```
 
+#### Get All Document IDs
+
+ **Endpoint**: `GET /api/v1/collections/{collection_name}/ids`
+ **Description**: Retrieves a JSON array of all document IDs in the specified collection.
+ **Example `curl`**:
+  ```bash
+  curl -X GET http://localhost:8080/api/v1/collections/collection_name/ids
+  ```
+
 #### Search Records
 
  **Endpoint**: `POST /api/v1/collections/{collection_name}/search`
