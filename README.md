@@ -24,19 +24,19 @@ With built-in integration for the Ollama server, SyzgyDB can automatically gener
 ## Running with Docker
 
 ```bash
-docker run -p 8080:8080 -v /path/to/your/data:/data smhanov/syzydb
+docker run -p 8080:8080 -v /path/to/your/data:/data smhanov/syzgydb
 ```
 
 This command will:
 
-1. Pull the `smhanov/syzydb` image from Docker Hub.
+1. Pull the `smhanov/syzgydb` image from Docker Hub.
 2. Map port 8080 of the container to port 8080 on your host machine.
 3. Map the `/data` directory inside the container to `/path/to/your/data` on your host system, ensuring that your data is persisted outside the container.
 
 
 ## Configuration
 
-The configuration settings can be specified on the command line, using an environment variable, or in a file /etc/syzydb.conf.
+The configuration settings can be specified on the command line, using an environment variable, or in a file /etc/syzgydb.conf.
 
 * **DATA_FOLDER** Specifies where the persistent files are kept. Default: "./data" when running from the command line or "/data" when run inside of a docker image.
 * **OLLAMA_SERVER** The optional ollama server used to create embeddings. Default: "localhost:11434"
@@ -199,7 +199,7 @@ A collection is a database, and you can create them and get information about th
 You don't need to use the docker or REST api. You can build it right in to your go project. Here's how.
 
 ```go 
-    import "github.com/smhanov/syzydb"
+    import "github.com/smhanov/syzgydb"
 ```
 
 ### Creating a Collection
@@ -207,14 +207,14 @@ You don't need to use the docker or REST api. You can build it right in to your 
 To create a new collection, define the collection options and initialize the collection:
 
 ```go
-options := syzydb.CollectionOptions{
+options := syzgydb.CollectionOptions{
     Name:           "example.dat",
-    DistanceMethod: syzydb.Euclidean, // or Cosine
+    DistanceMethod: syzgydb.Euclidean, // or Cosine
     DimensionCount: 128,       // Number of dimensions for each vector
     Quantization:   64,        // Quantization level (4, 8, 16, 32, 64)
 }
 
-collection := syzydb.NewCollection(options)
+collection := syzgydb.NewCollection(options)
 ```
 
 ### Adding Documents
@@ -236,7 +236,7 @@ Perform a search to find similar vectors using either nearest neighbor or radius
 searchVector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example search vector
 
 // Nearest neighbor search
-args := syzydb.SearchArgs{
+args := syzgydb.SearchArgs{
     Vector:   searchVector,
     K: 5, // Return top 5 results
 }
@@ -244,7 +244,7 @@ args := syzydb.SearchArgs{
 results := collection.Search(args)
 
 // Radius-based search
-args = syzydb.SearchArgs{
+args = syzgydb.SearchArgs{
     Vector: searchVector,
     Radius: 0.5, // Search within a radius of 0.5
 }
@@ -265,7 +265,7 @@ filterFn := func(id uint64, metadata []byte) bool {
 }
 
 // Search with a filter function
-args := syzydb.SearchArgs{
+args := syzgydb.SearchArgs{
     Vector:   searchVector,
     K: 5, // Return top 5 results
     Filter:   filterFn,
@@ -292,7 +292,7 @@ err = collection.RemoveDocument(1)
 To dump the collection for inspection or backup, use the `DumpIndex` function:
 
 ```go
-syzydb.DumpIndex("example.dat")
+syzgydb.DumpIndex("example.dat")
 ```
 
 ## Contributing
