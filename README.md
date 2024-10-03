@@ -72,20 +72,20 @@ image_model = "your-image-model"
 
 Here is an example of how you might configure the Ollama server:
 
-- **Server Address**: `ollama.example.com:12345`
+- **Server Address**: `ollama.example.com:11434`
 - **Text Model**: `all-minilm`
 - **Image Model**: `minicpm-v`
 
 Using command-line flags:
 
 ```bash
-./syzgydb --ollama-server="ollama.example.com:12345" --text-model="all-minilm" --image-model="minicpm-v"
+./syzgydb --ollama-server="ollama.example.com:11434" --text-model="all-minilm" --image-model="minicpm-v"
 ```
 
 Using environment variables:
 
 ```bash
-export OLLAMA_SERVER="ollama.example.com:12345"
+export OLLAMA_SERVER="ollama.example.com:11434"
 export TEXT_MODEL="all-minilm"
 export IMAGE_MODEL="minicpm-v"
 ```
@@ -93,22 +93,12 @@ export IMAGE_MODEL="minicpm-v"
 Using a configuration file (`syzgy.conf`):
 
 ```ini
-ollama_server = "ollama.example.com:12345"
+ollama_server = "ollama.example.com:11434"
 text_model = "all-minilm"
 image_model = "minicpm-v"
 ```
 
 This section provides users with multiple ways to configure the Ollama server, ensuring flexibility and ease of integration into different environments.
-
-## Installation
-
-To use SyzgyDB in your Go project, you can clone the repository and build the project using the following commands:
-
-```bash
-git clone https://github.com/smhanov/syzgydb.git
-cd syzgy
-go build
-```
 
 ## Running with Docker
 
@@ -295,19 +285,23 @@ This update to the `README.md` provides clear instructions on how to use the tex
 
 You don't need to use the REST api. You can build it right in to your go project. Here's how.
 
+```go 
+    import "github.com/smhanov/syzydb"
+```
+
 ### Creating a Collection
 
 To create a new collection, define the collection options and initialize the collection:
 
 ```go
-options := CollectionOptions{
+options := syzydb.CollectionOptions{
     Name:           "example.dat",
-    DistanceMethod: Euclidean, // or Cosine
+    DistanceMethod: syzydb.Euclidean, // or Cosine
     DimensionCount: 128,       // Number of dimensions for each vector
     Quantization:   64,        // Quantization level (4, 8, 16, 32, 64)
 }
 
-collection := NewCollection(options)
+collection := syzydb.NewCollection(options)
 ```
 
 ### Adding Documents
@@ -329,7 +323,7 @@ Perform a search to find similar vectors using either nearest neighbor or radius
 searchVector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example search vector
 
 // Nearest neighbor search
-args := SearchArgs{
+args := syzydb.SearchArgs{
     Vector:   searchVector,
     K: 5, // Return top 5 results
 }
@@ -337,7 +331,7 @@ args := SearchArgs{
 results := collection.Search(args)
 
 // Radius-based search
-args = SearchArgs{
+args = syzydb.SearchArgs{
     Vector: searchVector,
     Radius: 0.5, // Search within a radius of 0.5
 }
@@ -358,9 +352,9 @@ filterFn := func(id uint64, metadata []byte) bool {
 }
 
 // Search with a filter function
-args := SearchArgs{
+args := syzydb.SearchArgs{
     Vector:   searchVector,
-    MaxCount: 5, // Return top 5 results
+    K: 5, // Return top 5 results
     Filter:   filterFn,
 }
 
@@ -378,7 +372,7 @@ Update the metadata of an existing document or remove a document from the collec
 err := collection.UpdateDocument(1, []byte("updated metadata"))
 
 // Remove a document
-err = collection.removeDocument(1)
+err = collection.RemoveDocument(1)
 ```
 
 ### Dumping the Collection
@@ -386,7 +380,7 @@ err = collection.removeDocument(1)
 To dump the collection for inspection or backup, use the `DumpIndex` function:
 
 ```go
-DumpIndex("example_collection")
+syzydb.DumpIndex("example.dat")
 ```
 
 ## Contributing
