@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/smhanov/syzgydb"
 	"github.com/spf13/pflag"

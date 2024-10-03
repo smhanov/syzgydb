@@ -48,7 +48,7 @@ func (c *Collection) ComputeStats() CollectionStats {
 	storageSize := c.memfile.Len()
 
 	// Calculate the average distance
-	averageDistance := c.ComputeAverageDistance(100) // Example: use 100 samples
+	averageDistance := c.computeAverageDistance(100) // Example: use 100 samples
 
 	// Determine the distance method as a string
 	var distanceMethod string
@@ -322,10 +322,7 @@ func NewCollection(options CollectionOptions) *Collection {
 ComputeAverageDistance calculates the average distance between random pairs of documents in the collection.
 It returns the average distance or 0.0 if there are fewer than two documents or if the sample size is non-positive.
 */
-func (c *Collection) ComputeAverageDistance(samples int) float64 {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
+func (c *Collection) computeAverageDistance(samples int) float64 {
 	if len(c.memfile.idOffsets) < 2 || samples <= 0 {
 		return 0.0
 	}

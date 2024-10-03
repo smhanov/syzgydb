@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"container/list"
 )
 
 const maxCacheSize = 100

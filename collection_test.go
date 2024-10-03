@@ -42,7 +42,7 @@ func TestComputeAverageDistance(t *testing.T) {
 
 	// Compute the average distance
 	samples := 50
-	averageDistance := collection.ComputeAverageDistance(samples)
+	averageDistance := collection.computeAverageDistance(samples)
 
 	// Check that the average distance is greater than zero
 	if averageDistance <= 0 {

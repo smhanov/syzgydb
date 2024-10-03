@@ -5,15 +5,13 @@ import (
 	"sync"
 )
 
-const maxCacheSize = 100
-
 type cacheItem struct {
 	key   string
 	value []float64
-	mutex    sync.Mutex
 }
 
 type LRUCache struct {
+	mutex    sync.Mutex
 	capacity int
 	items    map[string]*list.Element
 	order    *list.List
