@@ -1,3 +1,5 @@
+[![Go Reference](https://pkg.go.dev/badge/github.com/smhanov/syzgydb.svg)](https://pkg.go.dev/github.com/smhanov/syzgydb)
+
 # Syzgy DB
 
 ![image](https://github.com/user-attachments/assets/f8cc7b60-1fd0-4319-a607-b8d3269a288d)
