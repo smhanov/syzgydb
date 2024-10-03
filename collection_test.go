@@ -342,7 +342,70 @@ func TestCollectionPersistence(t *testing.T) {
 	}
 }
 
-func TestVectorSearchWith4BitQuantization(t *testing.T) {
+func TestCollectionAddDeleteAndRetrieve(t *testing.T) {
+	// Define collection options
+	collectionName := "test_collection_add_delete_retrieve.dat"
+	options := CollectionOptions{
+		Name:           collectionName,
+		DistanceMethod: Euclidean,
+		DimensionCount: 3,
+	}
+
+	os.Remove(collectionName)
+
+	// Create a new collection
+	collection := NewCollection(options)
+
+	// Add some records to the collection
+	numRecords := 10
+	for i := 0; i < numRecords; i++ {
+		vector := []float64{float64(i), float64(i + 1), float64(i + 2)}
+		metadata := []byte("metadata")
+		collection.AddDocument(uint64(i), vector, metadata)
+	}
+
+	// Delete all records
+	for i := 0; i < numRecords; i++ {
+		err := collection.removeDocument(uint64(i))
+		if err != nil {
+			t.Errorf("Failed to remove document with ID %d: %v", i, err)
+		}
+	}
+
+	// Close the collection
+	collection.Close()
+
+	// Reopen the collection
+	collection = NewCollection(options)
+
+	// Add a single record with slightly larger metadata
+	vector := []float64{1.0, 2.0, 3.0}
+	metadata := []byte("larger metadata")
+	collection.AddDocument(1, vector, metadata)
+
+	// Close the collection
+	collection.Close()
+
+	// Reopen the collection
+	collection = NewCollection(options)
+
+	// Retrieve the record
+	doc, err := collection.GetDocument(1)
+	if err != nil {
+		t.Errorf("Failed to retrieve document: %v", err)
+	}
+
+	// Verify the record's metadata
+	if string(doc.Metadata) != "larger metadata" {
+		t.Errorf("Expected metadata 'larger metadata', got '%s'", doc.Metadata)
+	}
+
+	// Verify the record's vector
+	expectedVector := []float64{1.0, 2.0, 3.0}
+	if !equalVectors(doc.Vector, expectedVector) {
+		t.Errorf("Expected vector %v, got %v", expectedVector, doc.Vector)
+	}
+}
 	// Define collection options with 4-bit quantization
 	collectionName := "test_collection_4bit.dat"
 	options := CollectionOptions{
