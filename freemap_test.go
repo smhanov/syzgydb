@@ -36,7 +36,7 @@ func TestMarkFreeAndGetFreeRange(t *testing.T) {
 	}
 
 	// Test insufficient space
-	_, err = fm.getFreeRange(10)
+	_, _, err = fm.getFreeRange(10)
 	if err == nil {
 		t.Errorf("Expected error due to insufficient space, got nil")
 	}
