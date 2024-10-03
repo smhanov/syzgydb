@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,7 +18,7 @@ type Server struct {
 }
 
 func (s *Server) collectionNameToFileName(name string) string {
-	return name + ".dat"
+	return filepath.Join(GlobalConfig.DataFolder, name+".dat")
 }
 
 func (s *Server) fileNameToCollectionName(fileName string) string {

@@ -14,6 +14,7 @@ func init() {
 	pflag.String("text-model", "", "Name of the text embedding model")
 	pflag.String("image-model", "", "Name of the image embedding model")
 	pflag.String("config", "", "Path to the configuration file")
+	pflag.String("data-folder", "./data", "Path to the data folder")
 }
 
 func LoadConfig() error {
@@ -21,6 +22,7 @@ func LoadConfig() error {
 	viper.SetDefault("ollama_server", "localhost:11434")
 	viper.SetDefault("text_model", "all-minilm")
 	viper.SetDefault("image_model", "minicpm-v")
+	viper.SetDefault("data_folder", "./data")
 
 	// Bind command-line flags to Viper
 	viper.BindPFlags(pflag.CommandLine)
@@ -56,6 +58,7 @@ func LoadConfig() error {
 	fmt.Printf("Ollama Server: %s\n", viper.GetString("ollama_server"))
 	fmt.Printf("Text Model: %s\n", viper.GetString("text_model"))
 	fmt.Printf("Image Model: %s\n", viper.GetString("image_model"))
+	fmt.Printf("Data Folder: %s\n", viper.GetString("data_folder"))
 
 	// Assign the loaded configuration to the global variable
 	syzgydb.Configure(cfg)

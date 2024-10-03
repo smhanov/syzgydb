@@ -5,6 +5,7 @@ type Config struct {
 	OllamaServer string `mapstructure:"ollama_server"`
 	TextModel    string `mapstructure:"text_model"`
 	ImageModel   string `mapstructure:"image_model"`
+	DataFolder   string `mapstructure:"data_folder"`
 }
 
 var GlobalConfig *Config
