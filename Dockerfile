@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the Go application
-RUN go build -o syzgydb ./syzgydb
+RUN go build -o syzgydb ./syzgydb/main.go
 
 # Expose the port that the application will run on
 EXPOSE 8080
