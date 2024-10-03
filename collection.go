@@ -60,23 +60,6 @@ func (c *Collection) ComputeStats() CollectionStats {
 		distanceMethod = "unknown"
 	}
 
-	/*
-	GetAllIDs returns a sorted list of all document IDs in the collection.
-	*/
-	func (c *Collection) GetAllIDs() []uint64 {
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
-
-		ids := make([]uint64, 0, len(c.memfile.idOffsets))
-		for id := range c.memfile.idOffsets {
-			ids = append(ids, id)
-		}
-
-		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-
-		return ids
-	}
-
 	// Create and return the CollectionStats
 	return CollectionStats{
 		DocumentCount:   documentCount,
@@ -290,6 +273,23 @@ func NewCollection(options CollectionOptions) *Collection {
 	}
 
 	return c
+}
+
+/*
+GetAllIDs returns a sorted list of all document IDs in the collection.
+*/
+func (c *Collection) GetAllIDs() []uint64 {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	ids := make([]uint64, 0, len(c.memfile.idOffsets))
+	for id := range c.memfile.idOffsets {
+		ids = append(ids, id)
+	}
+
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+
+	return ids
 }
 
 /*

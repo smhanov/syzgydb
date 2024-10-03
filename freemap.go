@@ -2,7 +2,6 @@ package syzgydb
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 )
 
@@ -72,8 +71,9 @@ func (fm *FreeMap) getFreeRange(length int) (int64, error) {
 }
 
 // dump prints all the free ranges in the FreeMap.
+/*
 func (fm *FreeMap) dump() {
 	for _, s := range fm.freeSpaces {
 		fmt.Printf("Start: %d, Length: %d\n", s.start, s.length)
 	}
-}
+}*/

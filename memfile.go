@@ -14,7 +14,6 @@ import (
 // uint64 - total length of record
 // uint64 - ID, or deleted is all 0xffffffffffffffff
 
-const debug = true
 const growthPercentage = 0.05
 const deletedRecordMarker = 0xffffffffffffffff
 
@@ -273,23 +272,10 @@ func (mf *memfile) readRecord(id uint64) ([]byte, error) {
 }
 
 /*
-writeByte writes a single byte to the specified offset.
-
-Parameters:
-- offset: The offset at which to write.
-- value: The byte value to write.
-*/
 func (mf *memfile) writeByte(offset int64, value byte) {
 	mf.WriteAt([]byte{value}, offset)
 }
 
-/*
-writeUint32 writes an unsigned 32-bit integer to the specified offset.
-
-Parameters:
-- offset: The offset at which to write.
-- value: The unsigned 32-bit integer to write.
-*/
 func (mf *memfile) writeUint32(offset int64, value uint32) {
 	// Convert value to a byte slice
 	buf := make([]byte, 4)
@@ -297,21 +283,12 @@ func (mf *memfile) writeUint32(offset int64, value uint32) {
 	mf.WriteAt(buf, offset)
 }
 
-/*
-readUint32 reads an unsigned 32-bit integer from the specified offset.
-
-Parameters:
-- offset: The offset from which to read.
-
-Returns:
-- The unsigned 32-bit integer read from the file.
-*/
 func (mf *memfile) readUint32(offset int64) uint32 {
 	// Read 4 bytes from the specified offset
 	buf := make([]byte, 4)
 	mf.ReadAt(buf, offset)
 	return binary.BigEndian.Uint32(buf)
-}
+}*/
 
 /*
 writeUint64 writes an unsigned 64-bit integer to the specified offset.

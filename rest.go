@@ -144,7 +144,7 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 			s.handleGetCollectionIDs(w, r)
 			return
 		}
-		log.Printf("Fetching info for collection %s", collectionName)
+		json.NewEncoder(w).Encode(s.getCollectionStats(collection))
 
 	case http.MethodDelete:
 		log.Printf("Deleting collection %s", collectionName)

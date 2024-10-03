@@ -24,6 +24,11 @@ run:
 # Update the Docker container by stopping, building, and running it again
 update: stop build run
 
+.PHONY: cmd
+
+cmd: 
+	cd cmd && go build -o ../syzydb
+
 # Push the Docker image to Docker Hub
 push-hub: update
 	docker tag $(IMAGE_NAME) smhanov/syzydb:latest
