@@ -209,7 +209,9 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 
 	// Adjust the record length if the remaining space is 16 bytes or less
 	if remaining > 0 && remaining <= 16 {
+		mf.freemap.markUsed(int(start)+recordLength, int(remaining))
 		recordLength += int(remaining)
+		remaining = 0
 		mf.freemap.markFree(int(start)+recordLength, int(remaining))
 		remaining = 0
 	}

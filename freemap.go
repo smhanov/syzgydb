@@ -12,6 +12,40 @@ func max(a, b int) int {
 	return b
 }
 
+// markUsed marks a range of space as used.
+func (fm *FreeMap) markUsed(start, length int) {
+	if length <= 0 {
+		return
+	}
+
+	for i, s := range fm.freeSpaces {
+		if s.start <= start && start+length <= s.start+s.length {
+			// Adjust the free space
+			if start == s.start {
+				// Used space is at the beginning
+				fm.freeSpaces[i].start += length
+				fm.freeSpaces[i].length -= length
+			} else if start+length == s.start+s.length {
+				// Used space is at the end
+				fm.freeSpaces[i].length -= length
+			} else {
+				// Used space is in the middle, split the free space
+				fm.freeSpaces = append(fm.freeSpaces, space{
+					start:  start + length,
+					length: s.start + s.length - (start + length),
+				})
+				fm.freeSpaces[i].length = start - s.start
+			}
+
+			// Remove the free space if its length is zero
+			if fm.freeSpaces[i].length == 0 {
+				fm.freeSpaces = append(fm.freeSpaces[:i], fm.freeSpaces[i+1:]...)
+			}
+			break
+		}
+	}
+}
+
 type FreeMap struct {
 	freeSpaces []space
 }
