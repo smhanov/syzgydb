@@ -122,6 +122,7 @@ func createMemFile(name string, header []byte) (*memfile, error) {
 			} else {
 				// Record is valid, add to idOffsets
 				ret.idOffsets[id] = offset
+				log.Printf("Offset %v for ID %d", offset, id)
 			}
 
 			offset += int64(recordLength)
@@ -276,6 +277,7 @@ func (mf *memfile) readRecord(id uint64) ([]byte, error) {
 	if !exists {
 		return nil, errors.New("record not found")
 	}
+	log.Printf("Read record %d at %v", id, offset)
 
 	// Read the total length of the record
 	recordLength := mf.readUint64(offset)
