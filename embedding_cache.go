@@ -10,22 +10,22 @@ type cacheItem struct {
 	value []float64
 }
 
-type LRUCache struct {
+type lruCache struct {
 	mutex    sync.Mutex
 	capacity int
 	items    map[string]*list.Element
 	order    *list.List
 }
 
-func NewLRUCache(capacity int) *LRUCache {
-	return &LRUCache{
+func newLRUCache(capacity int) *lruCache {
+	return &lruCache{
 		capacity: capacity,
 		items:    make(map[string]*list.Element),
 		order:    list.New(),
 	}
 }
 
-func (c *LRUCache) Get(key string) ([]float64, bool) {
+func (c *lruCache) get(key string) ([]float64, bool) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -36,7 +36,7 @@ func (c *LRUCache) Get(key string) ([]float64, bool) {
 	return nil, false
 }
 
-func (c *LRUCache) Put(key string, value []float64) {
+func (c *lruCache) put(key string, value []float64) {
 	if element, found := c.items[key]; found {
 		c.order.MoveToFront(element)
 		element.Value.(*cacheItem).value = value

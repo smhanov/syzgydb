@@ -12,7 +12,7 @@ import (
 
 const maxCacheSize = 100
 
-var embeddingCache = NewLRUCache(maxCacheSize)
+var embeddingCache = newLRUCache(maxCacheSize)
 
 type EmbedTextFunc func(text []string) ([][]float64, error)
 
@@ -26,7 +26,7 @@ func EmbedText(texts []string) ([][]float64, error) {
 	cachedEmbeddings := make([][]float64, len(texts))
 	allCached := true
 	for i, text := range texts {
-		if embedding, found := embeddingCache.Get(text); found {
+		if embedding, found := embeddingCache.get(text); found {
 			cachedEmbeddings[i] = embedding
 		} else {
 			allCached = false
@@ -87,7 +87,7 @@ func EmbedText(texts []string) ([][]float64, error) {
 
 	// Store the new embeddings in the cache
 	for i, text := range texts {
-		embeddingCache.Put(text, response.Embeddings[i])
+		embeddingCache.put(text, response.Embeddings[i])
 	}
 
 	return response.Embeddings, nil
