@@ -269,10 +269,10 @@ Collection represents a collection of documents, supporting operations such as a
 */
 type Collection struct {
 	CollectionOptions
-	memfile  *memfile
-	lshTable *lshTable // Add this line
-	mutex    sync.Mutex
-	distance func([]float64, []float64) float64 // Add this line
+	memfile *memfile
+	index   searchIndex
+	mutex   sync.Mutex
+	distance func([]float64, []float64) float64
 }
 
 /*
@@ -346,12 +346,12 @@ func NewCollection(options CollectionOptions) *Collection {
 	default:
 		panic("Unsupported distance method")
 	}
-	lshTable := newLSHTable(chooseLshParameter(options.DimensionCount), options.DimensionCount, 4.0) // Example parameters
+	lshTable := newLSHTable(chooseLshParameter(options.DimensionCount), options.DimensionCount, 4.0)
 
 	c := &Collection{
 		CollectionOptions: options,
 		memfile:           memFile,
-		lshTable:          lshTable,
+		index:             lshTable,
 		distance:          distanceFunc,
 	}
 
@@ -633,51 +633,29 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 	results := []SearchResult{}
 	pointsSearched := 0
-	bucketsSearched := 0 // Declare bucketsSearched here
+	pointsSearched := 0
 
-	// Use LSH to get a priority queue of candidate buckets
-	pq := c.lshTable.multiprobeQuery(args.Vector)
-
-	// Process candidates from the priority queue
-	for pq.Len() > 0 {
-		item := heap.Pop(pq).(*priorityItem)
-		bucketKey := item.Key
-		numAdded := 0
-
-		// Process each document in the current bucket
-		for _, id := range c.lshTable.Buckets[bucketKey] {
-			data, err := c.memfile.readRecord(id)
-			if err != nil {
-				continue
-			}
-
-			pointsSearched++
-
-			doc := c.decodeDocument(data, id)
-
-			// Apply filter function if provided
-			if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-				continue
-			}
-
-			// Calculate the distance between the search vector and the document vector
-			distance := c.distance(args.Vector, doc.Vector) // Use the configured distance function
-
-			// Check if the distance is within the specified radius
-			if distance <= args.Radius {
-				results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
-				numAdded++
-			}
+	c.index.search(args.Vector, func(docid uint64) bool {
+		data, err := c.memfile.readRecord(docid)
+		if err != nil {
+			return false
 		}
 
-		bucketsSearched++
+		pointsSearched++
 
-		// Stop if no points were added from this bucket and we've searched at least the minimum number of buckets
-		// and at least 100 points
-		if numAdded == 0 && bucketsSearched >= minBucketsToSearch && pointsSearched >= 100 {
-			break
+		doc := c.decodeDocument(data, docid)
+
+		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
+			return false
 		}
-	}
+
+		distance := c.distance(args.Vector, doc.Vector)
+		if distance <= args.Radius {
+			results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
+		}
+
+		return false
+	})
 
 	return SearchResults{
 		Results:         results,
@@ -690,56 +668,38 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		return SearchResults{}
 	}
 
-	// Use LSH to get a priority queue of candidate buckets
-	pq := c.lshTable.multiprobeQuery(args.Vector)
-
 	resultsPQ := &resultPriorityQueue{}
 	heap.Init(resultsPQ)
 	pointsSearched := 0
-	bucketsSearched := 0
 
-	// Process candidates from the priority queue
-	for pq.Len() > 0 {
-		item := heap.Pop(pq).(*priorityItem)
-		bucketKey := item.Key
-		numAdded := 0
-		// Process each document in the current bucket
-		for _, id := range c.lshTable.Buckets[bucketKey] {
-			data, err := c.memfile.readRecord(id)
-			if err != nil {
-				continue
-			}
+	c.index.search(args.Vector, func(docid uint64) bool {
+		data, err := c.memfile.readRecord(docid)
+		if err != nil {
+			return false
+		}
 
-			pointsSearched++
+		pointsSearched++
 
-			doc := c.decodeDocument(data, id)
+		doc := c.decodeDocument(data, docid)
 
-			// Apply filter function if provided
-			if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-				continue
-			}
+		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
+			return false
+		}
 
-			distance := c.distance(args.Vector, doc.Vector) // Use the configured distance function
+		distance := c.distance(args.Vector, doc.Vector)
 
-			// Add to results priority queue if closer than the current farthest
-			if resultsPQ.Len() < args.K || distance < (*resultsPQ)[0].Priority {
-				numAdded++
-				heap.Push(resultsPQ, &resultItem{
-					SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
-					Priority:     distance,
-				})
-				if resultsPQ.Len() > args.K {
-					heap.Pop(resultsPQ) // Remove the farthest point
-				}
+		if resultsPQ.Len() < args.K || distance < (*resultsPQ)[0].Priority {
+			heap.Push(resultsPQ, &resultItem{
+				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
+				Priority:     distance,
+			})
+			if resultsPQ.Len() > args.K {
+				heap.Pop(resultsPQ)
 			}
 		}
-		bucketsSearched++
 
-		// Stop if no points were added from this bucket and we've searched at least the minimum number of buckets
-		if numAdded == 0 && bucketsSearched >= minBucketsToSearch {
-			break
-		}
-	}
+		return false
+	})
 
 	// Extract results from the priority queue
 	results := make([]SearchResult, resultsPQ.Len())
@@ -888,4 +848,9 @@ func cosineDistance(vec1, vec2 []float64) float64 {
 		return 1.0 // Return max distance if one vector is zero
 	}
 	return 1.0 - (dotProduct / (math.Sqrt(magnitude1) * math.Sqrt(magnitude2)))
+}
+type searchIndex interface {
+    addPoint(docid uint64, vector []float64)
+    removePoint(docid uint64, vector []float64)
+    search(vector []float64, callback func(docid uint64) bool)
 }
