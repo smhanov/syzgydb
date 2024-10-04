@@ -673,7 +673,8 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 		bucketsSearched++
 
 		// Stop if no points were added from this bucket and we've searched at least the minimum number of buckets
-		if numAdded == 0 && bucketsSearched >= minBucketsToSearch {
+		// and at least 100 points
+		if numAdded == 0 && bucketsSearched >= minBucketsToSearch && pointsSearched >= 100 {
 			break
 		}
 	}
