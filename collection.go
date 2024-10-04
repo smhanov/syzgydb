@@ -562,7 +562,8 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 	results := []SearchResult{}
 	pointsSearched := 0
-	bucketsSearched := 0
+	bucketsSearched := 0 // Declare bucketsSearched here
+	bucketsSearched = 0
 	bucketsSearched := 0
 
 	// Use LSH to get a priority queue of candidate buckets
