@@ -11,6 +11,8 @@ import (
 	"sync"
 )
 
+const minBucketsToSearch = 2
+
 /*
 CollectionOptions defines the configuration options for creating a Collection.
 */
@@ -560,12 +562,14 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 	results := []SearchResult{}
 	pointsSearched := 0
+	bucketsSearched := 0
+	bucketsSearched := 0
 
 	// Use LSH to get a priority queue of candidate buckets
 	pq := c.lshTable.multiprobeQuery(args.Vector)
 
 	// Process candidates from the priority queue
-	for pq.Len() > 0 {
+	for pq.Len() > 0 && bucketsSearched < minBucketsToSearch {
 		item := heap.Pop(pq).(*priorityItem)
 		bucketKey := item.Key
 		numAdded := 0
@@ -596,8 +600,10 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 			}
 		}
 
-		// Stop if no points were added from this bucket
-		if numAdded == 0 {
+		bucketsSearched++
+
+		// Stop if no points were added from this bucket and we've searched at least the minimum number of buckets
+		if numAdded == 0 && bucketsSearched >= minBucketsToSearch {
 			break
 		}
 	}
@@ -621,7 +627,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	pointsSearched := 0
 
 	// Process candidates from the priority queue
-	for pq.Len() > 0 {
+	for pq.Len() > 0 && bucketsSearched < minBucketsToSearch {
 		item := heap.Pop(pq).(*priorityItem)
 		bucketKey := item.Key
 		numAdded := 0
@@ -655,7 +661,10 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 				}
 			}
 		}
-		if numAdded == 0 {
+		bucketsSearched++
+
+		// Stop if no points were added from this bucket and we've searched at least the minimum number of buckets
+		if numAdded == 0 && bucketsSearched >= minBucketsToSearch {
 			break
 		}
 	}
