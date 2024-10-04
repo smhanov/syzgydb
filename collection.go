@@ -1,7 +1,6 @@
 package syzgydb
 
 import (
-	"container/heap"
 	"encoding/binary"
 	"log"
 	"math"
@@ -501,7 +500,9 @@ func (pq *resultPriorityQueue) Pop() interface{} {
 	*pq = old[0 : n-1]
 	return item
 }
-It returns the search results, including the list of matching documents and the percentage of the database searched.
+/*
+Search returns the search results, including the list of matching documents and the percentage of the database searched.
+*/
 */
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	c.mutex.Lock()
@@ -616,7 +617,8 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	// Use LSH to get a priority queue of candidate buckets
 	pq := c.lshTable.multiprobeQuery(args.Vector)
 
-	results := []SearchResult{}
+	resultsPQ := &resultPriorityQueue{}
+	heap.Init(resultsPQ)
 	pointsSearched := 0
 
 	// Process candidates from the priority queue
@@ -656,10 +658,11 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		}
 	}
 
-	// Sort results by distance
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Distance < results[j].Distance
-	})
+	// Extract results from the priority queue
+	results := make([]SearchResult, resultsPQ.Len())
+	for i := len(results) - 1; i >= 0; i-- {
+		results[i] = heap.Pop(resultsPQ).(*resultItem).SearchResult
+	}
 
 	return SearchResults{
 		Results:         results,
