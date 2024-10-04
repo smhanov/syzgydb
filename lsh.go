@@ -13,7 +13,7 @@ type HashFunction struct {
 	W            float64 // Bucket width
 }
 
-func (table *LSHTable) MultiprobeQuery(vector []float64) []uint64 {
+func (table *LSHTable) MultiprobeQuery(vector []float64) *PriorityQueue {
 	// Hash the input vector
 	initialKey := table.Hash(vector)
 
@@ -35,8 +35,6 @@ func (table *LSHTable) MultiprobeQuery(vector []float64) []uint64 {
 		return math.Sqrt(dist)
 	}
 
-	// Collect results from the closest buckets
-	var results []uint64
 	visited := make(map[string]bool)
 
 	for pq.Len() > 0 {
@@ -49,8 +47,6 @@ func (table *LSHTable) MultiprobeQuery(vector []float64) []uint64 {
 		}
 		visited[key] = true
 
-		// Add points from the current bucket to the results
-		results = append(results, table.Buckets[key]...)
 
 		// Generate neighboring keys and add them to the priority queue
 		for neighborKey := range table.Buckets {
@@ -61,7 +57,7 @@ func (table *LSHTable) MultiprobeQuery(vector []float64) []uint64 {
 		}
 	}
 
-	return results
+	return pq
 }
 
 type PriorityItem struct {
