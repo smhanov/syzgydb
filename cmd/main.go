@@ -30,6 +30,7 @@ func main() {
 
 		// Start the server
 		syzgydb.RunServer()
+		select {}
 	} else {
 		// Output help message
 		fmt.Println("Usage:")

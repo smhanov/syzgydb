@@ -20,7 +20,7 @@ func init() {
 
 func LoadConfig() error {
 	// Set default values
-	viper.SetDefault("ollama_server", "localhost:11434")
+	viper.SetDefault("ollama_server", "127.0.0.1:11434")
 	viper.SetDefault("text_model", "all-minilm")
 	viper.SetDefault("image_model", "minicpm-v")
 	viper.SetDefault("data_folder", ".data")

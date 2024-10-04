@@ -550,6 +550,10 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		}
 	}
 
+	if len(args.Vector) != c.DimensionCount {
+		log.Panicf("vector size does not match the expected number of dimensions: expected %d, got %d", c.DimensionCount, len(args.Vector))
+	}
+
 	if args.K > 0 {
 		return c.searchNearestNeighbours(args)
 	} else if args.Radius > 0 {
@@ -563,14 +567,12 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 	results := []SearchResult{}
 	pointsSearched := 0
 	bucketsSearched := 0 // Declare bucketsSearched here
-	bucketsSearched = 0
-	bucketsSearched := 0
 
 	// Use LSH to get a priority queue of candidate buckets
 	pq := c.lshTable.multiprobeQuery(args.Vector)
 
 	// Process candidates from the priority queue
-	for pq.Len() > 0 && bucketsSearched < minBucketsToSearch {
+	for pq.Len() > 0 {
 		item := heap.Pop(pq).(*priorityItem)
 		bucketKey := item.Key
 		numAdded := 0
@@ -626,9 +628,10 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	resultsPQ := &resultPriorityQueue{}
 	heap.Init(resultsPQ)
 	pointsSearched := 0
+	bucketsSearched := 0
 
 	// Process candidates from the priority queue
-	for pq.Len() > 0 && bucketsSearched < minBucketsToSearch {
+	for pq.Len() > 0 {
 		item := heap.Pop(pq).(*priorityItem)
 		bucketKey := item.Key
 		numAdded := 0
