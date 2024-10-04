@@ -634,10 +634,10 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 	results := []SearchResult{}
 	pointsSearched := 0
 
-	c.index.search(args.Vector, func(docid uint64) bool {
+	c.index.search(args.Vector, func(docid uint64) float64 {
 		data, err := c.memfile.readRecord(docid)
 		if err != nil {
-			return -1 // Continue searching
+			return args.Radius // Continue searching
 		}
 
 		pointsSearched++
@@ -645,7 +645,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 		doc := c.decodeDocument(data, docid)
 
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			return -1 // Continue searching
+			return args.Radius // Continue searching
 		}
 
 		distance := c.distance(args.Vector, doc.Vector)
@@ -653,7 +653,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 			results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
 		}
 
-		return -1 // Continue searching
+		return args.Radius // Continue searching
 	})
 
 	return SearchResults{
@@ -672,11 +672,12 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	pointsSearched := 0
 	consecutiveNonImproving := 0
 	threshold := max(100, 2*args.K)
+	tau := math.MaxFloat64
 
-	c.index.search(args.Vector, func(docid uint64) bool {
+	c.index.search(args.Vector, func(docid uint64) float64 {
 		data, err := c.memfile.readRecord(docid)
 		if err != nil {
-			return -1 // Continue searching
+			return 0
 		}
 
 		pointsSearched++
@@ -684,7 +685,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		doc := c.decodeDocument(data, docid)
 
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			return -1 // Continue searching
+			return 0
 		}
 
 		distance := c.distance(args.Vector, doc.Vector)
@@ -697,16 +698,17 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 			if resultsPQ.Len() > args.K {
 				heap.Pop(resultsPQ)
 			}
+			tau = (*resultsPQ)[0].Priority
 			consecutiveNonImproving = 0
 		} else {
 			consecutiveNonImproving++
 		}
 
 		if consecutiveNonImproving >= threshold {
-			return 0 // Stop searching
+			return 0
 		}
 
-		return -1 // Continue searching
+		return tau
 	})
 
 	// Extract results from the priority queue
