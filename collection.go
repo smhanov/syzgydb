@@ -33,6 +33,12 @@ type CollectionOptions struct {
 
 	// Overwrite any existing database
 	Create bool
+	// New fields for bucket statistics
+	NumberOfBuckets      int     `json:"number_of_buckets"`
+	AverageItemsPerBucket float64 `json:"average_items_per_bucket"`
+	StdDevItemsPerBucket  float64 `json:"std_dev_items_per_bucket"`
+	MaxItemsInBucket      int     `json:"max_items_in_bucket"`
+	MinItemsInBucket      int     `json:"min_items_in_bucket"`
 }
 
 /*
@@ -52,7 +58,44 @@ func (c *Collection) ComputeStats() CollectionStats {
 	// Calculate the average distance
 	averageDistance := c.computeAverageDistance(100) // Example: use 100 samples
 
-	// Determine the distance method as a string
+	// Calculate bucket statistics
+	bucketSizes := make([]int, 0, len(c.lshTable.Buckets))
+	for _, bucket := range c.lshTable.Buckets {
+		bucketSizes = append(bucketSizes, len(bucket))
+		NumberOfBuckets:      numberOfBuckets,
+		AverageItemsPerBucket: averageItemsPerBucket,
+		StdDevItemsPerBucket:  stdDevItemsPerBucket,
+		MaxItemsInBucket:      maxItems,
+		MinItemsInBucket:      minItems,
+	}
+
+	numberOfBuckets := len(bucketSizes)
+	var totalItems int
+	var maxItems, minItems int
+	if numberOfBuckets > 0 {
+		maxItems = bucketSizes[0]
+		minItems = bucketSizes[0]
+	}
+
+	for _, size := range bucketSizes {
+		totalItems += size
+		if size > maxItems {
+			maxItems = size
+		}
+		if size < minItems {
+			minItems = size
+		}
+	}
+
+	averageItemsPerBucket := float64(totalItems) / float64(numberOfBuckets)
+
+	// Calculate standard deviation
+	var varianceSum float64
+	for _, size := range bucketSizes {
+		diff := float64(size) - averageItemsPerBucket
+		varianceSum += diff * diff
+	}
+	stdDevItemsPerBucket := math.Sqrt(varianceSum / float64(numberOfBuckets))
 	var distanceMethod string
 	switch c.DistanceMethod {
 	case Euclidean:
