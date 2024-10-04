@@ -305,7 +305,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	default:
 		panic("Unsupported distance method")
 	}
-	lshTable := newLSHTable(10, options.DimensionCount, 4.0) // Example parameters
+	lshTable := newLSHTable(chooseLshParameter(options.DimensionCount), options.DimensionCount, 4.0) // Example parameters
 
 	c := &Collection{
 		CollectionOptions: options,
@@ -344,6 +344,12 @@ func (c *Collection) GetAllIDs() []uint64 {
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 
 	return ids
+}
+
+func chooseLshParameter(dims int) int {
+	// Choose the number of hash functions as 5 times the log base 2 of the number of dimensions
+	// with a minimum of 10.
+	return int(math.Max(10, 5*math.Log(float64(dims))))
 }
 
 /*

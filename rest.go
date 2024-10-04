@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -102,7 +103,7 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": name})
 
 	case http.MethodGet:
-		var collectionsInfo []map[string]interface{}
+		var collectionsInfo []collectionStatsWithName
 
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
@@ -111,8 +112,15 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 			collectionsInfo = append(collectionsInfo, s.getCollectionStats(collection))
 		}
 
+		sort.Slice(collectionsInfo, func(i, j int) bool {
+			return collectionsInfo[i].DocumentCount > collectionsInfo[j].DocumentCount
+		})
+
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(collectionsInfo)
+		w.Header().Set("Content-Type", "application/json")
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		encoder.Encode(collectionsInfo)
 	}
 }
 
@@ -425,16 +433,17 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		PercentSearched: results.PercentSearched,
 	})
 }
-func (s *Server) getCollectionStats(collection *Collection) map[string]interface{} {
+
+type collectionStatsWithName struct {
+	CollectionStats
+	Name string `json:"name"`
+}
+
+func (s *Server) getCollectionStats(collection *Collection) collectionStatsWithName {
 	stats := collection.ComputeStats()
-	return map[string]interface{}{
-		"name":              s.fileNameToCollectionName(collection.Name),
-		"vector_size":       stats.DimensionCount,
-		"quantization":      stats.Quantization,
-		"distance_function": stats.DistanceMethod,
-		"storage_space":     stats.StorageSize,
-		"num_vectors":       stats.DocumentCount,
-		"average_distance":  stats.AverageDistance,
+	return collectionStatsWithName{
+		CollectionStats: stats,
+		Name:            s.fileNameToCollectionName(collection.Name),
 	}
 }
 
