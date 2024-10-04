@@ -175,7 +175,7 @@ Collection represents a collection of documents, supporting operations such as a
 type Collection struct {
 	CollectionOptions
 	memfile  *memfile
-	lshTable *LSHTable // Add this line
+	lshTable *lshTable // Add this line
 	mutex    sync.Mutex
 	distance func([]float64, []float64) float64 // Add this line
 }
@@ -251,7 +251,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	default:
 		panic("Unsupported distance method")
 	}
-	lshTable := NewLSHTable(10, options.DimensionCount, 4.0) // Example parameters
+	lshTable := newLSHTable(10, options.DimensionCount, 4.0) // Example parameters
 
 	c := &Collection{
 		CollectionOptions: options,
@@ -268,7 +268,7 @@ func NewCollection(options CollectionOptions) *Collection {
 				continue
 			}
 			doc := c.decodeDocument(data, id)
-			c.lshTable.AddPoint(id, doc.Vector)
+			c.lshTable.addPoint(id, doc.Vector)
 		}
 	}
 
@@ -391,7 +391,7 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	c.memfile.addRecord(id, encodedData)
 
 	// Add the document's vector to the LSH table
-	c.lshTable.AddPoint(id, vector)
+	c.lshTable.addPoint(id, vector)
 }
 
 /*
@@ -539,7 +539,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 		}
 	} else {
 		// Use LSH to get candidate IDs
-		candidateIDs = c.lshTable.Query(args.Vector)
+		candidateIDs = c.lshTable.query(args.Vector)
 	}
 
 	// Process candidates
@@ -591,7 +591,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		}
 	} else {
 		// Use LSH to get candidate IDs
-		candidateIDs = c.lshTable.Query(args.Vector)
+		candidateIDs = c.lshTable.query(args.Vector)
 	}
 
 	results := []SearchResult{}
