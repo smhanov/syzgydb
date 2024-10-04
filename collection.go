@@ -707,13 +707,11 @@ func (c *Collection) decodeDocument(data []byte, id uint64) *Document {
 
 	// Decode the metadata
 	metadataOffset := metadataLengthOffset + 4
-	metadata := make([]byte, metadataLength)
-	copy(metadata, data[metadataOffset:])
 
 	return &Document{
 		ID:       id,
 		Vector:   vector,
-		Metadata: metadata,
+		Metadata: data[metadataOffset : metadataOffset+int(metadataLength)],
 	}
 }
 

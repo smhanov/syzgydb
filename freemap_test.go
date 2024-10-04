@@ -18,7 +18,8 @@ func TestMarkFreeAndGetFreeRange(t *testing.T) {
 	}
 
 	// Test getting a free range
-	start, remaining, err := fm.getFreeRange(5)
+	var remaining int64
+	start, _, err := fm.getFreeRange(5)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
