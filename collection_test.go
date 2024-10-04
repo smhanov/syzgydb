@@ -293,7 +293,7 @@ func TestCollectionPersistence(t *testing.T) {
 	collection := NewCollection(options)
 
 	// Add some records to the collection
-	numRecords := 200 // Ensure enough records to trigger pivot creation
+	numRecords := 1000 // Ensure enough records to trigger pivot creation
 	for i := 0; i < numRecords; i++ {
 		vector := []float64{float64(i), float64(i + 1), float64(i + 2)}
 		metadata := []byte("metadata")
@@ -440,9 +440,9 @@ func TestExhaustiveSearch(t *testing.T) {
 
 	// Define search arguments for exhaustive search
 	searchArgs := SearchArgs{
-		Vector:   []float64{1.0, 2.0, 3.0},
+		Vector:    []float64{1.0, 2.0, 3.0},
 		Precision: "exact",
-		K:        3, // Request all documents
+		K:         3, // Request all documents
 	}
 
 	// Perform the exhaustive search

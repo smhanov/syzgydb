@@ -11,8 +11,6 @@ import (
 	"sync"
 )
 
-const minBucketsToSearch = 2
-
 /*
 CollectionOptions defines the configuration options for creating a Collection.
 */
@@ -269,9 +267,10 @@ Collection represents a collection of documents, supporting operations such as a
 */
 type Collection struct {
 	CollectionOptions
-	memfile *memfile
-	index   searchIndex
-	mutex   sync.Mutex
+	memfile  *memfile
+	index    searchIndex
+	lshTable *lshTable
+	mutex    sync.Mutex
 	distance func([]float64, []float64) float64
 }
 
@@ -352,6 +351,7 @@ func NewCollection(options CollectionOptions) *Collection {
 		CollectionOptions: options,
 		memfile:           memFile,
 		index:             lshTable,
+		lshTable:          lshTable,
 		distance:          distanceFunc,
 	}
 
@@ -633,7 +633,6 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 	results := []SearchResult{}
 	pointsSearched := 0
-	pointsSearched := 0
 
 	c.index.search(args.Vector, func(docid uint64) bool {
 		data, err := c.memfile.readRecord(docid)
@@ -671,6 +670,8 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	resultsPQ := &resultPriorityQueue{}
 	heap.Init(resultsPQ)
 	pointsSearched := 0
+	consecutiveNonImproving := 0
+	threshold := max(100, 2*args.K)
 
 	c.index.search(args.Vector, func(docid uint64) bool {
 		data, err := c.memfile.readRecord(docid)
@@ -696,6 +697,13 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 			if resultsPQ.Len() > args.K {
 				heap.Pop(resultsPQ)
 			}
+			consecutiveNonImproving = 0
+		} else {
+			consecutiveNonImproving++
+		}
+
+		if consecutiveNonImproving >= threshold {
+			return true
 		}
 
 		return false
@@ -849,8 +857,9 @@ func cosineDistance(vec1, vec2 []float64) float64 {
 	}
 	return 1.0 - (dotProduct / (math.Sqrt(magnitude1) * math.Sqrt(magnitude2)))
 }
+
 type searchIndex interface {
-    addPoint(docid uint64, vector []float64)
-    removePoint(docid uint64, vector []float64)
-    search(vector []float64, callback func(docid uint64) bool)
+	addPoint(docid uint64, vector []float64)
+	removePoint(docid uint64, vector []float64)
+	search(vector []float64, callback func(docid uint64) bool)
 }
