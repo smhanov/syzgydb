@@ -64,17 +64,10 @@ func (c *Collection) exhaustiveSearch(args SearchArgs) SearchResults {
 		}
 	}
 
-	// Sort results by distance if K is specified
-	if args.K > 0 {
-		sort.Slice(results, func(i, j int) bool {
-			return results[i].Distance < results[j].Distance
-		})
-
-		// Limit results to K
-		if len(results) > args.K {
-			results = results[:args.K]
-		}
-	}
+	// Sort results by distance
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Distance < results[j].Distance
+	})
 
 	return SearchResults{
 		Results:         results,

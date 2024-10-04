@@ -359,12 +359,13 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 	var searchArgs SearchArgs
 
 	var searchRequest struct {
-		Vector []float64 `json:"vector,omitempty"`
-		Text   string    `json:"text,omitempty"`
-		Offset int       `json:"offset,omitempty"`
-		Limit  int       `json:"limit,omitempty"`
-		Radius float64   `json:"radius,omitempty"`
-		K      int       `json:"k,omitempty"`
+		Vector    []float64 `json:"vector,omitempty"`
+		Text      string    `json:"text,omitempty"`
+		Offset    int       `json:"offset,omitempty"`
+		Limit     int       `json:"limit,omitempty"`
+		Radius    float64   `json:"radius,omitempty"`
+		K         int       `json:"k,omitempty"`
+		Precision string    `json:"precision,omitempty"`
 	}
 
 	if r.Method == http.MethodGet {

@@ -38,11 +38,13 @@ This command will:
 
 The configuration settings can be specified on the command line, using an environment variable, or in a file /etc/syzgydb.conf.
 
-* **DATA_FOLDER** Specifies where the persistent files are kept. Default: "./data" when running from the command line or "/data" when run inside of a docker image.
-* **OLLAMA_SERVER** The optional ollama server used to create embeddings. Default: "localhost:11434"
-* **TEXT_MODEL** The name of the text embedding model to use with ollama. Default: "all-minilm" (384 dimensions)
-* **IMAGE_MODEL** The name of the image embedding model to use with ollama. Default: "minicpm-v"
 
+| **Configuration Setting** | **Description** | **Default Value** |
+|---------------------------|-----------------|-------------------|
+| `DATA_FOLDER`             | Specifies where the persistent files are kept. | `./data` (command line) or `/data` (Docker) |
+| `OLLAMA_SERVER`           | The optional Ollama server used to create embeddings. | `localhost:11434` |
+| `TEXT_MODEL`              | The name of the text embedding model to use with Ollama. | `all-minilm` (384 dimensions) |
+| `IMAGE_MODEL`             | The name of the image embedding model to use with Ollama. | `minicpm-v` |
 
 ## RESTful API
 
@@ -90,7 +92,7 @@ A collection is a database, and you can create them and get information about th
 
 ### Data API
 
-#### Insert Multiple Records
+#### Insert / update records
 
  **Endpoint**: `POST /api/v1/collections/{collection_name}/records`
  **Description**: Inserts multiple records into a collection. Overwrites if the ID exists. You can provide either a `vector` or a `text` field for each record. If a `text` field is provided, the server will automatically generate the vector embedding using the Ollama server. If an image field is provided, it should be in base64 format.
@@ -168,10 +170,10 @@ A collection is a database, and you can create them and get information about th
     "vector": [0.1, 0.2, 0.3, ..., 0.5], // Optional: Provide a vector for similarity search
     "text": "example text",              // Optional: Provide text to generate vector for search
     "k": 5,                              // Optional: Number of nearest neighbors to return
-    "radius": 0.5,                       // Optional: Radius for range search
-    "limit": 10,                         // Optional: Maximum number of records to return
+    "radius": 0,                       // Optional: Radius for range search
+    "limit": 0,                         // Optional: Maximum number of records to return
     "offset": 0,                         // Optional: Number of records to skip for pagination
-    "precision": "exact"                 // Optional: Set to "exact" for exhaustive search
+    "precision": ""                 // Optional: Set to "exact" for exhaustive search
   }
   ```
 
@@ -182,7 +184,7 @@ A collection is a database, and you can create them and get information about th
   - **`radius`**: Defines the radius for a range search. All records within this distance from the query vector will be returned.
   - **`limit`**: Limits the number of records returned in the response. Useful for paginating results.
   - **`offset`**: Skips the specified number of records before starting to return results. Used in conjunction with `limit` for pagination.
-  - **`precision`**: Specifies the search precision. Defaults to "medium". Set to "exact" to perform an exhaustive search of all points without using LSH.
+  - **`precision`**: Specifies the search precision. Defaults to "medium". Set to "exact" to perform an exhaustive search of all points.
 
  **Example `curl`**:
   ```bash
