@@ -561,46 +561,46 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 	results := []SearchResult{}
 	pointsSearched := 0
 
-	var candidateIDs []uint64
-	if len(c.memfile.idOffsets) < 100 {
-		// Use all document IDs as candidate IDs
-		for id := range c.memfile.idOffsets {
-			candidateIDs = append(candidateIDs, id)
+	// Use LSH to get a priority queue of candidate buckets
+	pq := c.lshTable.multiprobeQuery(args.Vector)
+
+	// Process candidates from the priority queue
+	for pq.Len() > 0 {
+		item := heap.Pop(pq).(*priorityItem)
+		bucketKey := item.Key
+		numAdded := 0
+
+		// Process each document in the current bucket
+		for _, id := range c.lshTable.Buckets[bucketKey] {
+			data, err := c.memfile.readRecord(id)
+			if err != nil {
+				continue
+			}
+
+			pointsSearched++
+
+			doc := c.decodeDocument(data, id)
+
+			// Apply filter function if provided
+			if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
+				continue
+			}
+
+			// Calculate the distance between the search vector and the document vector
+			distance := c.distance(args.Vector, doc.Vector) // Use the configured distance function
+
+			// Check if the distance is within the specified radius
+			if distance <= args.Radius {
+				results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
+				numAdded++
+			}
 		}
-	} else {
-		// Use LSH to get candidate IDs
-		candidateIDs = c.lshTable.query(args.Vector)
+
+		// Stop if no points were added from this bucket
+		if numAdded == 0 {
+			break
+		}
 	}
-
-	// Process candidates
-	for _, id := range candidateIDs {
-		data, err := c.memfile.readRecord(id)
-		if err != nil {
-			continue
-		}
-
-		pointsSearched++
-
-		doc := c.decodeDocument(data, id)
-
-		// Apply filter function if provided
-		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			continue
-		}
-
-		// Calculate the distance between the search vector and the document vector
-		distance := c.distance(args.Vector, doc.Vector) // Use the configured distance function
-
-		// Check if the distance is within the specified radius
-		if distance <= args.Radius {
-			results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
-		}
-	}
-
-	// Sort results by distance
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Distance < results[j].Distance
-	})
 
 	return SearchResults{
 		Results:         results,
