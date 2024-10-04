@@ -637,7 +637,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 	c.index.search(args.Vector, func(docid uint64) bool {
 		data, err := c.memfile.readRecord(docid)
 		if err != nil {
-			return false
+			return -1 // Continue searching
 		}
 
 		pointsSearched++
@@ -645,7 +645,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 		doc := c.decodeDocument(data, docid)
 
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			return false
+			return -1 // Continue searching
 		}
 
 		distance := c.distance(args.Vector, doc.Vector)
@@ -653,7 +653,7 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 			results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
 		}
 
-		return false
+		return -1 // Continue searching
 	})
 
 	return SearchResults{
@@ -676,7 +676,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	c.index.search(args.Vector, func(docid uint64) bool {
 		data, err := c.memfile.readRecord(docid)
 		if err != nil {
-			return false
+			return -1 // Continue searching
 		}
 
 		pointsSearched++
@@ -684,7 +684,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		doc := c.decodeDocument(data, docid)
 
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			return false
+			return -1 // Continue searching
 		}
 
 		distance := c.distance(args.Vector, doc.Vector)
@@ -703,10 +703,10 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		}
 
 		if consecutiveNonImproving >= threshold {
-			return true
+			return 0 // Stop searching
 		}
 
-		return false
+		return -1 // Continue searching
 	})
 
 	// Extract results from the priority queue
@@ -861,5 +861,5 @@ func cosineDistance(vec1, vec2 []float64) float64 {
 type searchIndex interface {
 	addPoint(docid uint64, vector []float64)
 	removePoint(docid uint64, vector []float64)
-	search(vector []float64, callback func(docid uint64) bool)
+	search(vector []float64, callback func(docid uint64) float64)
 }

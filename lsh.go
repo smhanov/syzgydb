@@ -104,13 +104,14 @@ func (table *lshTable) removePoint(docid uint64, vector []float64) {
 	}
 }
 
-func (table *lshTable) search(vector []float64, callback func(docid uint64) bool) {
+func (table *lshTable) search(vector []float64, callback func(docid uint64) float64) {
 	pq := table.multiprobeQuery(vector)
 	for pq.Len() > 0 {
 		item := heap.Pop(pq).(*priorityItem)
 		bucketKey := item.Key
 		for _, id := range table.Buckets[bucketKey] {
-			if callback(id) {
+			threshold := callback(id)
+			if threshold == 0 {
 				return
 			}
 		}
