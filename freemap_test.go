@@ -5,7 +5,7 @@ import (
 )
 
 func TestMarkFreeAndGetFreeRange(t *testing.T) {
-	fm := &FreeMap{}
+	fm := &freeMap{}
 
 	// Mark some spaces as free
 	fm.markFree(0, 10)

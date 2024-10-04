@@ -10,7 +10,7 @@ import (
 const verboseFreeMap = false
 
 // markUsed marks a range of space as used.
-func (fm *FreeMap) markUsed(start, length int) {
+func (fm *freeMap) markUsed(start, length int) {
 	if verboseFreeMap {
 		log.Printf("markUsed: start=%d, length=%d\n", start, length)
 	}
@@ -50,7 +50,7 @@ func (fm *FreeMap) markUsed(start, length int) {
 	}
 }
 
-type FreeMap struct {
+type freeMap struct {
 	freeSpaces []space
 }
 
@@ -60,7 +60,7 @@ type space struct {
 }
 
 // markFree marks a range of space as free.
-func (fm *FreeMap) markFree(start, length int) {
+func (fm *freeMap) markFree(start, length int) {
 	if verboseFreeMap {
 		log.Printf("markFree: start=%d, length=%d\n", start, length)
 	}
@@ -93,7 +93,7 @@ func (fm *FreeMap) markFree(start, length int) {
 }
 
 // getFreeRange finds a free range of the specified length and marks it as used.
-func (fm *FreeMap) getFreeRange(length int) (int64, int64, error) {
+func (fm *freeMap) getFreeRange(length int) (int64, int64, error) {
 	if verboseFreeMap {
 		log.Printf("getFreeRange: length=%d\n", length)
 	}
@@ -123,7 +123,7 @@ func (fm *FreeMap) getFreeRange(length int) (int64, int64, error) {
 }
 
 // logSpaces logs all the free ranges in the FreeMap.
-func (fm *FreeMap) logSpaces() {
+func (fm *freeMap) logSpaces() {
 	fmt.Println("Free spaces:")
 	for _, s := range fm.freeSpaces {
 		fmt.Printf("Start: %d, Length: %d\n", s.start, s.length)
