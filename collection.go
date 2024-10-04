@@ -33,12 +33,6 @@ type CollectionOptions struct {
 
 	// Overwrite any existing database
 	Create bool
-	// New fields for bucket statistics
-	NumberOfBuckets      int     `json:"number_of_buckets"`
-	AverageItemsPerBucket float64 `json:"average_items_per_bucket"`
-	StdDevItemsPerBucket  float64 `json:"std_dev_items_per_bucket"`
-	MaxItemsInBucket      int     `json:"max_items_in_bucket"`
-	MinItemsInBucket      int     `json:"min_items_in_bucket"`
 }
 
 /*
@@ -62,11 +56,6 @@ func (c *Collection) ComputeStats() CollectionStats {
 	bucketSizes := make([]int, 0, len(c.lshTable.Buckets))
 	for _, bucket := range c.lshTable.Buckets {
 		bucketSizes = append(bucketSizes, len(bucket))
-		NumberOfBuckets:      numberOfBuckets,
-		AverageItemsPerBucket: averageItemsPerBucket,
-		StdDevItemsPerBucket:  stdDevItemsPerBucket,
-		MaxItemsInBucket:      maxItems,
-		MinItemsInBucket:      minItems,
 	}
 
 	numberOfBuckets := len(bucketSizes)
@@ -108,12 +97,17 @@ func (c *Collection) ComputeStats() CollectionStats {
 
 	// Create and return the CollectionStats
 	return CollectionStats{
-		DocumentCount:   documentCount,
-		DimensionCount:  c.DimensionCount,
-		Quantization:    c.Quantization,
-		DistanceMethod:  distanceMethod,
-		StorageSize:     int64(storageSize),
-		AverageDistance: averageDistance,
+		DocumentCount:         documentCount,
+		DimensionCount:        c.DimensionCount,
+		Quantization:          c.Quantization,
+		DistanceMethod:        distanceMethod,
+		StorageSize:           int64(storageSize),
+		AverageDistance:       averageDistance,
+		NumberOfBuckets:       numberOfBuckets,
+		AverageItemsPerBucket: averageItemsPerBucket,
+		StdDevItemsPerBucket:  stdDevItemsPerBucket,
+		MaxItemsInBucket:      maxItems,
+		MinItemsInBucket:      minItems,
 	}
 }
 
@@ -200,6 +194,13 @@ type CollectionStats struct {
 
 	// Average distance between random pairs of documents
 	AverageDistance float64 `json:"average_distance"`
+
+	// New fields for bucket statistics
+	NumberOfBuckets       int     `json:"number_of_buckets"`
+	AverageItemsPerBucket float64 `json:"average_items_per_bucket"`
+	StdDevItemsPerBucket  float64 `json:"std_dev_items_per_bucket"`
+	MaxItemsInBucket      int     `json:"max_items_in_bucket"`
+	MinItemsInBucket      int     `json:"min_items_in_bucket"`
 }
 
 type FilterFn func(id uint64, metadata []byte) bool
