@@ -407,6 +407,67 @@ func TestCollectionAddDeleteAndRetrieve(t *testing.T) {
 	}
 }
 
+func TestExhaustiveSearch(t *testing.T) {
+	// Define collection options
+	options := CollectionOptions{
+		Name:           "test_exhaustive_search.dat",
+		DistanceMethod: Euclidean,
+		DimensionCount: 3,
+		Create:         true,
+	}
+
+	// Remove any existing file
+	os.Remove(options.Name)
+
+	// Create a new collection
+	collection := NewCollection(options)
+	defer collection.Close()
+
+	// Add documents to the collection
+	documents := []struct {
+		id       uint64
+		vector   []float64
+		metadata []byte
+	}{
+		{1, []float64{1.0, 2.0, 3.0}, []byte("doc1")},
+		{2, []float64{4.0, 5.0, 6.0}, []byte("doc2")},
+		{3, []float64{7.0, 8.0, 9.0}, []byte("doc3")},
+	}
+
+	for _, doc := range documents {
+		collection.AddDocument(doc.id, doc.vector, doc.metadata)
+	}
+
+	// Define search arguments for exhaustive search
+	searchArgs := SearchArgs{
+		Vector:   []float64{1.0, 2.0, 3.0},
+		Precision: "exact",
+		K:        3, // Request all documents
+	}
+
+	// Perform the exhaustive search
+	results := collection.exhaustiveSearch(searchArgs)
+
+	// Verify the number of results
+	if len(results.Results) != len(documents) {
+		t.Errorf("Expected %d results, got %d", len(documents), len(results.Results))
+	}
+
+	// Verify that all documents are returned
+	expectedIDs := map[uint64]bool{1: true, 2: true, 3: true}
+	for _, result := range results.Results {
+		if !expectedIDs[result.ID] {
+			t.Errorf("Unexpected document ID %d in results", result.ID)
+		}
+		delete(expectedIDs, result.ID)
+	}
+
+	// Verify that PercentSearched is 100
+	if results.PercentSearched != 100.0 {
+		t.Errorf("Expected PercentSearched to be 100, got %f", results.PercentSearched)
+	}
+}
+
 func TestVectorSearchWith4BitQuantization(t *testing.T) {
 	// Define collection options with 4-bit quantization
 	collectionName := "test_collection_4bit.dat"
