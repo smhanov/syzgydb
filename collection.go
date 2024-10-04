@@ -624,45 +624,6 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		// Perform exhaustive search
 		return c.exhaustiveSearch(args)
 	}
-		// Collect all document IDs
-		ids := make([]uint64, 0, len(c.memfile.idOffsets))
-		for id := range c.memfile.idOffsets {
-			ids = append(ids, id)
-		}
-
-		// Sort IDs
-		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-
-		// Apply offset and limit
-		start := args.Offset
-		if start > len(ids) {
-			start = len(ids)
-		}
-		end := start + args.Limit
-		if end > len(ids) {
-			end = len(ids)
-		}
-
-		// Collect results
-		results := make([]SearchResult, 0, end-start)
-		for _, id := range ids[start:end] {
-			doc, err := c.getDocument(id)
-			if err != nil {
-				continue
-			}
-			results = append(results, SearchResult{
-				ID:       doc.ID,
-				Metadata: doc.Metadata,
-				Distance: 0, // Distance is not applicable here
-			})
-		}
-
-		return SearchResults{
-			Results:         results,
-			PercentSearched: 100.0, // All records are considered
-		}
-	}
-
 	if len(args.Vector) != c.DimensionCount {
 		log.Panicf("vector size does not match the expected number of dimensions: expected %d, got %d", c.DimensionCount, len(args.Vector))
 	}
