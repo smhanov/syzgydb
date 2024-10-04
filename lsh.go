@@ -104,33 +104,15 @@ func (table *lshTable) removePoint(docid uint64, vector []float64) {
 	}
 }
 
-func (table *lshTable) multiprobeQuery(vector []float64) *priorityQueue {
-	// Hash the input vector
-	initialKey := table.hash(vector)
-
-	// Function to calculate Euclidean distance between two hash keys
-	calculateDistance := func(key1, key2 string) float64 {
-		var dist float64
-		var hash1, hash2 []int
-		fmt.Sscanf(key1, "%v", &hash1)
-		fmt.Sscanf(key2, "%v", &hash2)
-		for i := range hash1 {
-			diff := float64(hash1[i] - hash2[i])
-			dist += diff * diff
-		}
-		return math.Sqrt(dist)
-	}
-
-	// Create a priority queue and add all buckets to it so they can be searched
-	// in order.
-	pq := &priorityQueue{}
-	heap.Init(pq)
-
-	// Generate neighboring keys and add them to the priority queue
-	for neighborKey := range table.Buckets {
-		distance := calculateDistance(initialKey, neighborKey)
-		heap.Push(pq, &priorityItem{Key: neighborKey, Priority: distance})
-	}
-
-	return pq
+func (table *lshTable) search(vector []float64, callback func(docid uint64) bool) {
+    pq := table.multiprobeQuery(vector)
+    for pq.Len() > 0 {
+        item := heap.Pop(pq).(*priorityItem)
+        bucketKey := item.Key
+        for _, id := range table.Buckets[bucketKey] {
+            if callback(id) {
+                return
+            }
+        }
+    }
 }
