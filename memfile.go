@@ -26,7 +26,7 @@ type memfile struct {
 	// offsets of each record id into the file
 	idOffsets map[uint64]int64
 
-	freemap FreeMap
+	freemap freeMap
 
 	name string
 }
