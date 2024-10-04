@@ -133,9 +133,7 @@ func (s *Server) handleGetCollectionIDs(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	log.Printf("Fetching all IDs for collection %s", collectionName)
 	ids := collection.GetAllIDs()
-	log.Printf("Writing header...")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(ids)
 }
@@ -251,7 +249,6 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 
 		collection.AddDocument(record.ID, record.Vector, metadataBytes)
 	}
-	log.Printf("Done")
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Records inserted successfully."})

@@ -1,7 +1,5 @@
 package syzgydb
 
-const verboseFreeMap = false
-
 import (
 	"errors"
 	"fmt"
@@ -9,12 +7,7 @@ import (
 	"sort"
 )
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
+const verboseFreeMap = false
 
 // markUsed marks a range of space as used.
 func (fm *FreeMap) markUsed(start, length int) {
@@ -52,7 +45,9 @@ func (fm *FreeMap) markUsed(start, length int) {
 		}
 	}
 
-	fm.logSpaces()
+	if verboseFreeMap {
+		fm.logSpaces()
+	}
 }
 
 type FreeMap struct {
@@ -92,7 +87,9 @@ func (fm *FreeMap) markFree(start, length int) {
 	}
 	fm.freeSpaces = merged
 
-	fm.logSpaces()
+	if verboseFreeMap {
+		fm.logSpaces()
+	}
 }
 
 // getFreeRange finds a free range of the specified length and marks it as used.
@@ -115,7 +112,9 @@ func (fm *FreeMap) getFreeRange(length int) (int64, int64, error) {
 			}
 
 			remaining := s.length - length
-			fm.logSpaces()
+			if verboseFreeMap {
+				fm.logSpaces()
+			}
 			return int64(start), int64(remaining), nil
 		}
 	}
@@ -125,10 +124,8 @@ func (fm *FreeMap) getFreeRange(length int) (int64, int64, error) {
 
 // logSpaces logs all the free ranges in the FreeMap.
 func (fm *FreeMap) logSpaces() {
-	if verboseFreeMap {
-		fmt.Println("Free spaces:")
-		for _, s := range fm.freeSpaces {
-			fmt.Printf("Start: %d, Length: %d\n", s.start, s.length)
-		}
+	fmt.Println("Free spaces:")
+	for _, s := range fm.freeSpaces {
+		fmt.Printf("Start: %d, Length: %d\n", s.start, s.length)
 	}
 }

@@ -15,6 +15,7 @@ import (
 // uint64 - ID, or deleted is all 0xffffffffffffffff
 
 const growthPercentage = 0.05
+const minGrowthBytes = 4096
 const deletedRecordMarker = 0xffffffffffffffff
 
 type memfile struct {
@@ -122,7 +123,6 @@ func createMemFile(name string, header []byte) (*memfile, error) {
 			} else {
 				// Record is valid, add to idOffsets
 				ret.idOffsets[id] = offset
-				log.Printf("Offset %v for ID %d", offset, id)
 			}
 
 			offset += int64(recordLength)
@@ -142,8 +142,14 @@ Parameters:
 func (mf *memfile) ensureLength(length int) {
 	curSize := mf.File.Len()
 
-	// Calculate the growth size as the maximum of 4096 or 5% of the current size
-	growthSize := max(4096, int(float64(curSize)*growthPercentage))
+	if curSize >= length {
+		return
+	}
+
+	// Calculate the growth size as the maximum of minGrowthBytes or 5% of the current size
+	growthSize := length - curSize
+	growthSize = max(growthSize, minGrowthBytes)
+	growthSize = max(growthSize, int(float64(curSize)*growthPercentage))
 
 	length += growthSize
 
@@ -212,8 +218,6 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 		mf.freemap.markUsed(int(start)+recordLength, int(remaining))
 		recordLength += int(remaining)
 		remaining = 0
-		mf.freemap.markFree(int(start)+recordLength, int(remaining))
-		remaining = 0
 	}
 
 	// Write the record to the file with the adjusted length
@@ -279,7 +283,6 @@ func (mf *memfile) readRecord(id uint64) ([]byte, error) {
 	if !exists {
 		return nil, errors.New("record not found")
 	}
-	log.Printf("Read record %d at %v", id, offset)
 
 	// Read the total length of the record
 	recordLength := mf.readUint64(offset)

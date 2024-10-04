@@ -34,12 +34,13 @@ func DumpIndex(filename string) {
 	// Iterate over all records
 	fmt.Println("Records:")
 	for {
+		offset, _ := file.Seek(0, io.SeekCurrent)
 		recordLength, err := readUint(file, 8)
 		if err != nil {
 			break
 		}
 
-		fmt.Printf("    Total Length: %d\n", recordLength)
+		fmt.Printf("[%d] Total Length: %d\n", offset, recordLength)
 		if recordLength == 0 {
 			fmt.Println("     (Indicates end of usable records)")
 			break
@@ -100,6 +101,17 @@ func DumpIndex(filename string) {
 			break
 		}
 		fmt.Printf("    Metadata: %s\n", string(metadata))
+
+		// We should be at offset + recordLength. Check if we are.
+		currentOffset, _ := file.Seek(0, io.SeekCurrent)
+		expectedOffset := offset + int64(recordLength)
+		if currentOffset != expectedOffset {
+			if currentOffset < expectedOffset {
+				fmt.Printf("    WARNING: Missing %d bytes\n", expectedOffset-currentOffset)
+			} else {
+				fmt.Printf("    WARNING: Extra %d bytes\n", currentOffset-expectedOffset)
+			}
+		}
 	}
 }
 

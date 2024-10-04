@@ -55,3 +55,50 @@ func TestMemfile(t *testing.T) {
 		t.Errorf("Expected error when reading deleted record, got nil")
 	}
 }
+
+func TestMemfileExpansion(t *testing.T) {
+	// Create a temporary file for testing
+	fileName := "testfile_expansion"
+
+	os.Remove(fileName)
+
+	// Create a memfile instance with an 8-byte header
+	header := make([]byte, 8)
+	mf, err := createMemFile(fileName, header)
+	if err != nil {
+		t.Fatalf("Failed to create memfile: %v", err)
+	}
+
+	// Add a record that ends 8 bytes before 4096
+	largeData := make([]byte, minGrowthBytes-8-16-8) // 16 bytes for length and ID
+	largeData[0] = 'a'
+	mf.addRecord(2, largeData)
+
+	// Add a second record to trigger file expansion
+	secondData := []byte("second")
+	mf.addRecord(3, secondData)
+
+	// Close and re-open the file
+	mf.File.Close()
+	mf, err = createMemFile(fileName, header)
+	if err != nil {
+		t.Fatalf("Failed to re-open memfile: %v", err)
+	}
+
+	// Verify both records can be read
+	readLargeData, err := mf.readRecord(2)
+	if err != nil {
+		t.Fatalf("Failed to read large record: %v", err)
+	}
+	if !bytes.Equal(largeData, readLargeData[:len(largeData)]) {
+		t.Errorf("Expected large data, got %v", readLargeData)
+	}
+
+	readSecondData, err := mf.readRecord(3)
+	if err != nil {
+		t.Fatalf("Failed to read second record: %v", err)
+	}
+	if !bytes.Equal(secondData, readSecondData) {
+		t.Errorf("Expected second data, got %v", readSecondData)
+	}
+}
