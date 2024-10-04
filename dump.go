@@ -56,11 +56,36 @@ func DumpIndex(filename string) {
 
 		fmt.Printf("  Record ID: %d\n", recordID)
 
-		// Read the vector
+		// Calculate the vector size based on quantization
+		vectorSize := getVectorSize(int(quantization), int(dimensionCount))
+		vectorData := make([]byte, vectorSize)
+		if _, err := file.Read(vectorData); err != nil {
+			break
+		}
+
 		vector := make([]float64, dimensionCount)
+		vectorOffset := 0
+
 		for i := range vector {
-			val, _ := readUint(file, 8)
-			vector[i] = dequantize(val, int(quantization)) // Use quantization here
+			var quantizedValue uint64
+			switch quantization {
+			case 4:
+				if i%2 == 0 {
+					quantizedValue = uint64(vectorData[vectorOffset+i/2] >> 4)
+				} else {
+					quantizedValue = uint64(vectorData[vectorOffset+i/2] & 0x0F)
+				}
+			case 8:
+				quantizedValue = uint64(vectorData[vectorOffset+i])
+			case 16:
+				quantizedValue = uint64(binary.BigEndian.Uint16(vectorData[vectorOffset+i*2:]))
+			case 32:
+				quantizedValue = uint64(binary.BigEndian.Uint32(vectorData[vectorOffset+i*4:]))
+			case 64:
+				quantizedValue = binary.BigEndian.Uint64(vectorData[vectorOffset+i*8:])
+			}
+
+			vector[i] = dequantize(quantizedValue, int(quantization))
 		}
 
 		fmt.Printf("    Vector: %v\n", vector)
