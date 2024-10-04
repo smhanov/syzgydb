@@ -1,6 +1,7 @@
 package syzgydb
 
 import (
+	"container/heap"
 	"encoding/binary"
 	"log"
 	"math"
@@ -8,7 +9,7 @@ import (
 	"os"
 	"sort"
 	"sync"
-	"container/heap"
+)
 
 /*
 CollectionOptions defines the configuration options for creating a Collection.
@@ -500,9 +501,9 @@ func (pq *resultPriorityQueue) Pop() interface{} {
 	*pq = old[0 : n-1]
 	return item
 }
+
 /*
 Search returns the search results, including the list of matching documents and the percentage of the database searched.
-*/
 */
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	c.mutex.Lock()
@@ -557,8 +558,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 }
 
 func (c *Collection) searchRadius(args SearchArgs) SearchResults {
-	resultsPQ := &resultPriorityQueue{}
-	heap.Init(resultsPQ)
+	results := []SearchResult{}
 	pointsSearched := 0
 
 	var candidateIDs []uint64
@@ -597,11 +597,10 @@ func (c *Collection) searchRadius(args SearchArgs) SearchResults {
 		}
 	}
 
-	// Extract results from the priority queue
-	results := make([]SearchResult, resultsPQ.Len())
-	for i := len(results) - 1; i >= 0; i-- {
-		results[i] = heap.Pop(resultsPQ).(*resultItem).SearchResult
-	}
+	// Sort results by distance
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Distance < results[j].Distance
+	})
 
 	return SearchResults{
 		Results:         results,
@@ -625,8 +624,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 	for pq.Len() > 0 {
 		item := heap.Pop(pq).(*priorityItem)
 		bucketKey := item.Key
-
-
+		numAdded := 0
 		// Process each document in the current bucket
 		for _, id := range c.lshTable.Buckets[bucketKey] {
 			data, err := c.memfile.readRecord(id)
@@ -647,6 +645,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 
 			// Add to results priority queue if closer than the current farthest
 			if resultsPQ.Len() < args.K || distance < (*resultsPQ)[0].Priority {
+				numAdded++
 				heap.Push(resultsPQ, &resultItem{
 					SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
 					Priority:     distance,
@@ -655,6 +654,9 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 					heap.Pop(resultsPQ) // Remove the farthest point
 				}
 			}
+		}
+		if numAdded == 0 {
+			break
 		}
 	}
 
