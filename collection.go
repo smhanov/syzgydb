@@ -59,32 +59,39 @@ func (c *Collection) ComputeStats() CollectionStats {
 	}
 
 	numberOfBuckets := len(bucketSizes)
-	var totalItems int
-	var maxItems, minItems int
+	var totalItems, maxItems, minItems int
+	var averageItemsPerBucket, stdDevItemsPerBucket float64
+
 	if numberOfBuckets > 0 {
 		maxItems = bucketSizes[0]
 		minItems = bucketSizes[0]
-	}
 
-	for _, size := range bucketSizes {
-		totalItems += size
-		if size > maxItems {
-			maxItems = size
+		for _, size := range bucketSizes {
+			totalItems += size
+			if size > maxItems {
+				maxItems = size
+			}
+			if size < minItems {
+				minItems = size
+			}
 		}
-		if size < minItems {
-			minItems = size
+
+		averageItemsPerBucket = float64(totalItems) / float64(numberOfBuckets)
+
+		// Calculate standard deviation
+		var varianceSum float64
+		for _, size := range bucketSizes {
+			diff := float64(size) - averageItemsPerBucket
+			varianceSum += diff * diff
 		}
+		stdDevItemsPerBucket = math.Sqrt(varianceSum / float64(numberOfBuckets))
+	} else {
+		// Handle the case with zero buckets
+		maxItems = 0
+		minItems = 0
+		averageItemsPerBucket = 0.0
+		stdDevItemsPerBucket = 0.0
 	}
-
-	averageItemsPerBucket := float64(totalItems) / float64(numberOfBuckets)
-
-	// Calculate standard deviation
-	var varianceSum float64
-	for _, size := range bucketSizes {
-		diff := float64(size) - averageItemsPerBucket
-		varianceSum += diff * diff
-	}
-	stdDevItemsPerBucket := math.Sqrt(varianceSum / float64(numberOfBuckets))
 	var distanceMethod string
 	switch c.DistanceMethod {
 	case Euclidean:
