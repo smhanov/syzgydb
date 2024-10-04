@@ -2,6 +2,7 @@ package syzgydb
 
 import (
 	"fmt"
+	"container/heap"
 	"math"
 	"math/rand"
 )
@@ -10,6 +11,87 @@ type HashFunction struct {
 	RandomVector []float64
 	Offset       float64
 	W            float64 // Bucket width
+}
+
+func (table *LSHTable) MultiprobeQuery(vector []float64) []uint64 {
+	// Hash the input vector
+	initialKey := table.Hash(vector)
+
+	// Create a priority queue and add the initial key with priority 0
+	pq := &PriorityQueue{}
+	heap.Init(pq)
+	heap.Push(pq, &PriorityItem{Key: initialKey, Priority: 0})
+
+	// Function to calculate Euclidean distance between two hash keys
+	calculateDistance := func(key1, key2 string) float64 {
+		var dist float64
+		var hash1, hash2 []int
+		fmt.Sscanf(key1, "%v", &hash1)
+		fmt.Sscanf(key2, "%v", &hash2)
+		for i := range hash1 {
+			diff := float64(hash1[i] - hash2[i])
+			dist += diff * diff
+		}
+		return math.Sqrt(dist)
+	}
+
+	// Collect results from the closest buckets
+	var results []uint64
+	visited := make(map[string]bool)
+
+	for pq.Len() > 0 {
+		item := heap.Pop(pq).(*PriorityItem)
+		key := item.Key
+
+		// Avoid processing the same key multiple times
+		if visited[key] {
+			continue
+		}
+		visited[key] = true
+
+		// Add points from the current bucket to the results
+		results = append(results, table.Buckets[key]...)
+
+		// Generate neighboring keys and add them to the priority queue
+		for neighborKey := range table.Buckets {
+			if !visited[neighborKey] {
+				distance := calculateDistance(initialKey, neighborKey)
+				heap.Push(pq, &PriorityItem{Key: neighborKey, Priority: distance})
+			}
+		}
+	}
+
+	return results
+}
+
+type PriorityItem struct {
+	Key      string
+	Priority float64
+}
+
+type PriorityQueue []*PriorityItem
+
+func (pq PriorityQueue) Len() int { return len(pq) }
+
+func (pq PriorityQueue) Less(i, j int) bool {
+	return pq[i].Priority < pq[j].Priority
+}
+
+func (pq PriorityQueue) Swap(i, j int) {
+	pq[i], pq[j] = pq[j], pq[i]
+}
+
+func (pq *PriorityQueue) Push(x interface{}) {
+	item := x.(*PriorityItem)
+	*pq = append(*pq, item)
+}
+
+func (pq *PriorityQueue) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	*pq = old[0 : n-1]
+	return item
 }
 
 func NewHashFunction(dim int, w float64) *HashFunction {
