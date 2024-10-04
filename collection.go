@@ -1,6 +1,7 @@
 package syzgydb
 
 import (
+	"container/heap"
 	"encoding/binary"
 	"log"
 	"math"
