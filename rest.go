@@ -375,6 +375,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		searchArgs.Radius, _ = strconv.ParseFloat(query.Get("radius"), 64)
 		searchArgs.K, _ = strconv.Atoi(query.Get("k"))
 		searchRequest.Text = query.Get("text")
+		searchArgs.Precision = query.Get("precision")
 	} else if r.Method == http.MethodPost {
 		if err := json.NewDecoder(r.Body).Decode(&searchRequest); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -388,6 +389,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 			Radius: searchRequest.Radius,
 			K:      searchRequest.K,
 		}
+		searchArgs.Precision = searchRequest.Precision
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

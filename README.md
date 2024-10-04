@@ -170,7 +170,8 @@ A collection is a database, and you can create them and get information about th
     "k": 5,                              // Optional: Number of nearest neighbors to return
     "radius": 0.5,                       // Optional: Radius for range search
     "limit": 10,                         // Optional: Maximum number of records to return
-    "offset": 0                          // Optional: Number of records to skip for pagination
+    "offset": 0,                         // Optional: Number of records to skip for pagination
+    "precision": "exact"                 // Optional: Set to "exact" for exhaustive search
   }
   ```
 
@@ -181,6 +182,7 @@ A collection is a database, and you can create them and get information about th
   - **`radius`**: Defines the radius for a range search. All records within this distance from the query vector will be returned.
   - **`limit`**: Limits the number of records returned in the response. Useful for paginating results.
   - **`offset`**: Skips the specified number of records before starting to return results. Used in conjunction with `limit` for pagination.
+  - **`precision`**: Specifies the search precision. Defaults to "medium". Set to "exact" to perform an exhaustive search of all points without using LSH.
 
  **Example `curl`**:
   ```bash

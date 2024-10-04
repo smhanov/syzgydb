@@ -35,6 +35,53 @@ type CollectionOptions struct {
 	Create bool
 }
 
+func (c *Collection) exhaustiveSearch(args SearchArgs) SearchResults {
+	results := []SearchResult{}
+	pointsSearched := 0
+
+	for id := range c.memfile.idOffsets {
+		data, err := c.memfile.readRecord(id)
+		if err != nil {
+			continue
+		}
+
+		pointsSearched++
+
+		doc := c.decodeDocument(data, id)
+
+		// Apply filter function if provided
+		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
+			continue
+		}
+
+		distance := c.distance(args.Vector, doc.Vector)
+
+		// Add to results if within radius or if K is specified
+		if args.Radius > 0 && distance <= args.Radius {
+			results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
+		} else if args.K > 0 {
+			results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
+		}
+	}
+
+	// Sort results by distance if K is specified
+	if args.K > 0 {
+		sort.Slice(results, func(i, j int) bool {
+			return results[i].Distance < results[j].Distance
+		})
+
+		// Limit results to K
+		if len(results) > args.K {
+			results = results[:args.K]
+		}
+	}
+
+	return SearchResults{
+		Results:         results,
+		PercentSearched: 100.0, // All records are considered
+	}
+}
+
 /*
 ComputeStats gathers and returns statistics about the collection.
 It returns a CollectionStats object filled with the relevant statistics.
@@ -175,8 +222,9 @@ type SearchArgs struct {
 
 	// when MaxCount and Radius are both 0 we will return all the documents in order of id.
 	// These specify the offset and limit
-	Offset int
-	Limit  int
+	Offset    int
+	Limit     int
+	Precision string
 }
 
 /*
@@ -567,7 +615,15 @@ Search returns the search results, including the list of matching documents and 
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	if args.K == 0 && args.Radius == 0 {
+	// Default precision to "medium" if not set
+	if args.Precision == "" {
+		args.Precision = "medium"
+	}
+
+	if args.Precision == "exact" {
+		// Perform exhaustive search
+		return c.exhaustiveSearch(args)
+	}
 		// Collect all document IDs
 		ids := make([]uint64, 0, len(c.memfile.idOffsets))
 		for id := range c.memfile.idOffsets {
