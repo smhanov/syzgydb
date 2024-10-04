@@ -583,48 +583,56 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		return SearchResults{}
 	}
 
-	var candidateIDs []uint64
-	if len(c.memfile.idOffsets) < 100 {
-		// Use all document IDs as candidate IDs
-		for id := range c.memfile.idOffsets {
-			candidateIDs = append(candidateIDs, id)
-		}
-	} else {
-		// Use LSH to get candidate IDs
-		candidateIDs = c.lshTable.query(args.Vector)
-	}
+	// Use LSH to get a priority queue of candidate buckets
+	pq := c.lshTable.multiprobeQuery(args.Vector)
 
 	results := []SearchResult{}
 	pointsSearched := 0
+	closestDistance := math.MaxFloat64
 
-	// Process candidates
-	for _, id := range candidateIDs {
-		data, err := c.memfile.readRecord(id)
-		if err != nil {
-			continue
+	// Process candidates from the priority queue
+	for pq.Len() > 0 {
+		item := heap.Pop(pq).(*priorityItem)
+		bucketKey := item.Key
+
+		// Check if the current bucket's distance is greater than the closest found
+		if item.Priority >= closestDistance {
+			break
 		}
 
-		pointsSearched++
+		// Process each document in the current bucket
+		for _, id := range c.lshTable.Buckets[bucketKey] {
+			data, err := c.memfile.readRecord(id)
+			if err != nil {
+				continue
+			}
 
-		doc := c.decodeDocument(data, id)
+			pointsSearched++
 
-		// Apply filter function if provided
-		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			continue
+			doc := c.decodeDocument(data, id)
+
+			// Apply filter function if provided
+			if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
+				continue
+			}
+
+			distance := c.distance(args.Vector, doc.Vector) // Use the configured distance function
+
+			// Add to results if closer than the current closest distance
+			if distance < closestDistance {
+				results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
+				if len(results) > args.K {
+					results = results[:args.K]
+				}
+				closestDistance = results[len(results)-1].Distance
+			}
 		}
-
-		distance := c.distance(args.Vector, doc.Vector) // Use the configured distance function
-		results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
 	}
 
 	// Sort results by distance
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Distance < results[j].Distance
 	})
-
-	if len(results) > args.K {
-		results = results[:args.K]
-	}
 
 	return SearchResults{
 		Results:         results,
