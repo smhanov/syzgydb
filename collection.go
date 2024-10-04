@@ -269,7 +269,7 @@ type Collection struct {
 	CollectionOptions
 	memfile  *memfile
 	index    searchIndex
-	lshTable *lshTable
+	lshTree  *lshTree
 	mutex    sync.Mutex
 	distance func([]float64, []float64) float64
 }
@@ -345,13 +345,13 @@ func NewCollection(options CollectionOptions) *Collection {
 	default:
 		panic("Unsupported distance method")
 	}
-	lshTable := newLSHTable(chooseLshParameter(options.DimensionCount), options.DimensionCount, 4.0)
+	lshTree := newLSHTree(chooseLshParameter(options.DimensionCount))
 
 	c := &Collection{
 		CollectionOptions: options,
 		memfile:           memFile,
-		index:             lshTable,
-		lshTable:          lshTable,
+		index:             lshTree,
+		lshTree:           lshTree,
 		distance:          distanceFunc,
 	}
 
@@ -363,7 +363,7 @@ func NewCollection(options CollectionOptions) *Collection {
 				continue
 			}
 			doc := c.decodeDocument(data, id)
-			c.lshTable.addPoint(id, doc.Vector)
+			c.lshTree.addPoint(id, doc.Vector)
 		}
 	}
 
@@ -492,7 +492,7 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	c.memfile.addRecord(id, encodedData)
 
 	// Add the document's vector to the LSH table
-	c.lshTable.addPoint(id, vector)
+	c.lshTree.addPoint(id, vector)
 }
 
 /*
@@ -554,7 +554,7 @@ func (c *Collection) removeDocument(id uint64) error {
 	// Remove the document's vector from the LSH table
 	doc, err := c.getDocument(id)
 	if err == nil {
-		c.lshTable.removePoint(id, doc.Vector)
+		c.lshTree.removePoint(id, doc.Vector)
 	}
 	return c.memfile.deleteRecord(id)
 }
