@@ -2,6 +2,8 @@ package syzgydb
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"sort"
 )
 
@@ -14,6 +16,7 @@ func max(a, b int) int {
 
 // markUsed marks a range of space as used.
 func (fm *FreeMap) markUsed(start, length int) {
+	log.Printf("markUsed: start=%d, length=%d\n", start, length)
 	if length <= 0 {
 		return
 	}
@@ -44,6 +47,8 @@ func (fm *FreeMap) markUsed(start, length int) {
 			break
 		}
 	}
+
+	fm.logSpaces()
 }
 
 type FreeMap struct {
@@ -57,6 +62,7 @@ type space struct {
 
 // markFree marks a range of space as free.
 func (fm *FreeMap) markFree(start, length int) {
+	log.Printf("markFree: start=%d, length=%d\n", start, length)
 	if length <= 0 {
 		return
 	}
@@ -79,10 +85,13 @@ func (fm *FreeMap) markFree(start, length int) {
 		}
 	}
 	fm.freeSpaces = merged
+
+	fm.logSpaces()
 }
 
 // getFreeRange finds a free range of the specified length and marks it as used.
 func (fm *FreeMap) getFreeRange(length int) (int64, int64, error) {
+	log.Printf("getFreeRange: length=%d\n", length)
 	if length <= 0 {
 		return 0, 0, errors.New("length must be positive")
 	}
@@ -98,6 +107,7 @@ func (fm *FreeMap) getFreeRange(length int) (int64, int64, error) {
 			}
 
 			remaining := s.length - length
+			fm.logSpaces()
 			return int64(start), int64(remaining), nil
 		}
 	}
@@ -105,10 +115,10 @@ func (fm *FreeMap) getFreeRange(length int) (int64, int64, error) {
 	return 0, 0, errors.New("no sufficient free space available")
 }
 
-// dump prints all the free ranges in the FreeMap.
-/*
-func (fm *FreeMap) dump() {
+// logSpaces logs all the free ranges in the FreeMap.
+func (fm *FreeMap) logSpaces() {
+	fmt.Println("Free spaces:")
 	for _, s := range fm.freeSpaces {
 		fmt.Printf("Start: %d, Length: %d\n", s.start, s.length)
 	}
-}*/
+}
