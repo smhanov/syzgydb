@@ -80,7 +80,7 @@ func TestMemfileExpansion(t *testing.T) {
 
 	// Close and re-open the file
 	mf.File.Close()
-	mf, err = createMemFile(fileName, header)
+	mf, err = createMemFile(fileName, header, ReadWrite)
 	if err != nil {
 		t.Fatalf("Failed to re-open memfile: %v", err)
 	}

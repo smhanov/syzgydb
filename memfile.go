@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	ReadOnly           = iota // Open the file for read-only access
-	ReadWrite                 // Open the file for read/write access
+	ReadWrite          = iota // Open the file for read/write access
+	ReadOnly                  // Open the file for read-only access
 	CreateIfNotExists         // Create the file only if it doesn't exist
 	CreateAndOverwrite        // Always create and overwrite the file if it exists
 )
