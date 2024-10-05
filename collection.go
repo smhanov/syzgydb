@@ -595,11 +595,6 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 	resultsPQ := &resultPriorityQueue{}
 	heap.Init(resultsPQ)
 	pointsSearched := 0
-	worst := math.MaxFloat64
-
-	if args.Radius > 0 {
-		worst = args.Radius
-	}
 
 	consider := func(docid uint64) int {
 		doc, err := c.getDocument(docid)
