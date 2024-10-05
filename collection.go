@@ -601,17 +601,17 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		worst = args.Radius
 	}
 
-	consider := func(docid uint64) float64 {
+	consider := func(docid uint64) int {
 		doc, err := c.getDocument(docid)
 		if err != nil {
-			return worst
+			return StopSearch
 		}
 
 		pointsSearched++
 
 		// Apply filter function if provided
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			return worst
+			return PointChecked
 		}
 
 		distance := c.distance(args.Vector, doc.Vector)
@@ -621,6 +621,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
 				Priority:     distance,
 			})
+			return PointAccepted
 		} else if args.K > 0 {
 			heap.Push(resultsPQ, &resultItem{
 				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
@@ -630,14 +631,16 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 				heap.Pop(resultsPQ)
 				worst = (*resultsPQ)[0].Priority
 			}
+			return PointAccepted
 		} else if args.K == 0 && args.Radius == 0 {
 			// Exhaustive search: add all results
 			heap.Push(resultsPQ, &resultItem{
 				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
 				Priority:     distance,
 			})
+			return PointAccepted
 		}
-		return worst
+		return PointChecked
 	}
 
 	if args.Radius == 0 && args.K == 0 || args.Precision == "exact" {
