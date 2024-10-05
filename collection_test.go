@@ -80,6 +80,10 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 	if !matched {
 		t.Error("Results do not match")
 	}
+	if resultsMedium.PercentSearched >= 100 {
+		t.Errorf("Expected PercentSearched to be less than 100, got %f", resultsMedium.PercentSearched)
+	}
+
 }
 
 func TestComputeAverageDistance(t *testing.T) {

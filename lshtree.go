@@ -1,6 +1,7 @@
 package syzgydb
 
 import (
+	"container/heap"
 	"log"
 	"math"
 	"math/rand"
@@ -240,37 +241,75 @@ func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64) *lshN
 
 func (tree *lshTree) search(vector []float64, callback func(docid uint64) float64) {
 	tau := math.MaxFloat64
-	tree.searchNode(tree.root, normalizeVector(vector), callback, &tau)
-}
+	normalizedVector := normalizeVector(vector)
 
-func (tree *lshTree) searchNode(node *lshNode, vector []float64, callback func(docid uint64) float64, worstDistance *float64) {
-	if node.isLeaf() {
-		for _, id := range node.ids {
-			*worstDistance = callback(id)
-			if *worstDistance < 0 {
-				break
+	// Initialize the priority queue
+	pq := &nodePriorityQueue{}
+	heap.Init(pq)
+
+	// Start with the root node
+	heap.Push(pq, &nodePriorityItem{node: tree.root, priority: 0})
+
+	for pq.Len() > 0 {
+		item := heap.Pop(pq).(*nodePriorityItem)
+		node := item.node
+
+		if item.priority > tau {
+			break
+		}
+
+		if node.isLeaf() {
+			for _, id := range node.ids {
+				distance := callback(id)
+				if distance < 0 {
+					return
+				}
+				if distance < tau {
+					tau = distance
+				}
+			}
+		} else {
+			// Calculate the distance to the hyperplane
+			dist, right := distanceToHyperplane(Cosine, normalizedVector, node.normal, node.b)
+
+			// Add child nodes to the priority queue
+			if right {
+				heap.Push(pq, &nodePriorityItem{node: node.right, priority: dist})
+				heap.Push(pq, &nodePriorityItem{node: node.left, priority: tau - dist})
+			} else {
+				heap.Push(pq, &nodePriorityItem{node: node.left, priority: dist})
+				heap.Push(pq, &nodePriorityItem{node: node.right, priority: tau - dist})
 			}
 		}
-		return
 	}
+}
 
-	distance, side := distanceToHyperplane(tree.c.DistanceMethod, vector, node.normal, node.b)
+type nodePriorityItem struct {
+	node     *lshNode
+	priority float64
+}
 
-	if !side {
-		//log.Printf("left: %v from hyperplane. bestDistance: %v", distance, *worstDistance)
-		tree.searchNode(node.left, vector, callback, worstDistance)
-		//log.Printf("Best distance now %v", *worstDistance)
-		if distance <= *worstDistance {
-			//log.Printf("continue right: %v from hyperplane. bestDistance: %v", distance, *worstDistance)
-			tree.searchNode(node.right, vector, callback, worstDistance)
-		}
-	} else {
-		//log.Printf("right: %v from hyperplane. bestDistance: %v", distance, *worstDistance)
-		tree.searchNode(node.right, vector, callback, worstDistance)
-		//log.Printf("Best distance now %v", *worstDistance)
-		if distance <= *worstDistance {
-			//log.Printf("continue left: %v from hyperplane. bestDistance: %v", distance, *worstDistance)
-			tree.searchNode(node.left, vector, callback, worstDistance)
-		}
-	}
+type nodePriorityQueue []*nodePriorityItem
+
+func (pq nodePriorityQueue) Len() int { return len(pq) }
+
+func (pq nodePriorityQueue) Less(i, j int) bool {
+	return pq[i].priority < pq[j].priority // Min-heap based on priority
+}
+
+func (pq nodePriorityQueue) Swap(i, j int) {
+	pq[i], pq[j] = pq[j], pq[i]
+}
+
+func (pq *nodePriorityQueue) Push(x interface{}) {
+	item := x.(*nodePriorityItem)
+	*pq = append(*pq, item)
+}
+
+func (pq *nodePriorityQueue) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	*pq = old[0 : n-1]
+	return item
 }
