@@ -631,7 +631,6 @@ Search returns the search results, including the list of matching documents and 
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	log.Printf("Search called....")
 	// Default precision to "medium" if not set
 	if args.Precision == "" {
 		args.Precision = "medium"
