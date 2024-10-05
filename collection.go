@@ -42,6 +42,17 @@ type CollectionOptions struct {
 	Create bool
 }
 
+// GetDocumentCount returns the total number of documents in the collection.
+//
+// This method provides a quick way to determine the size of the collection
+// by returning the count of document IDs stored in the memfile.
+func (c *Collection) GetDocumentCount() int {
+    c.mutex.Lock()
+    defer c.mutex.Unlock()
+
+    return len(c.memfile.idOffsets)
+}
+
 /*
 ComputeStats gathers and returns statistics about the collection.
 It returns a CollectionStats object filled with the relevant statistics.
