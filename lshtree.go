@@ -57,7 +57,6 @@ func (n *lshNode) isLeaf() bool {
 	return n.left == nil
 }
 
-
 func distanceToHyperplane(method int, vector []float64, length float64, normal []float64, b float64) (dist float64, right bool) {
 	dist = dotProduct(vector, normal) - b
 	if method == Euclidean {
@@ -201,7 +200,7 @@ func (tree *lshTree) split(node *lshNode) *lshNode {
 		normal = randomNormalizedVector(len(pointChosen))
 		b = math.Sqrt(dotProduct(pointChosen, pointChosen))
 	} else {
-		normal = normalizeVector(pointChosen)
+		//normal = normalizeVector(pointChosen)
 		normal = randomNormalizedVector(len(pointChosen))
 	}
 
@@ -276,7 +275,6 @@ func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64, lengt
 }
 
 func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
-	tau := math.MaxFloat64
 	length := vectorLength(vector)
 	visited := make(map[uint64]bool)
 	const search_k = 100 // how many points do we search beyond what is required in hopes of finding a better result.
@@ -296,7 +294,7 @@ func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
 		node := item.node
 		//log.Printf("Node with priority %v (tau=%v, k=%v) leaf=%v", item.priority, tau, k_counter, node.isLeaf())
 
-		if tau < math.MaxFloat64 && k_counter >= search_k {
+		if k_counter >= search_k {
 			break
 		}
 
@@ -306,21 +304,14 @@ func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
 					continue
 				}
 				visited[id] = true
-				result := callback(id)
-				switch result {
+				switch callback(id) {
 				case StopSearch:
 					return
 				case PointAccepted:
-					tau = callback(id)
 					k_counter = 0
 				case PointChecked:
 					k_counter++
-					return
-				}
-				k_counter++
-				if distance < tau {
-					tau = distance
-					k_counter = 0
+				case PointIgnored:
 				}
 			}
 		} else {

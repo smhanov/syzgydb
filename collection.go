@@ -15,6 +15,7 @@ const (
 	StopSearch    = iota // Indicates to stop the search due to an error
 	PointAccepted        // Indicates the point was accepted and is better
 	PointChecked         // Indicates the point was checked unnecessarily
+	PointIgnored         // no action taken; pretend point did not exist
 )
 
 const useTree = true
@@ -58,41 +59,6 @@ func (c *Collection) ComputeStats() CollectionStats {
 	// Calculate the average distance
 	averageDistance := c.computeAverageDistance(100) // Example: use 100 samples
 
-
-	numberOfBuckets := len(bucketSizes)
-	var totalItems, maxItems, minItems int
-	var averageItemsPerBucket, stdDevItemsPerBucket float64
-
-	if numberOfBuckets > 0 {
-		maxItems = bucketSizes[0]
-		minItems = bucketSizes[0]
-
-		for _, size := range bucketSizes {
-			totalItems += size
-			if size > maxItems {
-				maxItems = size
-			}
-			if size < minItems {
-				minItems = size
-			}
-		}
-
-		averageItemsPerBucket = float64(totalItems) / float64(numberOfBuckets)
-
-		// Calculate standard deviation
-		var varianceSum float64
-		for _, size := range bucketSizes {
-			diff := float64(size) - averageItemsPerBucket
-			varianceSum += diff * diff
-		}
-		stdDevItemsPerBucket = math.Sqrt(varianceSum / float64(numberOfBuckets))
-	} else {
-		// Handle the case with zero buckets
-		maxItems = 0
-		minItems = 0
-		averageItemsPerBucket = 0.0
-		stdDevItemsPerBucket = 0.0
-	}
 	var distanceMethod string
 	switch c.DistanceMethod {
 	case Euclidean:
@@ -105,17 +71,12 @@ func (c *Collection) ComputeStats() CollectionStats {
 
 	// Create and return the CollectionStats
 	return CollectionStats{
-		DocumentCount:         documentCount,
-		DimensionCount:        c.DimensionCount,
-		Quantization:          c.Quantization,
-		DistanceMethod:        distanceMethod,
-		StorageSize:           int64(storageSize),
-		AverageDistance:       averageDistance,
-		NumberOfBuckets:       numberOfBuckets,
-		AverageItemsPerBucket: averageItemsPerBucket,
-		StdDevItemsPerBucket:  stdDevItemsPerBucket,
-		MaxItemsInBucket:      maxItems,
-		MinItemsInBucket:      minItems,
+		DocumentCount:   documentCount,
+		DimensionCount:  c.DimensionCount,
+		Quantization:    c.Quantization,
+		DistanceMethod:  distanceMethod,
+		StorageSize:     int64(storageSize),
+		AverageDistance: averageDistance,
 	}
 }
 
@@ -203,13 +164,6 @@ type CollectionStats struct {
 
 	// Average distance between random pairs of documents
 	AverageDistance float64 `json:"average_distance"`
-
-	// New fields for bucket statistics
-	NumberOfBuckets       int     `json:"number_of_buckets"`
-	AverageItemsPerBucket float64 `json:"average_items_per_bucket"`
-	StdDevItemsPerBucket  float64 `json:"std_dev_items_per_bucket"`
-	MaxItemsInBucket      int     `json:"max_items_in_bucket"`
-	MinItemsInBucket      int     `json:"min_items_in_bucket"`
 }
 
 type FilterFn func(id uint64, metadata []byte) bool
@@ -351,12 +305,6 @@ func (c *Collection) GetAllIDs() []uint64 {
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 
 	return ids
-}
-
-func chooseLshParameter(dims int) int {
-	// Choose the number of hash functions as 5 times the log base 2 of the number of dimensions
-	// with a minimum of 10.
-	return int(math.Max(10, 5*math.Log(float64(dims))))
 }
 
 /*
@@ -593,7 +541,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 
 		// Apply filter function if provided
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			return PointChecked
+			return PointIgnored
 		}
 
 		distance := c.distance(args.Vector, doc.Vector)
@@ -605,15 +553,18 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 			})
 			return PointAccepted
 		} else if args.K > 0 {
-			heap.Push(resultsPQ, &resultItem{
-				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
-				Priority:     distance,
-			})
-			if resultsPQ.Len() > args.K {
-				heap.Pop(resultsPQ)
-				worst = (*resultsPQ)[0].Priority
+			if resultsPQ.Len() <= args.K {
+				if resultsPQ.Len() < args.K || (*resultsPQ)[0].Priority > distance {
+					heap.Push(resultsPQ, &resultItem{
+						SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
+						Priority:     distance,
+					})
+					if resultsPQ.Len() > args.K {
+						heap.Pop(resultsPQ)
+					}
+					return PointAccepted
+				}
 			}
-			return PointAccepted
 		} else if args.K == 0 && args.Radius == 0 {
 			// Exhaustive search: add all results
 			heap.Push(resultsPQ, &resultItem{
