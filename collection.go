@@ -12,9 +12,9 @@ import (
 )
 
 const (
-    StopSearch = iota // Indicates to stop the search due to an error
-    PointAccepted     // Indicates the point was accepted and is better
-    PointChecked      // Indicates the point was checked unnecessarily
+	StopSearch    = iota // Indicates to stop the search due to an error
+	PointAccepted        // Indicates the point was accepted and is better
+	PointChecked         // Indicates the point was checked unnecessarily
 )
 
 const useTree = true
@@ -799,5 +799,5 @@ func angularDistance(vec1, vec2 []float64) float64 {
 type searchIndex interface {
 	addPoint(docid uint64, vector []float64)
 	removePoint(docid uint64, vector []float64)
-	search(vector []float64, callback func(docid uint64) float64)
+	search(vector []float64, callback func(docid uint64) int)
 }
