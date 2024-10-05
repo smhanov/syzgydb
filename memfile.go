@@ -9,6 +9,13 @@ import (
 	"github.com/go-mmap/mmap"
 )
 
+const (
+	ReadOnly           = iota // Open the file for read-only access
+	ReadWrite                 // Open the file for read/write access
+	CreateIfNotExists         // Create the file only if it doesn't exist
+	CreateAndOverwrite        // Always create and overwrite the file if it exists
+)
+
 // The memory file consists of a header followed by a series of records.
 // Each record is:
 // uint64 - total length of record
@@ -72,16 +79,29 @@ Returns:
 - A pointer to the created memfile.
 - An error if the file cannot be created.
 */
-func createMemFile(name string, header []byte) (*memfile, error) {
-	// Check if the file exists
-	if _, err := os.Stat(name); os.IsNotExist(err) {
-		// Create the file if it doesn't exist
-		file, createErr := os.Create(name)
-		if createErr != nil {
-			return nil, createErr
-		}
-		file.Close()
+func createMemFile(name string, header []byte, mode int) (*memfile, error) {
+	var flags int
+
+	// Set flags based on the mode
+	switch mode {
+	case ReadOnly:
+		flags = os.O_RDONLY
+	case ReadWrite:
+		flags = os.O_RDWR
+	case CreateIfNotExists:
+		flags = os.O_CREATE | os.O_EXCL | os.O_RDWR
+	case CreateAndOverwrite:
+		flags = os.O_CREATE | os.O_TRUNC | os.O_RDWR
+	default:
+		return nil, errors.New("invalid mode")
 	}
+
+	// Open the file with the specified flags
+	file, err := os.OpenFile(name, flags, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
 
 	// Open the file with mmap
 	f, err := mmap.OpenFile(name, mmap.Read|mmap.Write)
