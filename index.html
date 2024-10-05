@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tailwind CSS Features</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <header class="bg-blue-600 text-white p-4">
+        <h1 class="text-3xl font-bold">Tailwind CSS Features</h1>
+    </header>
+    <main class="p-6">
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Responsive Design</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="bg-white p-4 shadow rounded">Responsive Box 1</div>
+                <div class="bg-white p-4 shadow rounded">Responsive Box 2</div>
+                <div class="bg-white p-4 shadow rounded">Responsive Box 3</div>
+            </div>
+        </section>
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Typography</h2>
+            <p class="text-lg">Tailwind CSS provides utility classes for typography, allowing you to style text easily.</p>
+        </section>
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Flexbox</h2>
+            <div class="flex space-x-4">
+                <div class="flex-1 bg-green-200 p-4">Flex Item 1</div>
+                <div class="flex-1 bg-green-300 p-4">Flex Item 2</div>
+                <div class="flex-1 bg-green-400 p-4">Flex Item 3</div>
+            </div>
+        </section>
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Buttons</h2>
+            <button class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-700">Primary Button</button>
+            <button class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-700">Secondary Button</button>
+        </section>
+    </main>
+    <footer class="bg-blue-600 text-white p-4 text-center">
+        <p>&copy; 2023 Tailwind CSS Demo</p>
+    </footer>
+</body>
+</html>
