@@ -50,13 +50,12 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 	// Add 200 random vectors to the collection
 	numDocuments := 20000
 	vectors := make([][]float64, numDocuments)
-	for i := 0; i < numDocuments; i++ {
-		vector := make([]float64, options.DimensionCount)
-		for d := 0; d < options.DimensionCount; d++ {
-			vector[d] = rand.Float64()
+	for i := range vectors {
+		vectors[i] = make([]float64, options.DimensionCount)
+		for d := range vectors[i] {
+			vectors[i][d] = rand.Float64()
 		}
-		vectors[i] = vector
-		collection.AddDocument(uint64(i), vector, []byte(fmt.Sprintf("metadata_%d", i)))
+		collection.AddDocument(uint64(i), vectors[i], []byte(fmt.Sprintf("metadata_%d", i)))
 	}
 
 	// Retrieve the 10 closest points to the first vector with precision=exact

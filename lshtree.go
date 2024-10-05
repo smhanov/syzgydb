@@ -84,10 +84,8 @@ func (tree *lshTree) addPoint(docid uint64, vector []float64) {
 }
 
 func (tree *lshTree) insert(node *lshNode, docid uint64, vector []float64) *lshNode {
-	//log.Printf("Inserting %v", docid)
 	if node.isLeaf() {
 		node.ids = append(node.ids, docid)
-		//log.Printf("ids: %v threshold: %v", len(node.ids), tree.threshold)
 		if len(node.ids) > tree.threshold {
 			node = tree.split(node)
 		}
@@ -99,10 +97,6 @@ func (tree *lshTree) insert(node *lshNode, docid uint64, vector []float64) *lshN
 		node.left = tree.insert(node.left, docid, vector)
 	} else {
 		node.right = tree.insert(node.right, docid, vector)
-	}
-	// If both children are nil, this node becomes a leaf
-	if node.left == nil && node.right == nil {
-		return nil
 	}
 
 	return node

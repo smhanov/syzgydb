@@ -778,9 +778,7 @@ func euclideanDistance(vec1, vec2 []float64) float64 {
 }
 
 func angularDistance(vec1, vec2 []float64) float64 {
-	dotProduct := 0.0
-	magnitude1 := 0.0
-	magnitude2 := 0.0
+	dotProduct, magnitude1, magnitude2 := 0.0, 0.0, 0.0
 	for i := range vec1 {
 		dotProduct += vec1[i] * vec2[i]
 		magnitude1 += vec1[i] * vec1[i]
@@ -789,7 +787,6 @@ func angularDistance(vec1, vec2 []float64) float64 {
 	if magnitude1 == 0 || magnitude2 == 0 {
 		return 1.0 // Return max distance if one vector is zero
 	}
-	//return 1.0 - (dotProduct / (math.Sqrt(magnitude1) * math.Sqrt(magnitude2)))
 	return math.Acos(dotProduct/(math.Sqrt(magnitude1)*math.Sqrt(magnitude2))) / math.Pi
 }
 
