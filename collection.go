@@ -36,7 +36,8 @@ type CollectionOptions struct {
 }
 
 func (c *Collection) exhaustiveSearch(args SearchArgs) SearchResults {
-	results := []SearchResult{}
+	resultsPQ := &resultPriorityQueue{}
+	heap.Init(resultsPQ)
 	pointsSearched := 0
 
 	for id := range c.memfile.idOffsets {
@@ -56,18 +57,27 @@ func (c *Collection) exhaustiveSearch(args SearchArgs) SearchResults {
 
 		distance := c.distance(args.Vector, doc.Vector)
 
-		// Add to results if within radius or if K is specified
 		if args.Radius > 0 && distance <= args.Radius {
-			results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
+			heap.Push(resultsPQ, &resultItem{
+				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
+				Priority:     distance,
+			})
 		} else if args.K > 0 {
-			results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
+			heap.Push(resultsPQ, &resultItem{
+				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
+				Priority:     distance,
+			})
+			if resultsPQ.Len() > args.K {
+				heap.Pop(resultsPQ)
+			}
 		}
 	}
 
-	// Sort results by distance
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Distance < results[j].Distance
-	})
+	// Extract results from the priority queue
+	results := make([]SearchResult, resultsPQ.Len())
+	for i := len(results) - 1; i >= 0; i-- {
+		results[i] = heap.Pop(resultsPQ).(*resultItem).SearchResult
+	}
 
 	return SearchResults{
 		Results:         results,
