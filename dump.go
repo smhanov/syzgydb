@@ -43,6 +43,8 @@ func DumpIndex(filename string) {
 		fmt.Printf("[%d] Total Length: %d\n", offset, recordLength)
 		if recordLength == 0 {
 			fmt.Println("     (Indicates end of usable records)")
+			remainingBytes, _ := file.Seek(0, io.SeekEnd)
+			fmt.Printf("Remaining bytes in file: %d\n", remainingBytes-offset)
 			break
 		}
 
@@ -107,7 +109,8 @@ func DumpIndex(filename string) {
 		expectedOffset := offset + int64(recordLength)
 		if currentOffset != expectedOffset {
 			if currentOffset < expectedOffset {
-				fmt.Printf("    WARNING: Missing %d bytes\n", expectedOffset-currentOffset)
+				fmt.Printf("    PADDING: %d bytes\n", expectedOffset-currentOffset)
+				file.Seek(expectedOffset, io.SeekStart)
 			} else {
 				fmt.Printf("    WARNING: Extra %d bytes\n", currentOffset-expectedOffset)
 			}
