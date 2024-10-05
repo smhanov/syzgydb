@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"runtime/pprof"
 	"testing"
 )
 
@@ -20,7 +21,18 @@ func TestEuclideanDistance(t *testing.T) {
 }
 
 func TestCosineDistancePrecisionComparison(t *testing.T) {
-	// Define collection options with Cosine distance
+	// Create a file to store the CPU profile
+	f, err := os.Create("cosine_distance_precision_comparison.prof")
+	if err != nil {
+		t.Fatalf("could not create CPU profile: %v", err)
+	}
+	defer f.Close()
+
+	// Start CPU profiling
+	if err := pprof.StartCPUProfile(f); err != nil {
+		t.Fatalf("could not start CPU profile: %v", err)
+	}
+	defer pprof.StopCPUProfile()
 	options := CollectionOptions{
 		Name:           "test_cosine_precision_comparison.dat",
 		DistanceMethod: Cosine,
