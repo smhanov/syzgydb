@@ -36,7 +36,7 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 	defer collection.Close()
 
 	// Add 200 random vectors to the collection
-	numDocuments := 200
+	numDocuments := 200000
 	vectors := make([][]float64, numDocuments)
 	for i := 0; i < numDocuments; i++ {
 		vector := make([]float64, options.DimensionCount)
