@@ -38,9 +38,6 @@ type CollectionOptions struct {
 	// Supported values are 4, 8, 16, 32, and 64, with 64 as the default.
 	Quantization int
 
-	// Overwrite any existing database
-	Create bool
-	
 	// FileMode specifies the mode for opening the memfile.
 	FileMode int
 }
@@ -211,13 +208,6 @@ It initializes the collection's memory file and pivots manager.
 */
 func NewCollection(options CollectionOptions) *Collection {
 
-	if options.Create {
-		// Remove the existing file if it exists
-		if _, err := os.Stat(options.Name); err == nil {
-			os.Remove(options.Name)
-		}
-	}
-
 	// Define the header size and create a buffer to read it
 	header := make([]byte, headerSize)
 
@@ -227,16 +217,15 @@ func NewCollection(options CollectionOptions) *Collection {
 		fileExists = true
 	}
 
-	// Open or create the memory-mapped file
+	// Open or create the memory-mapped file with the specified mode
 	var err error
 	var memFile *memfile
-	if fileExists {
-		// Open the existing file and read the header
-		memFile, err = createMemFile(options.Name, header, options.FileMode)
-		if err != nil {
-			panic(err)
-		}
+	memFile, err = createMemFile(options.Name, header, options.FileMode)
+	if err != nil {
+		panic(err)
+	}
 
+	if fileExists {
 		// Read the header from the file
 		if _, err := memFile.ReadAt(header, 0); err != nil {
 			panic(err)
@@ -258,12 +247,11 @@ func NewCollection(options CollectionOptions) *Collection {
 		binary.BigEndian.PutUint32(header[9:], uint32(options.DimensionCount))
 		header[13] = byte(options.Quantization)
 
-		// Create a new file and write the header
-		memFile, err = createMemFile(options.Name, header, options.FileMode)
-		if err != nil {
+		// Write the header to the new file
+		if _, err := memFile.WriteAt(header, 0); err != nil {
 			panic(err)
 		}
-
+		memFile.Sync()
 	}
 
 	// Determine the distance function
