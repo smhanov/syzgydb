@@ -319,7 +319,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	}
 
 	if useTree {
-		lshTree := newLSHTree(c, 100)
+		lshTree := newLSHTree(c, 100, 50)
 		c.index = lshTree
 		c.lshTree = lshTree
 	} else {
