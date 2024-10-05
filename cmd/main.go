@@ -2,9 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
+	"net/http"
 	_ "net/http/pprof"
+
 	"github.com/smhanov/syzgydb"
 	"github.com/spf13/pflag"
 )

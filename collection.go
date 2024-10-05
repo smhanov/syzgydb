@@ -39,7 +39,7 @@ type CollectionOptions struct {
 	Quantization int
 
 	// FileMode specifies the mode for opening the memfile.
-	FileMode int
+	FileMode FileMode
 }
 
 // GetDocumentCount returns the total number of documents in the collection.
@@ -47,10 +47,10 @@ type CollectionOptions struct {
 // This method provides a quick way to determine the size of the collection
 // by returning the count of document IDs stored in the memfile.
 func (c *Collection) GetDocumentCount() int {
-    c.mutex.Lock()
-    defer c.mutex.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
-    return len(c.memfile.idOffsets)
+	return len(c.memfile.idOffsets)
 }
 
 /*
@@ -213,8 +213,10 @@ func NewCollection(options CollectionOptions) *Collection {
 
 	// Check if the file exists
 	fileExists := false
-	if _, err := os.Stat(options.Name); err == nil {
-		fileExists = true
+	if options.FileMode != CreateAndOverwrite {
+		if _, err := os.Stat(options.Name); err == nil {
+			fileExists = true
+		}
 	}
 
 	// Open or create the memory-mapped file with the specified mode
@@ -698,20 +700,6 @@ func getVectorSize(quantization int, dimensions int) int {
 		panic("Unsupported quantization level")
 	}
 }
-
-// Helper function to compare two vectors for equality
-func equalVectors(vec1, vec2 []float64) bool {
-	if len(vec1) != len(vec2) {
-		return false
-	}
-	for i := range vec1 {
-		if vec1[i] != vec2[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func euclideanDistance(vec1, vec2 []float64) float64 {
 	sum := 0.0
 	for i := range vec1 {

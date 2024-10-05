@@ -12,10 +12,10 @@ import (
 type FileMode int
 
 const (
-	ReadWrite          FileMode = iota // Open the file for read/write access
-	ReadOnly                           // Open the file for read-only access
-	CreateIfNotExists                  // Create the file only if it doesn't exist
-	CreateAndOverwrite                 // Always create and overwrite the file if it exists
+	CreateIfNotExists  FileMode = 0 // Create the file only if it doesn't exist
+	ReadWrite                   = 1 // Open the file for read/write access
+	ReadOnly                    = 2 // Open the file for read-only access
+	CreateAndOverwrite          = 3 // Always create and overwrite the file if it exists
 )
 
 // The memory file consists of a header followed by a series of records.
@@ -91,7 +91,7 @@ func createMemFile(name string, header []byte, mode FileMode) (*memfile, error) 
 	case ReadWrite:
 		flags = os.O_RDWR
 	case CreateIfNotExists:
-		flags = os.O_CREATE | os.O_EXCL | os.O_RDWR
+		flags = os.O_CREATE | os.O_RDWR
 	case CreateAndOverwrite:
 		flags = os.O_CREATE | os.O_TRUNC | os.O_RDWR
 	default:
@@ -103,7 +103,7 @@ func createMemFile(name string, header []byte, mode FileMode) (*memfile, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	file.Close()
 
 	// Open the file with mmap
 	f, err := mmap.OpenFile(name, mmap.Read|mmap.Write)

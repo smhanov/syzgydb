@@ -40,9 +40,6 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 		FileMode:       CreateAndOverwrite,
 	}
 
-	// Remove any existing file
-	os.Remove(options.Name)
-
 	// Create a new collection
 	collection := NewCollection(options)
 	defer collection.Close()
@@ -104,7 +101,7 @@ func TestComputeAverageDistance(t *testing.T) {
 		Name:           "test_collection_avg_distance.dat",
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
-		Create:         true,
+		FileMode:       CreateAndOverwrite,
 	}
 
 	// Remove any existing file
@@ -141,9 +138,8 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 		Name:           collectionName,
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
+		FileMode:       CreateAndOverwrite,
 	}
-	// Remove any existing file
-	os.Remove(collectionName)
 
 	// Create a new collection
 	collection := NewCollection(options)
@@ -188,7 +184,7 @@ func TestUpdateDocument(t *testing.T) {
 		Name:           "test_collection",
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
-		Create:         true,
+		FileMode:       CreateAndOverwrite,
 	}
 	collection := NewCollection(options)
 
@@ -223,7 +219,7 @@ func TestRemoveDocument(t *testing.T) {
 		DistanceMethod: Euclidean,
 		DimensionCount: 10,
 		Quantization:   64,
-		Create:         true,
+		FileMode:       CreateAndOverwrite,
 	}
 	collection := NewCollection(options)
 	defer collection.Close()
@@ -286,7 +282,6 @@ func TestCollectionSearch(t *testing.T) {
 		if len(results.Results) != 0 {
 			t.Errorf("Expected no results, got %d", len(results.Results))
 		}
-
 	})
 
 	os.Remove(options.Name)
@@ -488,13 +483,26 @@ func TestCollectionAddDeleteAndRetrieve(t *testing.T) {
 	}
 }
 
+// Helper function to compare two vectors for equality
+func equalVectors(vec1, vec2 []float64) bool {
+	if len(vec1) != len(vec2) {
+		return false
+	}
+	for i := range vec1 {
+		if vec1[i] != vec2[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestExhaustiveSearch(t *testing.T) {
 	// Define collection options
 	options := CollectionOptions{
 		Name:           "test_exhaustive_search.dat",
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
-		Create:         true,
+		FileMode:       CreateAndOverwrite,
 	}
 
 	// Remove any existing file
