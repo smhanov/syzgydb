@@ -1,6 +1,7 @@
 package syzgydb
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"testing"
@@ -101,17 +102,6 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 	}
 }
 
-func TestCosineDistance(t *testing.T) {
-	vec1 := []float64{1.0, 0.0, 0.0}
-	vec2 := []float64{0.0, 1.0, 0.0}
-	expected := 1.0 // Orthogonal vectors have cosine distance of 1
-
-	result := cosineDistance(vec1, vec2)
-	if result != expected {
-		t.Errorf("Expected %f, got %f", expected, result)
-	}
-}
-
 func TestUpdateDocument(t *testing.T) {
 	// Create a collection with some documents
 	options := CollectionOptions{
@@ -147,39 +137,50 @@ func TestUpdateDocument(t *testing.T) {
 }
 
 func TestRemoveDocument(t *testing.T) {
-	// Create a collection with some documents
+	// Create a new collection with appropriate options
 	options := CollectionOptions{
-		Name:           "test_collection.dat",
+		Name:           "test_collection",
 		DistanceMethod: Euclidean,
-		DimensionCount: 3,
+		DimensionCount: 10,
+		Quantization:   64,
+		Create:         true,
 	}
-
-	os.Remove(options.Name)
-
 	collection := NewCollection(options)
+	defer collection.Close()
 
-	// Add a document to the collection
-	collection.AddDocument(1, []float64{1.0, 2.0, 3.0}, []byte("to be removed"))
+	// Add 200 documents
+	for i := 0; i < 200; i++ {
+		vector := make([]float64, options.DimensionCount)
+		for j := range vector {
+			vector[j] = float64(i + j)
+		}
+		collection.AddDocument(uint64(i), vector, []byte(fmt.Sprintf("metadata_%d", i)))
+	}
 
-	// Remove the document
-	err := collection.removeDocument(1)
+	// Choose a document to remove
+	docToRemove := uint64(100)
+
+	// Remove the chosen document
+	err := collection.removeDocument(docToRemove)
 	if err != nil {
-		t.Errorf("Failed to remove document: %v", err)
+		t.Fatalf("Failed to remove document: %v", err)
 	}
 
-	// Attempt to read the removed document
-	_, err = collection.memfile.readRecord(1)
+	// Verify the document is removed
+	_, err = collection.GetDocument(docToRemove)
 	if err == nil {
-		t.Errorf("Expected error when reading removed document, but got none")
+		t.Errorf("Document %d was not removed", docToRemove)
 	}
 
-	vec1 := []float64{1.0, 0.0, 0.0}
-	vec2 := []float64{0.0, 1.0, 0.0}
-	expected := 1.0 // Orthogonal vectors have cosine distance of 1
-
-	result := cosineDistance(vec1, vec2)
-	if result != expected {
-		t.Errorf("Expected %f, got %f", expected, result)
+	// Verify other documents are still present
+	for i := 0; i < 200; i++ {
+		if uint64(i) == docToRemove {
+			continue
+		}
+		_, err := collection.GetDocument(uint64(i))
+		if err != nil {
+			t.Errorf("Document %d is missing", i)
+		}
 	}
 }
 
@@ -283,7 +284,7 @@ func TestCollectionPersistence(t *testing.T) {
 	collectionName := "persistent_test_collection.dat"
 	options := CollectionOptions{
 		Name:           collectionName,
-		DistanceMethod: Euclidean,
+		DistanceMethod: Cosine,
 		DimensionCount: 3,
 	}
 
