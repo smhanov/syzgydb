@@ -40,6 +40,9 @@ type CollectionOptions struct {
 
 	// Overwrite any existing database
 	Create bool
+	
+	// FileMode specifies the mode for opening the memfile.
+	FileMode int
 }
 
 // GetDocumentCount returns the total number of documents in the collection.
@@ -229,7 +232,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	var memFile *memfile
 	if fileExists {
 		// Open the existing file and read the header
-		memFile, err = createMemFile(options.Name, header)
+		memFile, err = createMemFile(options.Name, header, options.FileMode)
 		if err != nil {
 			panic(err)
 		}
@@ -256,7 +259,7 @@ func NewCollection(options CollectionOptions) *Collection {
 		header[13] = byte(options.Quantization)
 
 		// Create a new file and write the header
-		memFile, err = createMemFile(options.Name, header)
+		memFile, err = createMemFile(options.Name, header, options.FileMode)
 		if err != nil {
 			panic(err)
 		}
