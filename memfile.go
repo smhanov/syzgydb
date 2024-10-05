@@ -168,7 +168,9 @@ func (mf *memfile) ensureLength(length int) {
 		return
 	}
 
-	// Calculate the growth size as the maximum of minGrowthBytes or 5% of the current size
+	log.Printf("Current file size: %d bytes, requested length: %d bytes\n", curSize, length)
+
+	// Calculate the growth size
 	growthSize := length - curSize
 	growthSize = max(growthSize, minGrowthBytes)
 	growthSize = max(growthSize, int(float64(curSize)*growthPercentage))
@@ -178,6 +180,8 @@ func (mf *memfile) ensureLength(length int) {
 	if curSize >= length {
 		return
 	}
+
+	log.Printf("Extending file from %d to %d bytes\n", curSize, length)
 
 	// Close the current memory-mapped file
 	if err := mf.File.Close(); err != nil {
@@ -227,13 +231,15 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 	// Find a free location for the new record
 	start, remaining, err := mf.freemap.getFreeRange(recordLength)
 	if err != nil {
-		// If no free space, ensure the file is large enough
+		log.Printf("No free space found, ensuring file length for record ID %d\n", id)
 		mf.ensureLength(mf.File.Len() + recordLength)
 		start, remaining, err = mf.freemap.getFreeRange(recordLength)
 		if err != nil {
 			log.Panic("Failed to allocate space for the new record")
 		}
 	}
+
+	log.Printf("Adding record ID %d at offset %d with length %d\n", id, start, recordLength)
 
 	// Adjust the record length if the remaining space is 16 bytes or less
 	if remaining > 0 && remaining <= 16 {
@@ -264,6 +270,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 		oldLength := mf.readUint64(oldOffset)
 		mf.writeUint64(oldOffset+8, deletedRecordMarker)
 		mf.freemap.markFree(int(oldOffset), int(oldLength))
+		log.Printf("Updated existing record ID %d, freeing old space at offset %d\n", id, oldOffset)
 		wasNew = false
 	}
 
