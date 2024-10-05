@@ -82,6 +82,11 @@ func (tree *lshTree) insert(node *lshNode, docid uint64, vector []float64) *lshN
 	} else {
 		node.right = tree.insert(node.right, docid, vector)
 	}
+	// If both children are nil, this node becomes a leaf
+	if node.left == nil && node.right == nil {
+		return nil
+	}
+
 	return node
 }
 
@@ -205,7 +210,10 @@ func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64) *lshN
 				break
 			}
 		}
-		// Optionally handle empty nodes here
+		// If the node is empty, return nil to remove it
+		if len(node.ids) == 0 {
+			return nil
+		}
 		return node
 	}
 
