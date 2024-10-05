@@ -18,7 +18,7 @@ func TestMemfile(t *testing.T) {
 
 	// Create a memfile instance with an 8-byte header
 	header := make([]byte, 8)
-	mf, err := createMemFile(fileName, header)
+	mf, err := createMemFile(fileName, header, CreateAndOverwrite)
 	if err != nil {
 		t.Fatalf("Failed to create memfile: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestMemfileExpansion(t *testing.T) {
 
 	// Create a memfile instance with an 8-byte header
 	header := make([]byte, 8)
-	mf, err := createMemFile(fileName, header)
+	mf, err := createMemFile(fileName, header, CreateAndOverwrite)
 	if err != nil {
 		t.Fatalf("Failed to create memfile: %v", err)
 	}
