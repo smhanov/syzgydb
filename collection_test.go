@@ -16,6 +16,61 @@ func TestEuclideanDistance(t *testing.T) {
 	if result != expected {
 		t.Errorf("Expected %f, got %f", expected, result)
 	}
+func TestCosineDistancePrecisionComparison(t *testing.T) {
+	// Define collection options with Cosine distance
+	options := CollectionOptions{
+		Name:           "test_cosine_precision_comparison.dat",
+		DistanceMethod: Cosine,
+		DimensionCount: 3,
+		Create:         true,
+	}
+
+	// Remove any existing file
+	os.Remove(options.Name)
+
+	// Create a new collection
+	collection := NewCollection(options)
+	defer collection.Close()
+
+	// Add 200 random vectors to the collection
+	numDocuments := 200
+	vectors := make([][]float64, numDocuments)
+	for i := 0; i < numDocuments; i++ {
+		vector := make([]float64, options.DimensionCount)
+		for d := 0; d < options.DimensionCount; d++ {
+			vector[d] = rand.Float64()
+		}
+		vectors[i] = vector
+		collection.AddDocument(uint64(i), vector, []byte(fmt.Sprintf("metadata_%d", i)))
+	}
+
+	// Retrieve the 10 closest points to the first vector with precision=exact
+	searchArgsExact := SearchArgs{
+		Vector:    vectors[0],
+		K:         10,
+		Precision: "exact",
+	}
+	resultsExact := collection.Search(searchArgsExact)
+
+	// Retrieve the 10 closest points to the first vector with precision=medium
+	searchArgsMedium := SearchArgs{
+		Vector:    vectors[0],
+		K:         10,
+		Precision: "medium",
+	}
+	resultsMedium := collection.Search(searchArgsMedium)
+
+	// Compare the results
+	if len(resultsExact.Results) != len(resultsMedium.Results) {
+		t.Errorf("Expected the same number of results, got %d (exact) and %d (medium)", len(resultsExact.Results), len(resultsMedium.Results))
+	}
+
+	// Check if the IDs of the results are the same
+	for i := range resultsExact.Results {
+		if resultsExact.Results[i].ID != resultsMedium.Results[i].ID {
+			t.Errorf("Expected same ID at position %d, got %d (exact) and %d (medium)", i, resultsExact.Results[i].ID, resultsMedium.Results[i].ID)
+		}
+	}
 }
 
 func TestComputeAverageDistance(t *testing.T) {
