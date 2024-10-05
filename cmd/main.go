@@ -4,11 +4,17 @@ import (
 	"fmt"
 	"os"
 
+	_ "net/http/pprof"
 	"github.com/smhanov/syzgydb"
 	"github.com/spf13/pflag"
 )
 
 func main() {
+	// Start pprof server
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	// Define the --serve flag
 	pflag.Bool("serve", false, "Start the server")
 	pflag.String("dump", "", "Dump the index from the specified file")
