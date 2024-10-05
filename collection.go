@@ -58,14 +58,6 @@ func (c *Collection) ComputeStats() CollectionStats {
 	// Calculate the average distance
 	averageDistance := c.computeAverageDistance(100) // Example: use 100 samples
 
-	var bucketSizes []int
-	if c.lshTable != nil {
-		// Calculate bucket statistics
-		bucketSizes = make([]int, 0, len(c.lshTable.Buckets))
-		for _, bucket := range c.lshTable.Buckets {
-			bucketSizes = append(bucketSizes, len(bucket))
-		}
-	}
 
 	numberOfBuckets := len(bucketSizes)
 	var totalItems, maxItems, minItems int
@@ -241,7 +233,6 @@ type Collection struct {
 	memfile  *memfile
 	index    searchIndex
 	lshTree  *lshTree
-	lshTable *lshTable
 	mutex    sync.Mutex
 	distance func([]float64, []float64) float64
 }
@@ -328,10 +319,6 @@ func NewCollection(options CollectionOptions) *Collection {
 		lshTree := newLSHTree(c, 100, 5)
 		c.index = lshTree
 		c.lshTree = lshTree
-	} else {
-		lshTable := newLSHTable(chooseLshParameter(options.DimensionCount), options.DimensionCount, 4.0)
-		c.index = lshTable
-		c.lshTable = lshTable
 	}
 
 	// If the file exists, iterate through all existing documents and add them to the LSH table
