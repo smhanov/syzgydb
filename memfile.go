@@ -9,11 +9,13 @@ import (
 	"github.com/go-mmap/mmap"
 )
 
+type FileMode int
+
 const (
-	ReadWrite          = iota // Open the file for read/write access
-	ReadOnly                  // Open the file for read-only access
-	CreateIfNotExists         // Create the file only if it doesn't exist
-	CreateAndOverwrite        // Always create and overwrite the file if it exists
+	ReadWrite          FileMode = iota // Open the file for read/write access
+	ReadOnly                           // Open the file for read-only access
+	CreateIfNotExists                  // Create the file only if it doesn't exist
+	CreateAndOverwrite                 // Always create and overwrite the file if it exists
 )
 
 // The memory file consists of a header followed by a series of records.
@@ -79,7 +81,7 @@ Returns:
 - A pointer to the created memfile.
 - An error if the file cannot be created.
 */
-func createMemFile(name string, header []byte, mode int) (*memfile, error) {
+func createMemFile(name string, header []byte, mode FileMode) (*memfile, error) {
 	var flags int
 
 	// Set flags based on the mode
