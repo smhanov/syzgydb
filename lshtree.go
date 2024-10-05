@@ -193,7 +193,30 @@ func (tree *lshTree) split(node *lshNode) *lshNode {
 }
 
 func (tree *lshTree) removePoint(docid uint64, vector []float64) {
-	// Implement removal logic if needed
+	tree.root = tree.remove(tree.root, docid, vector)
+}
+
+func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64) *lshNode {
+	if node.isLeaf() {
+		// Remove the document ID from the list of IDs
+		for i, id := range node.ids {
+			if id == docid {
+				node.ids = append(node.ids[:i], node.ids[i+1:]...)
+				break
+			}
+		}
+		// Optionally handle empty nodes here
+		return node
+	}
+
+	// Traverse the tree based on the vector's position relative to the hyperplane
+	distance := distanceToHyperplane(vector, node.normal, node.b)
+	if distance < 0 {
+		node.left = tree.remove(node.left, docid, vector)
+	} else {
+		node.right = tree.remove(node.right, docid, vector)
+	}
+	return node
 }
 
 func (tree *lshTree) search(vector []float64, callback func(docid uint64) float64) {
