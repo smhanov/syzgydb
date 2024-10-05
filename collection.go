@@ -319,7 +319,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	}
 
 	if useTree {
-		lshTree := newLSHTree(c, 100, 50)
+		lshTree := newLSHTree(c, 100, 5)
 		c.index = lshTree
 		c.lshTree = lshTree
 	} else {
@@ -622,8 +622,8 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 			})
 			if resultsPQ.Len() > args.K {
 				heap.Pop(resultsPQ)
+				worst = (*resultsPQ)[0].Priority
 			}
-			worst = (*resultsPQ)[0].Priority
 		} else if args.K == 0 && args.Radius == 0 {
 			// Exhaustive search: add all results
 			heap.Push(resultsPQ, &resultItem{

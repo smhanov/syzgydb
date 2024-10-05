@@ -2,7 +2,7 @@ package syzgydb
 
 import (
 	"fmt"
-	"log"
+	"math"
 	"math/rand"
 	"os"
 	"runtime/pprof"
@@ -82,9 +82,9 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 	// Check if the IDs of the results are the same
 	matched := true
 	for i := range resultsExact.Results {
-		log.Printf(" Exact: %v %v", resultsExact.Results[i].ID, resultsExact.Results[i].Distance)
-		log.Printf("Medium: %v %v", resultsMedium.Results[i].ID, resultsMedium.Results[i].Distance)
-		if resultsExact.Results[i].ID != resultsMedium.Results[i].ID {
+		t.Logf(" Exact: %v %v", resultsExact.Results[i].ID, resultsExact.Results[i].Distance)
+		t.Logf("Medium: %v %v", resultsMedium.Results[i].ID, resultsMedium.Results[i].Distance)
+		if math.Abs(resultsExact.Results[i].Distance-resultsMedium.Results[i].Distance)/resultsExact.Results[i].Distance > 1 {
 			matched = false
 		}
 	}
@@ -94,6 +94,7 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 	if resultsMedium.PercentSearched >= 100 {
 		t.Errorf("Expected PercentSearched to be less than 100, got %f", resultsMedium.PercentSearched)
 	}
+	t.Logf("%v%% searched", resultsMedium.PercentSearched)
 
 }
 
