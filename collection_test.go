@@ -2,6 +2,7 @@ package syzgydb
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"testing"
@@ -16,6 +17,8 @@ func TestEuclideanDistance(t *testing.T) {
 	if result != expected {
 		t.Errorf("Expected %f, got %f", expected, result)
 	}
+}
+
 func TestCosineDistancePrecisionComparison(t *testing.T) {
 	// Define collection options with Cosine distance
 	options := CollectionOptions{
@@ -62,14 +65,20 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 
 	// Compare the results
 	if len(resultsExact.Results) != len(resultsMedium.Results) {
-		t.Errorf("Expected the same number of results, got %d (exact) and %d (medium)", len(resultsExact.Results), len(resultsMedium.Results))
+		t.Fatalf("Expected the same number of results, got %d (exact) and %d (medium)", len(resultsExact.Results), len(resultsMedium.Results))
 	}
 
 	// Check if the IDs of the results are the same
+	matched := true
 	for i := range resultsExact.Results {
+		log.Printf(" Exact: %v %v", resultsExact.Results[i].ID, resultsExact.Results[i].Distance)
+		log.Printf("Medium: %v %v", resultsMedium.Results[i].ID, resultsMedium.Results[i].Distance)
 		if resultsExact.Results[i].ID != resultsMedium.Results[i].ID {
-			t.Errorf("Expected same ID at position %d, got %d (exact) and %d (medium)", i, resultsExact.Results[i].ID, resultsMedium.Results[i].ID)
+			matched = false
 		}
+	}
+	if !matched {
+		t.Error("Results do not match")
 	}
 }
 

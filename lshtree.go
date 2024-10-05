@@ -43,8 +43,19 @@ func (n *lshNode) isLeaf() bool {
 	return n.left == nil
 }
 
-func distanceToHyperplane(vector, normal []float64, b float64) float64 {
-	return dotProduct(vector, normal) - b
+func distanceToHyperplane(method int, vector, normal []float64, b float64) (dist float64, right bool) {
+	if method == Euclidean {
+		dist = dotProduct(vector, normal) - b
+		if dist > 0 {
+			right = true
+		} else {
+			dist = -dist
+		}
+		return
+	}
+	dist = angularDistance(vector, normal)
+	right = dist > 0.5
+	return
 }
 
 type lshTree struct {
@@ -76,8 +87,8 @@ func (tree *lshTree) insert(node *lshNode, docid uint64, vector []float64) *lshN
 		return node
 	}
 
-	distance := distanceToHyperplane(vector, node.normal, node.b)
-	if distance < 0 {
+	_, right := distanceToHyperplane(tree.c.DistanceMethod, vector, node.normal, node.b)
+	if !right {
 		node.left = tree.insert(node.left, docid, vector)
 	} else {
 		node.right = tree.insert(node.right, docid, vector)
@@ -175,8 +186,8 @@ func (tree *lshTree) split(node *lshNode) *lshNode {
 
 		v := doc.Vector
 
-		d := distanceToHyperplane(v, normal, b)
-		if d < 0 {
+		_, right := distanceToHyperplane(tree.c.DistanceMethod, v, normal, b)
+		if !right {
 			leftIDs = append(leftIDs, id)
 		} else {
 			rightIDs = append(rightIDs, id)
@@ -198,7 +209,7 @@ func (tree *lshTree) split(node *lshNode) *lshNode {
 }
 
 func (tree *lshTree) removePoint(docid uint64, vector []float64) {
-	tree.root = tree.remove(tree.root, docid, vector)
+	tree.root = tree.remove(tree.root, docid, normalizeVector(vector))
 }
 
 func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64) *lshNode {
@@ -218,8 +229,8 @@ func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64) *lshN
 	}
 
 	// Traverse the tree based on the vector's position relative to the hyperplane
-	distance := distanceToHyperplane(vector, node.normal, node.b)
-	if distance < 0 {
+	_, right := distanceToHyperplane(tree.c.DistanceMethod, vector, node.normal, node.b)
+	if !right {
 		node.left = tree.remove(node.left, docid, vector)
 	} else {
 		node.right = tree.remove(node.right, docid, vector)
@@ -229,35 +240,37 @@ func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64) *lshN
 
 func (tree *lshTree) search(vector []float64, callback func(docid uint64) float64) {
 	tau := math.MaxFloat64
-	tree.searchNode(tree.root, vector, callback, &tau)
+	tree.searchNode(tree.root, normalizeVector(vector), callback, &tau)
 }
 
-func (tree *lshTree) searchNode(node *lshNode, vector []float64, callback func(docid uint64) float64, bestDistance *float64) {
+func (tree *lshTree) searchNode(node *lshNode, vector []float64, callback func(docid uint64) float64, worstDistance *float64) {
 	if node.isLeaf() {
 		for _, id := range node.ids {
-			*bestDistance = callback(id)
-			if *bestDistance <= 0 {
+			*worstDistance = callback(id)
+			if *worstDistance < 0 {
 				break
 			}
 		}
 		return
 	}
 
-	side := distanceToHyperplane(vector, node.normal, node.b)
-	distance := math.Abs(side)
-	if tree.c.DistanceMethod == Cosine {
-		distance = cosineDistance(vector, node.normal)
-	}
+	distance, side := distanceToHyperplane(tree.c.DistanceMethod, vector, node.normal, node.b)
 
-	if side < 0 {
-		tree.searchNode(node.left, vector, callback, bestDistance)
-		if distance < *bestDistance {
-			tree.searchNode(node.right, vector, callback, bestDistance)
+	if !side {
+		//log.Printf("left: %v from hyperplane. bestDistance: %v", distance, *worstDistance)
+		tree.searchNode(node.left, vector, callback, worstDistance)
+		//log.Printf("Best distance now %v", *worstDistance)
+		if distance <= *worstDistance {
+			//log.Printf("continue right: %v from hyperplane. bestDistance: %v", distance, *worstDistance)
+			tree.searchNode(node.right, vector, callback, worstDistance)
 		}
 	} else {
-		tree.searchNode(node.right, vector, callback, bestDistance)
-		if distance < *bestDistance {
-			tree.searchNode(node.left, vector, callback, bestDistance)
+		//log.Printf("right: %v from hyperplane. bestDistance: %v", distance, *worstDistance)
+		tree.searchNode(node.right, vector, callback, worstDistance)
+		//log.Printf("Best distance now %v", *worstDistance)
+		if distance <= *worstDistance {
+			//log.Printf("continue left: %v from hyperplane. bestDistance: %v", distance, *worstDistance)
+			tree.searchNode(node.left, vector, callback, worstDistance)
 		}
 	}
 }

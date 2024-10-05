@@ -307,7 +307,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	case Euclidean:
 		distanceFunc = euclideanDistance
 	case Cosine:
-		distanceFunc = cosineDistance
+		distanceFunc = angularDistance
 	default:
 		panic("Unsupported distance method")
 	}
@@ -589,20 +589,23 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 	resultsPQ := &resultPriorityQueue{}
 	heap.Init(resultsPQ)
 	pointsSearched := 0
+	worst := math.MaxFloat64
 
-	for id := range c.memfile.idOffsets {
-		data, err := c.memfile.readRecord(id)
+	if args.Radius > 0 {
+		worst = args.Radius
+	}
+
+	consider := func(docid uint64) float64 {
+		doc, err := c.getDocument(docid)
 		if err != nil {
-			continue
+			return worst
 		}
 
 		pointsSearched++
 
-		doc := c.decodeDocument(data, id)
-
 		// Apply filter function if provided
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			continue
+			return worst
 		}
 
 		distance := c.distance(args.Vector, doc.Vector)
@@ -620,6 +623,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 			if resultsPQ.Len() > args.K {
 				heap.Pop(resultsPQ)
 			}
+			worst = (*resultsPQ)[0].Priority
 		} else if args.K == 0 && args.Radius == 0 {
 			// Exhaustive search: add all results
 			heap.Push(resultsPQ, &resultItem{
@@ -627,6 +631,16 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 				Priority:     distance,
 			})
 		}
+		return worst
+	}
+
+	if args.Radius == 0 && args.K == 0 || args.Precision == "exact" {
+		// Exhaustive search: consider all documents
+		for id := range c.memfile.idOffsets {
+			consider(id)
+		}
+	} else {
+		c.index.search(args.Vector, consider)
 	}
 
 	// Extract results from the priority queue
@@ -763,7 +777,7 @@ func euclideanDistance(vec1, vec2 []float64) float64 {
 	return math.Sqrt(sum)
 }
 
-func cosineDistance(vec1, vec2 []float64) float64 {
+func angularDistance(vec1, vec2 []float64) float64 {
 	dotProduct := 0.0
 	magnitude1 := 0.0
 	magnitude2 := 0.0
