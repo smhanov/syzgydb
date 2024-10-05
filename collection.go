@@ -11,6 +11,12 @@ import (
 	"sync"
 )
 
+const (
+    StopSearch = iota // Indicates to stop the search due to an error
+    PointAccepted     // Indicates the point was accepted and is better
+    PointChecked      // Indicates the point was checked unnecessarily
+)
+
 const useTree = true
 
 /*

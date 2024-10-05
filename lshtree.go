@@ -275,7 +275,7 @@ func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64, lengt
 	return node
 }
 
-func (tree *lshTree) search(vector []float64, callback func(docid uint64) float64) {
+func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
 	tau := math.MaxFloat64
 	length := vectorLength(vector)
 	visited := make(map[uint64]bool)
@@ -306,8 +306,15 @@ func (tree *lshTree) search(vector []float64, callback func(docid uint64) float6
 					continue
 				}
 				visited[id] = true
-				distance := callback(id)
-				if distance < 0 {
+				result := callback(id)
+				switch result {
+				case StopSearch:
+					return
+				case PointAccepted:
+					tau = callback(id)
+					k_counter = 0
+				case PointChecked:
+					k_counter++
 					return
 				}
 				k_counter++
