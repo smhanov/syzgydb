@@ -35,56 +35,6 @@ type CollectionOptions struct {
 	Create bool
 }
 
-func (c *Collection) exhaustiveSearch(args SearchArgs) SearchResults {
-	resultsPQ := &resultPriorityQueue{}
-	heap.Init(resultsPQ)
-	pointsSearched := 0
-
-	for id := range c.memfile.idOffsets {
-		data, err := c.memfile.readRecord(id)
-		if err != nil {
-			continue
-		}
-
-		pointsSearched++
-
-		doc := c.decodeDocument(data, id)
-
-		// Apply filter function if provided
-		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			continue
-		}
-
-		distance := c.distance(args.Vector, doc.Vector)
-
-		if args.Radius > 0 && distance <= args.Radius {
-			heap.Push(resultsPQ, &resultItem{
-				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
-				Priority:     distance,
-			})
-		} else if args.K > 0 {
-			heap.Push(resultsPQ, &resultItem{
-				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
-				Priority:     distance,
-			})
-			if resultsPQ.Len() > args.K {
-				heap.Pop(resultsPQ)
-			}
-		}
-	}
-
-	// Extract results from the priority queue
-	results := make([]SearchResult, resultsPQ.Len())
-	for i := len(results) - 1; i >= 0; i-- {
-		results[i] = heap.Pop(resultsPQ).(*resultItem).SearchResult
-	}
-
-	return SearchResults{
-		Results:         results,
-		PercentSearched: 100.0, // All records are considered
-	}
-}
-
 /*
 ComputeStats gathers and returns statistics about the collection.
 It returns a CollectionStats object filled with the relevant statistics.
@@ -636,84 +586,33 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		args.Precision = "medium"
 	}
 
-	if args.Precision == "exact" {
-		// Perform exhaustive search
-		return c.exhaustiveSearch(args)
-	}
-	if len(args.Vector) != c.DimensionCount {
-		log.Panicf("vector size does not match the expected number of dimensions: expected %d, got %d", c.DimensionCount, len(args.Vector))
-	}
-
-	if args.K > 0 {
-		return c.searchNearestNeighbours(args)
-	} else if args.Radius > 0 {
-		return c.searchRadius(args)
-	}
-
-	return SearchResults{}
-}
-
-func (c *Collection) searchRadius(args SearchArgs) SearchResults {
-	results := []SearchResult{}
-	pointsSearched := 0
-
-	c.index.search(args.Vector, func(docid uint64) float64 {
-		data, err := c.memfile.readRecord(docid)
-		if err != nil {
-			return args.Radius // Continue searching
-		}
-
-		pointsSearched++
-
-		doc := c.decodeDocument(data, docid)
-
-		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			return args.Radius // Continue searching
-		}
-
-		distance := c.distance(args.Vector, doc.Vector)
-		if distance <= args.Radius {
-			results = append(results, SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance})
-		}
-
-		return args.Radius // Continue searching
-	})
-
-	return SearchResults{
-		Results:         results,
-		PercentSearched: float64(pointsSearched) / float64(len(c.memfile.idOffsets)) * 100,
-	}
-}
-
-func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
-	if args.K <= 0 {
-		return SearchResults{}
-	}
-
 	resultsPQ := &resultPriorityQueue{}
 	heap.Init(resultsPQ)
 	pointsSearched := 0
-	consecutiveNonImproving := 0
-	threshold := max(100, 2*args.K)
-	tau := math.MaxFloat64
 
-	c.index.search(args.Vector, func(docid uint64) float64 {
-		data, err := c.memfile.readRecord(docid)
+	for id := range c.memfile.idOffsets {
+		data, err := c.memfile.readRecord(id)
 		if err != nil {
-			return 0
+			continue
 		}
 
 		pointsSearched++
 
-		doc := c.decodeDocument(data, docid)
+		doc := c.decodeDocument(data, id)
 
+		// Apply filter function if provided
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			return 0
+			continue
 		}
 
 		distance := c.distance(args.Vector, doc.Vector)
 
-		if resultsPQ.Len() < args.K || distance < (*resultsPQ)[0].Priority {
+		if args.Radius > 0 && distance <= args.Radius {
+			heap.Push(resultsPQ, &resultItem{
+				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
+				Priority:     distance,
+			})
+		} else if args.K > 0 {
 			heap.Push(resultsPQ, &resultItem{
 				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
 				Priority:     distance,
@@ -721,18 +620,14 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 			if resultsPQ.Len() > args.K {
 				heap.Pop(resultsPQ)
 			}
-			tau = (*resultsPQ)[0].Priority
-			consecutiveNonImproving = 0
-		} else {
-			consecutiveNonImproving++
+		} else if args.K == 0 && args.Radius == 0 {
+			// Exhaustive search: add all results
+			heap.Push(resultsPQ, &resultItem{
+				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
+				Priority:     distance,
+			})
 		}
-
-		if consecutiveNonImproving >= threshold {
-			//return 0
-		}
-
-		return tau
-	})
+	}
 
 	// Extract results from the priority queue
 	results := make([]SearchResult, resultsPQ.Len())

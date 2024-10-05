@@ -446,7 +446,7 @@ func TestExhaustiveSearch(t *testing.T) {
 	}
 
 	// Perform the exhaustive search
-	results := collection.exhaustiveSearch(searchArgs)
+	results := collection.Search(searchArgs)
 
 	// Verify the number of results
 	if len(results.Results) != len(documents) {
