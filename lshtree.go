@@ -60,21 +60,27 @@ func distanceToHyperplane(method int, vector, normal []float64, b float64) (dist
 }
 
 type lshTree struct {
-	root      *lshNode
+	roots     []*lshNode // Change from a single root to a slice of roots
 	threshold int
 	c         *Collection
 }
 
-func newLSHTree(c *Collection, threshold int) *lshTree {
+func newLSHTree(c *Collection, threshold int, numTrees int) *lshTree {
+	roots := make([]*lshNode, numTrees)
+	for i := 0; i < numTrees; i++ {
+		roots[i] = &lshNode{ids: []uint64{}}
+	}
 	return &lshTree{
-		root:      &lshNode{ids: []uint64{}},
+		roots:     roots,
 		threshold: threshold,
 		c:         c,
 	}
 }
 
 func (tree *lshTree) addPoint(docid uint64, vector []float64) {
-	tree.root = tree.insert(tree.root, docid, vector)
+	for i, root := range tree.roots {
+		tree.roots[i] = tree.insert(root, docid, vector)
+	}
 }
 
 func (tree *lshTree) insert(node *lshNode, docid uint64, vector []float64) *lshNode {
@@ -210,7 +216,10 @@ func (tree *lshTree) split(node *lshNode) *lshNode {
 }
 
 func (tree *lshTree) removePoint(docid uint64, vector []float64) {
-	tree.root = tree.remove(tree.root, docid, normalizeVector(vector))
+	normalizedVector := normalizeVector(vector)
+	for i, root := range tree.roots {
+		tree.roots[i] = tree.remove(root, docid, normalizedVector)
+	}
 }
 
 func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64) *lshNode {
@@ -247,8 +256,10 @@ func (tree *lshTree) search(vector []float64, callback func(docid uint64) float6
 	pq := &nodePriorityQueue{}
 	heap.Init(pq)
 
-	// Start with the root node
-	heap.Push(pq, &nodePriorityItem{node: tree.root, priority: 0})
+	// Add all roots to the priority queue
+	for _, root := range tree.roots {
+		heap.Push(pq, &nodePriorityItem{node: root, priority: 0})
+	}
 
 	for pq.Len() > 0 {
 		item := heap.Pop(pq).(*nodePriorityItem)
