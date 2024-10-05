@@ -37,7 +37,7 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 		Name:           "test_cosine_precision_comparison.dat",
 		DistanceMethod: Cosine,
 		DimensionCount: 3,
-		Create:         true,
+		FileMode:       CreateAndOverwrite,
 	}
 
 	// Remove any existing file
