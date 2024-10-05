@@ -11,6 +11,8 @@ import (
 	"sync"
 )
 
+const useTree = true
+
 /*
 CollectionOptions defines the configuration options for creating a Collection.
 */
@@ -90,10 +92,13 @@ func (c *Collection) ComputeStats() CollectionStats {
 	// Calculate the average distance
 	averageDistance := c.computeAverageDistance(100) // Example: use 100 samples
 
-	// Calculate bucket statistics
-	bucketSizes := make([]int, 0, len(c.lshTable.Buckets))
-	for _, bucket := range c.lshTable.Buckets {
-		bucketSizes = append(bucketSizes, len(bucket))
+	var bucketSizes []int
+	if c.lshTable != nil {
+		// Calculate bucket statistics
+		bucketSizes = make([]int, 0, len(c.lshTable.Buckets))
+		for _, bucket := range c.lshTable.Buckets {
+			bucketSizes = append(bucketSizes, len(bucket))
+		}
 	}
 
 	numberOfBuckets := len(bucketSizes)
@@ -270,6 +275,7 @@ type Collection struct {
 	memfile  *memfile
 	index    searchIndex
 	lshTree  *lshTree
+	lshTable *lshTable
 	mutex    sync.Mutex
 	distance func([]float64, []float64) float64
 }
@@ -345,14 +351,21 @@ func NewCollection(options CollectionOptions) *Collection {
 	default:
 		panic("Unsupported distance method")
 	}
-	lshTree := newLSHTree(chooseLshParameter(options.DimensionCount))
 
 	c := &Collection{
 		CollectionOptions: options,
 		memfile:           memFile,
-		index:             lshTree,
-		lshTree:           lshTree,
 		distance:          distanceFunc,
+	}
+
+	if useTree {
+		lshTree := newLSHTree(c, 100)
+		c.index = lshTree
+		c.lshTree = lshTree
+	} else {
+		lshTable := newLSHTable(chooseLshParameter(options.DimensionCount), options.DimensionCount, 4.0)
+		c.index = lshTable
+		c.lshTable = lshTable
 	}
 
 	// If the file exists, iterate through all existing documents and add them to the LSH table
@@ -608,6 +621,7 @@ Search returns the search results, including the list of matching documents and 
 func (c *Collection) Search(args SearchArgs) SearchResults {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	log.Printf("Search called....")
 	// Default precision to "medium" if not set
 	if args.Precision == "" {
 		args.Precision = "medium"
@@ -705,7 +719,7 @@ func (c *Collection) searchNearestNeighbours(args SearchArgs) SearchResults {
 		}
 
 		if consecutiveNonImproving >= threshold {
-			return 0
+			//return 0
 		}
 
 		return tau
@@ -857,7 +871,8 @@ func cosineDistance(vec1, vec2 []float64) float64 {
 	if magnitude1 == 0 || magnitude2 == 0 {
 		return 1.0 // Return max distance if one vector is zero
 	}
-	return 1.0 - (dotProduct / (math.Sqrt(magnitude1) * math.Sqrt(magnitude2)))
+	//return 1.0 - (dotProduct / (math.Sqrt(magnitude1) * math.Sqrt(magnitude2)))
+	return math.Acos(dotProduct/(math.Sqrt(magnitude1)*math.Sqrt(magnitude2))) / math.Pi
 }
 
 type searchIndex interface {
