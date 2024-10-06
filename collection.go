@@ -195,7 +195,7 @@ Collection represents a collection of documents, supporting operations such as a
 */
 type Collection struct {
 	CollectionOptions
-	memfile  *memfile
+	spanfile *SpanFile // Change from memfile to spanfile
 	index    searchIndex
 	lshTree  *lshTree
 	mutex    sync.Mutex
@@ -221,15 +221,15 @@ func NewCollection(options CollectionOptions) *Collection {
 
 	// Open or create the memory-mapped file with the specified mode
 	var err error
-	var memFile *memfile
-	memFile, err = createMemFile(options.Name, header, options.FileMode)
+	var spanFile *SpanFile
+	spanFile, err = OpenFile(options.Name, OpenOptions{CreateIfNotExists: options.FileMode == CreateIfNotExists})
 	if err != nil {
 		panic(err)
 	}
 
 	if fileExists {
 		// Read the header from the file
-		if _, err := memFile.ReadAt(header, 0); err != nil {
+		if _, err := spanFile.file.ReadAt(header, 0); err != nil {
 			panic(err)
 		}
 
@@ -250,10 +250,10 @@ func NewCollection(options CollectionOptions) *Collection {
 		header[13] = byte(options.Quantization)
 
 		// Write the header to the new file
-		if _, err := memFile.WriteAt(header, 0); err != nil {
+		if _, err := spanFile.file.WriteAt(header, 0); err != nil {
 			panic(err)
 		}
-		memFile.Sync()
+		spanFile.file.Sync()
 	}
 
 	// Determine the distance function
@@ -269,7 +269,7 @@ func NewCollection(options CollectionOptions) *Collection {
 
 	c := &Collection{
 		CollectionOptions: options,
-		memfile:           memFile,
+		spanfile:          spanFile,
 		distance:          distanceFunc,
 	}
 
@@ -406,8 +406,15 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	// Encode the document
 	encodedData := encodeDocument(doc, c.Quantization)
 
-	// Add or update the document in the memfile
-	c.memfile.addRecord(id, encodedData)
+	// Write to spanfile
+	dataStreams := []DataStream{
+		{StreamID: 0, Data: metadata},
+		{StreamID: 1, Data: encodedVector},
+	}
+	err := c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams)
+	if err != nil {
+		log.Panicf("Failed to write record: %v", err)
+	}
 
 	// Add the document's vector to the LSH table
 	c.lshTree.addPoint(id, vector)
@@ -425,15 +432,19 @@ func (c *Collection) GetDocument(id uint64) (*Document, error) {
 }
 
 func (c *Collection) getDocument(id uint64) (*Document, error) {
-	// Read the record from the memfile
-	data, err := c.memfile.readRecord(id)
+	span, err := c.spanfile.ReadRecord(fmt.Sprintf("%d", id))
 	if err != nil {
 		return nil, err
 	}
 
-	// Decode the document
-	doc := c.decodeDocument(data, id)
-	return doc, nil
+	metadata := span.DataStreams[0].Data
+	vector := decodeVector(span.DataStreams[1].Data, c.DimensionCount, c.Quantization)
+
+	return &Document{
+		ID:       id,
+		Vector:   vector,
+		Metadata: metadata,
+	}, nil
 }
 
 /*
@@ -474,7 +485,7 @@ func (c *Collection) removeDocument(id uint64) error {
 	if err == nil {
 		c.lshTree.removePoint(id, doc.Vector)
 	}
-	return c.memfile.deleteRecord(id)
+	return c.spanfile.RemoveRecord(fmt.Sprintf("%d", id))
 }
 
 // iterateDocuments applies a function to each document in the collection.
