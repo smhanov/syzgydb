@@ -58,4 +58,23 @@ func TestMarkFreeAndGetFreeRange(t *testing.T) {
 	if remaining != 10 {
 		t.Errorf("Expected remaining to be 10, got %d", remaining)
 	}
+func TestMergeContiguousFreeSpaces(t *testing.T) {
+	fm := &freeMap{}
+
+	// Mark the specified free spaces
+	fm.markFree(15, 468)
+	fm.markFree(535, 3576)
+	fm.markFree(483, 52)
+
+	// Verify that there is now one free region at start 15 of length 4096
+	if len(fm.freeSpaces) != 1 {
+		t.Errorf("Expected 1 free space, got %d", len(fm.freeSpaces))
+	}
+
+	expectedStart := 15
+	expectedLength := 4096
+	if fm.freeSpaces[0].start != expectedStart || fm.freeSpaces[0].length != expectedLength {
+		t.Errorf("Expected free space at start %d with length %d, got start %d with length %d",
+			expectedStart, expectedLength, fm.freeSpaces[0].start, fm.freeSpaces[0].length)
+	}
 }
