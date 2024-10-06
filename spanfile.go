@@ -78,9 +78,26 @@ func OpenFile(filename string, options OpenOptions) (*DB, error) {
         return nil, err
     }
 
-    // If the file is zero bytes, initialize it with a small amount of data
+    // If the file is zero bytes, initialize it with a minimal valid span header
     if fileInfo.Size() == 0 {
-        _, err = file.Write([]byte{0})
+        // Create a minimal valid span
+        span := &Span{
+            MagicNumber:    activeMagic,
+            Length:         20, // Minimum length for a valid span header
+            SequenceNumber: 0,
+            RecordID:       "",
+            DataStreams:    []DataStream{},
+        }
+
+        // Serialize the span
+        spanBytes, err := serializeSpan(span)
+        if err != nil {
+            file.Close()
+            return nil, err
+        }
+
+        // Write the span to the file
+        _, err = file.Write(spanBytes)
         if err != nil {
             file.Close()
             return nil, err
