@@ -170,7 +170,18 @@ func TestIterateRecords(t *testing.T) {
 	db.WriteRecord("record2", dataStreams)
 
 	count := 0
-	err := db.IterateRecords(func(recordID string, dataStreams []DataStream) error {
+	err := db.IterateRecords(func(recordID string, sr *SpanReader) error {
+		// Use the SpanReader to get the stream data
+		streamData, err := sr.getStream(1)
+		if err != nil {
+			return err
+		}
+
+		// Verify the stream data
+		if string(streamData) != "Hello" {
+			t.Errorf("Expected stream data 'Hello', got '%s'", streamData)
+		}
+
 		count++
 		return nil
 	})
