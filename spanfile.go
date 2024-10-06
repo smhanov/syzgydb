@@ -39,6 +39,20 @@ type SpanReader struct {
 	data []byte
 }
 
+func (db *SpanFile) getSpanReader(recordID string) (*SpanReader, error) {
+	// Find the offset of the record
+	offset, exists := db.index[recordID]
+	if !exists {
+		return nil, fmt.Errorf("record not found")
+	}
+
+	// Create a SpanReader for the data at the offset
+	spanData := db.mmapData[offset:]
+	sr := &SpanReader{data: spanData}
+
+	return sr, nil
+}
+
 const (
 	activeMagic = 0x5350414E // 'SPAN'
 	freeMagic   = 0x46524545 // 'FREE'
