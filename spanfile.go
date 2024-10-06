@@ -47,6 +47,24 @@ type DataStream struct {
 	Data     []byte
 }
 
+func (db *SpanFile) Close() error {
+	if db.mmapData != nil {
+		err := db.mmapData.Unmap()
+		if err != nil {
+			return err
+		}
+		db.mmapData = nil
+	}
+	if db.file != nil {
+		err := db.file.Close()
+		if err != nil {
+			return err
+		}
+		db.file = nil
+	}
+	return nil
+}
+
 type Span struct {
 	MagicNumber    uint32
 	Length         uint64

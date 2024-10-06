@@ -22,7 +22,7 @@ func setupTestDB(t *testing.T) (*SpanFile, func()) {
 	}
 
 	cleanup := func() {
-		db.file.Close()
+		db.Close() // Use the new Close method
 		os.Remove(tempFile.Name())
 	}
 
@@ -261,7 +261,7 @@ func TestRecordUpdateAndPersistence(t *testing.T) {
 	}
 
 	// Close and reopen the file
-	db.file.Close()
+	db.Close() // Use the new Close method
 	db, err = OpenFile(db.file.Name(), OpenOptions{CreateIfNotExists: false})
 	if err != nil {
 		t.Fatalf("Failed to reopen database: %v", err)
@@ -374,7 +374,7 @@ func TestBatchOperations(t *testing.T) {
 		}
 
 		// Close and reopen the spanfile
-		db.file.Close()
+		db.Close() // Use the new Close method
 		var err error
 		db, err = OpenFile(db.file.Name(), OpenOptions{CreateIfNotExists: false})
 		if err != nil {
