@@ -172,6 +172,15 @@ type OpenOptions struct {
 	OverwriteExisting bool
 }
 
+type FileMode int
+
+const (
+	CreateIfNotExists  FileMode = 0 // Create the file only if it doesn't exist
+	ReadWrite          FileMode = 1 // Open the file for read/write access
+	ReadOnly           FileMode = 2 // Open the file for read-only access
+	CreateAndOverwrite FileMode = 3 // Always create and overwrite the file if it exists
+)
+
 func OpenFile(filename string, options OpenOptions) (*SpanFile, error) {
 	flags := os.O_RDWR
 	if options.CreateIfNotExists {
@@ -484,6 +493,7 @@ func (db *SpanFile) IterateRecords(callback func(recordID string, sr *SpanReader
 		if recordID == "" {
 			continue
 		}
+
 		spanData := db.mmapData[offset:]
 		sr := &SpanReader{data: spanData}
 
