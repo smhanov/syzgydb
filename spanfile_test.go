@@ -58,6 +58,7 @@ func TestFreeSpaceCoalescing(t *testing.T) {
 	db.WriteRecord("record2", dataStreams)
 
 	db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: []byte("Updated")}})
+}
 	db.WriteRecord("record2", []DataStream{{StreamID: 1, Data: []byte("Updated")}})
 
 	// Check if free spans are coalesced
