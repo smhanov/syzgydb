@@ -31,13 +31,13 @@ import (
 	"log"
 	"os"
 	"sync"
+
+	"github.com/edsrzf/mmap-go"
 )
 
 type SpanReader struct {
 	data []byte
-
-	"github.com/edsrzf/mmap-go"
-)
+}
 
 const (
 	activeMagic = 0x5350414E // 'SPAN'
@@ -52,12 +52,8 @@ type DataStream struct {
 }
 
 func (sr *SpanReader) getStream(id uint8) ([]byte, error) {
-	at := 4 // Skip MagicNumber
-	length, err := readUint32(sr.data, at)
-	if err != nil {
-		return nil, err
-	}
-	at += 4
+	at := 8 // Skip MagicNumber and length
+	var err error
 
 	// Skip SequenceNumber
 	_, at, err = read7Code(sr.data, at)
