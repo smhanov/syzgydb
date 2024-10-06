@@ -65,69 +65,69 @@ func OpenFile(filename string, options OpenOptions) (*DB, error) {
 		flags |= os.O_TRUNC
 	}
 
-    file, err := os.OpenFile(filename, flags, 0666)
-    if err != nil {
-        log.Printf("Error opening file: %v", err)
-        return nil, err
-    }
+	file, err := os.OpenFile(filename, flags, 0666)
+	if err != nil {
+		log.Printf("Error opening file: %v", err)
+		return nil, err
+	}
 
-    // Check the file size
-    fileInfo, err := file.Stat()
-    if err != nil {
-        file.Close()
-        return nil, err
-    }
+	// Check the file size
+	fileInfo, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, err
+	}
 
-    // If the file is zero bytes, initialize it with a minimal valid span header
-    if fileInfo.Size() == 0 {
-        // Create a minimal valid span
-        span := &Span{
-            MagicNumber:    activeMagic,
-            Length:         20, // Minimum length for a valid span header
-            SequenceNumber: 0,
-            RecordID:       "",
-            DataStreams:    []DataStream{},
-        }
+	// If the file is zero bytes, initialize it with a minimal valid span header
+	if fileInfo.Size() == 0 {
+		// Create a minimal valid span
+		span := &Span{
+			MagicNumber:    activeMagic,
+			Length:         20, // Minimum length for a valid span header
+			SequenceNumber: 0,
+			RecordID:       "",
+			DataStreams:    []DataStream{},
+		}
 
-        // Serialize the span
-        spanBytes, err := serializeSpan(span)
-        if err != nil {
-            file.Close()
-            return nil, err
-        }
+		// Serialize the span
+		spanBytes, err := serializeSpan(span)
+		if err != nil {
+			file.Close()
+			return nil, err
+		}
 
-        // Write the span to the file
-        _, err = file.Write(spanBytes)
-        if err != nil {
-            file.Close()
-            return nil, err
-        }
-    }
+		// Write the span to the file
+		_, err = file.Write(spanBytes)
+		if err != nil {
+			file.Close()
+			return nil, err
+		}
+	}
 
-    // Memory map the file
-    mmapData, err := mmap.MapRegion(file, -1, mmap.RDWR, 0, 0)
-    if err != nil {
-        log.Printf("Error mapping file: %v", err)
-        file.Close()
-        return nil, err
-    }
+	// Memory map the file
+	mmapData, err := mmap.MapRegion(file, -1, mmap.RDWR, 0, 0)
+	if err != nil {
+		log.Printf("Error mapping file: %v", err)
+		file.Close()
+		return nil, err
+	}
 
-    db := &DB{
-        file:           file,
-        mmapData:       mmapData,
-        index:          make(map[string]IndexEntry),
-        freeList:       []FreeSpan{},
-        sequenceNumber: 0,
-    }
+	db := &DB{
+		file:           file,
+		mmapData:       mmapData,
+		index:          make(map[string]IndexEntry),
+		freeList:       []FreeSpan{},
+		sequenceNumber: 0,
+	}
 
-    err = db.scanFile()
-    if err != nil {
-        mmapData.Unmap()
-        file.Close()
-        return nil, err
-    }
+	err = db.scanFile()
+	if err != nil {
+		mmapData.Unmap()
+		file.Close()
+		return nil, err
+	}
 
-    return db, nil
+	return db, nil
 }
 
 func (db *DB) scanFile() error {
@@ -376,38 +376,11 @@ func serializeSpan(span *Span) ([]byte, error) {
 	}
 
 	// Calculate Length
-	length := uint64(len(buf) + 32) // +32 for checksum
+	length := uint64(len(buf) + 32)               // +32 for checksum
 	binary.BigEndian.PutUint64(buf[4:12], length) // Update length in the buffer
 
 	// Debugging output
 	fmt.Printf("Serialized span length: %d bytes\n", length)
-
-	return buf, nil
-
-	// Serialize SequenceNumber
-	seqNumBuf := make([]byte, 8)
-	binary.BigEndian.PutUint64(seqNumBuf, span.SequenceNumber)
-	buf = append(buf, seqNumBuf...)
-
-	// Serialize RecordID Length and RecordID
-	recordIDBytes := []byte(span.RecordID)
-	buf = append(buf, byte(len(recordIDBytes)))
-	buf = append(buf, recordIDBytes...)
-
-	// Serialize Number of Data Streams
-	buf = append(buf, byte(len(span.DataStreams)))
-
-	// Serialize Data Streams
-	for _, ds := range span.DataStreams {
-		buf = append(buf, ds.StreamID)
-		streamLenBuf := make([]byte, 8)
-		binary.PutUvarint(streamLenBuf, uint64(len(ds.Data)))
-		buf = append(buf, streamLenBuf...)
-		buf = append(buf, ds.Data...)
-	}
-
-	// Update Length
-	binary.BigEndian.PutUint64(buf[4:12], uint64(len(buf)+32)) // +32 for checksum
 
 	return buf, nil
 }
