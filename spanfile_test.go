@@ -210,9 +210,6 @@ func TestFreeSpaceReuse(t *testing.T) {
 
 	db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: []byte("Updated")}})
 
-	// Check if the free space from the first record1 is reused
-	// This requires inspecting the free list or file structure
-}
 
 func TestIterateRecords(t *testing.T) {
 	db, cleanup := setupTestDB(t)
