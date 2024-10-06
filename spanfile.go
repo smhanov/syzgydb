@@ -246,6 +246,37 @@ func (db *SpanFile) addFreeSpan(offset, length uint64) {
 	}
 }
 
+func (db *SpanFile) RemoveRecord(recordID string) error {
+	db.fileMutex.Lock()
+	defer db.fileMutex.Unlock()
+
+	// Find the offset of the record
+	offset, exists := db.index[recordID]
+	if !exists {
+		return fmt.Errorf("record not found")
+	}
+
+	// Get the length of the span
+	length, err := db.getSpanLength(int(offset))
+	if err != nil {
+		return err
+	}
+
+	// Mark the span as free
+	err = db.markSpanAsFreed(offset)
+	if err != nil {
+		return err
+	}
+
+	// Add the span to the free list
+	db.addFreeSpan(offset, length)
+
+	// Remove the record from the index
+	delete(db.index, recordID)
+
+	return nil
+}
+
 func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error {
 	//TODO: Remove locks; we are protected at a higher level.
 	db.fileMutex.Lock()
