@@ -17,7 +17,7 @@ func setupTestDB(t *testing.T) (*SpanFile, func()) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 
-	db, err := OpenFile(tempFile.Name(), OpenOptions{CreateIfNotExists: true})
+	db, err := OpenFile(tempFile.Name(), CreateIfNotExists)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestRecordUpdateAndPersistence(t *testing.T) {
 	name := db.file.Name()
 	// Close and reopen the file
 	db.Close() // Use the new Close method
-	db, err = OpenFile(name, OpenOptions{CreateIfNotExists: false})
+	db, err = OpenFile(name, ReadWrite)
 	if err != nil {
 		t.Fatalf("Failed to reopen database: %v", err)
 	}

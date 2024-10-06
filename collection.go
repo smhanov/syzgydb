@@ -223,7 +223,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	// Open or create the memory-mapped file with the specified mode
 	var err error
 	var spanFile *SpanFile
-	spanFile, err = OpenFile(options.Name, OpenOptions{CreateIfNotExists: options.FileMode == CreateIfNotExists})
+	spanFile, err = OpenFile(options.Name, options.FileMode)
 	if err != nil {
 		panic(err)
 	}
