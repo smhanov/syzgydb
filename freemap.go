@@ -85,7 +85,8 @@ func (fm *freeMap) markFree(start, length int) {
 		if len(merged) == 0 || merged[len(merged)-1].start+merged[len(merged)-1].length < s.start {
 			merged = append(merged, s)
 		} else {
-			merged[len(merged)-1].length = max(merged[len(merged)-1].start+merged[len(merged)-1].length, s.start+s.length) - merged[len(merged)-1].start
+			// Correct the merging logic to ensure proper merging
+			merged[len(merged)-1].length = s.start + s.length - merged[len(merged)-1].start
 		}
 	}
 	fm.freeSpaces = merged
