@@ -294,21 +294,105 @@ func (db *DB) DumpFile(output io.Writer) error {
 }
 
 func serializeSpan(span *Span) ([]byte, error) {
-	// Implement span serialization
-	// This is a placeholder implementation
-	return nil, nil
+	var buf []byte
+
+	// Serialize MagicNumber
+	magicBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(magicBuf, span.MagicNumber)
+	buf = append(buf, magicBuf...)
+
+	// Serialize Length (placeholder, will be updated later)
+	lengthBuf := make([]byte, 8)
+	buf = append(buf, lengthBuf...)
+
+	// Serialize SequenceNumber
+	seqNumBuf := make([]byte, 8)
+	binary.BigEndian.PutUint64(seqNumBuf, span.SequenceNumber)
+	buf = append(buf, seqNumBuf...)
+
+	// Serialize RecordID Length and RecordID
+	recordIDBytes := []byte(span.RecordID)
+	buf = append(buf, byte(len(recordIDBytes)))
+	buf = append(buf, recordIDBytes...)
+
+	// Serialize Number of Data Streams
+	buf = append(buf, byte(len(span.DataStreams)))
+
+	// Serialize Data Streams
+	for _, ds := range span.DataStreams {
+		buf = append(buf, ds.StreamID)
+		streamLenBuf := make([]byte, 8)
+		binary.PutUvarint(streamLenBuf, uint64(len(ds.Data)))
+		buf = append(buf, streamLenBuf...)
+		buf = append(buf, ds.Data...)
+	}
+
+	// Update Length
+	binary.BigEndian.PutUint64(buf[4:12], uint64(len(buf)+32)) // +32 for checksum
+
+	return buf, nil
 }
 
 func parseSpan(data []byte) (*Span, error) {
-	// Implement span parsing
-	// This is a placeholder implementation
-	return nil, nil
+	if len(data) < 20 {
+		return nil, fmt.Errorf("data too short to be a valid span")
+	}
+
+	span := &Span{}
+	span.MagicNumber = binary.BigEndian.Uint32(data[:4])
+	span.Length = binary.BigEndian.Uint64(data[4:12])
+	span.SequenceNumber = binary.BigEndian.Uint64(data[12:20])
+
+	offset := 20
+
+	// Parse RecordID
+	recordIDLen := int(data[offset])
+	offset++
+	span.RecordID = string(data[offset : offset+recordIDLen])
+	offset += recordIDLen
+
+	// Parse Number of Data Streams
+	numStreams := int(data[offset])
+	offset++
+
+	// Parse Data Streams
+	for i := 0; i < numStreams; i++ {
+		if offset >= len(data) {
+			return nil, fmt.Errorf("data too short to contain all streams")
+		}
+		streamID := data[offset]
+		offset++
+
+		streamLen, n := binary.Uvarint(data[offset:])
+		offset += n
+
+		if offset+int(streamLen) > len(data) {
+			return nil, fmt.Errorf("data too short for stream data")
+		}
+
+		streamData := data[offset : offset+int(streamLen)]
+		offset += int(streamLen)
+
+		span.DataStreams = append(span.DataStreams, DataStream{
+			StreamID: streamID,
+			Data:     streamData,
+		})
+	}
+
+	// Parse Checksum
+	if offset+32 > len(data) {
+		return nil, fmt.Errorf("data too short for checksum")
+	}
+	copy(span.Checksum[:], data[offset:offset+32])
+
+	return span, nil
 }
 
 func parseSpanAtOffset(data []byte, offset uint64) (*Span, error) {
-	// Implement parsing logic at a specific offset
-	// This is a placeholder implementation
-	return nil, nil
+	if offset >= uint64(len(data)) {
+		return nil, fmt.Errorf("offset out of bounds")
+	}
+	return parseSpan(data[offset:])
 }
 
 func calculateChecksum(data []byte) [32]byte {
@@ -316,9 +400,12 @@ func calculateChecksum(data []byte) [32]byte {
 }
 
 func verifyChecksum(data []byte) bool {
-	// Implement checksum verification
-	// This is a placeholder implementation
-	return false
+	if len(data) < 32 {
+		return false
+	}
+	expectedChecksum := data[len(data)-32:]
+	actualChecksum := calculateChecksum(data[:len(data)-32])
+	return string(expectedChecksum) == string(actualChecksum[:])
 }
 
 func (db *DB) appendToFile(data []byte) error {
@@ -344,7 +431,12 @@ func msync(data []byte) error {
 }
 
 func magicNumberToString(magic uint32) string {
-	// Convert magic number to string
-	// This is a placeholder implementation
-	return ""
+	switch magic {
+	case activeMagic:
+		return "SPAN"
+	case freeMagic:
+		return "FREE"
+	default:
+		return "UNKNOWN"
+	}
 }
