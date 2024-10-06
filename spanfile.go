@@ -610,6 +610,11 @@ func parseSpan(data []byte) (*Span, error) {
 		return nil, err
 	}
 
+	// Ensure the data slice is long enough for the entire span
+	if int(span.Length) > len(data) {
+		return nil, fmt.Errorf("data too short for span length")
+	}
+
 	if !verifyChecksum(data[:span.Length]) {
 		return nil, fmt.Errorf("checksum failed")
 	}
