@@ -30,6 +30,30 @@ func setupTestDB(t *testing.T) (*SpanFile, func()) {
 	return db, cleanup
 }
 
+func TestGetSpanReader(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	dataStreams := []DataStream{
+		{StreamID: 1, Data: []byte("Hello")},
+	}
+	db.WriteRecord("record1", dataStreams)
+
+	spanReader, err := db.getSpanReader("record1")
+	if err != nil {
+		t.Fatalf("Failed to get SpanReader: %v", err)
+	}
+
+	streamData, err := spanReader.getStream(1)
+	if err != nil {
+		t.Fatalf("Failed to get stream data: %v", err)
+	}
+
+	if string(streamData) != "Hello" {
+		t.Errorf("Expected stream data 'Hello', got '%s'", streamData)
+	}
+}
+
 func TestChecksumVerification(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
