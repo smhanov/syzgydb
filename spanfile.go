@@ -67,7 +67,7 @@ type SpanFile struct {
 	mmapData []byte
 	// map from string id to offset of the record
 	index          map[string]uint64
-	freeList       []FreeSpan
+	freeMap        freeMap // Change from freeList to freeMap
 	sequenceNumber uint32
 	fileMutex      sync.Mutex
 }
@@ -142,7 +142,7 @@ func OpenFile(filename string, options OpenOptions) (*SpanFile, error) {
 		file:           file,
 		mmapData:       mmapData,
 		index:          make(map[string]uint64),
-		freeList:       []FreeSpan{},
+		freeMap:        freeMap{freeSpaces: []space{}}, // Initialize freeMap
 		sequenceNumber: 0,
 	}
 
@@ -227,23 +227,7 @@ func (db *SpanFile) scanFile() error {
 
 // TODO: use freemap instead
 func (db *SpanFile) addFreeSpan(offset, length uint64) {
-	db.freeList = append(db.freeList, FreeSpan{
-		Offset: offset,
-		Length: length,
-	})
-	for i := 0; i < len(db.freeList)-1; i++ {
-		current := db.freeList[i]
-		next := db.freeList[i+1]
-
-		if current.Offset+current.Length == next.Offset {
-			// Merge the two spans
-			db.freeList[i].Length += next.Length
-			// Remove the next span
-			db.freeList = append(db.freeList[:i+1], db.freeList[i+2:]...)
-			// Decrement the index to recheck the current span with the new next span
-			i--
-		}
-	}
+	db.freeMap.markFree(int(offset), int(length)) // Use markFree from freeMap
 }
 
 func (db *SpanFile) RemoveRecord(recordID string) error {
@@ -333,23 +317,14 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 }
 
 func (db *SpanFile) allocateSpan(size int) (uint64, error) {
-	for i, freeSpan := range db.freeList {
-		if freeSpan.Length >= uint64(size) {
-			offset := freeSpan.Offset
-
-			if freeSpan.Length > uint64(size) {
-				db.freeList[i].Offset += uint64(size)
-				db.freeList[i].Length -= uint64(size)
-			} else {
-				db.freeList = append(db.freeList[:i], db.freeList[i+1:]...)
-			}
-
-			return offset, nil
-		}
+	start, _, err := db.freeMap.getFreeRange(size)
+	if err == nil {
+		return uint64(start), nil
 	}
 
+	// If no free space is available, append to the file
 	offset := uint64(len(db.mmapData))
-	err := db.appendToFile(make([]byte, size))
+	err = db.appendToFile(make([]byte, size))
 	if err != nil {
 		return 0, err
 	}
