@@ -239,7 +239,7 @@ func (mf *memfile) addRecord(id uint64, data []byte) bool {
 		}
 	}
 
-	log.Printf("Adding record ID %d at offset %d with length %d\n", id, start, recordLength)
+	//log.Printf("Adding record ID %d at offset %d with length %d\n", id, start, recordLength)
 
 	// Adjust the record length if the remaining space is 16 bytes or less
 	if remaining > 0 && remaining <= 16 {
