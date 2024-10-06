@@ -174,7 +174,7 @@ func (db *SpanFile) scanFile() error {
 		if magicNumber == 0 {
 			db.addFreeSpan(uint64(offset), uint64(fileSize-offset))
 		}
-		length, err := readUint32(db.mmapData, offset+4)
+		length, err := readUint32(db.mmapData, int(offset+4))
 		//log.Printf("Scanning span at offset %d...%d\n", offset, length)
 
 		// Ensure there is enough data for the entire span
@@ -246,7 +246,8 @@ func (db *SpanFile) RemoveRecord(recordID string) error {
 		return err
 	}
 
-	log.Printf("Mark span:%d-%d/%d as freed", offset, offset+length, length)
+	log.Printf("Remove %s", recordID)
+	log.Printf(" -->Mark span:%d-%d/%d as freed", offset, offset+length, length)
 
 	// Mark the span as free
 	err = db.markSpanAsFreed(offset)
@@ -414,8 +415,30 @@ func (db *SpanFile) DumpFile(output io.Writer) error {
 	offset := uint64(0)
 	fileSize := uint64(len(db.mmapData))
 	for offset < fileSize {
+		// Ensure there is enough data to read the magic number and length
+		if offset+minSpanLength > fileSize {
+			break // Not enough data for a complete span header
+		}
+
+		magicNumber := binary.BigEndian.Uint32(db.mmapData[offset : offset+4])
+		length, err := readUint32(db.mmapData, int(offset+4))
+		if err != nil {
+			fmt.Fprintf(output, "Error reading length at offset %d: %v\n", offset, err)
+			break
+		}
+
+		if magicNumber == freeMagic {
+			fmt.Fprintf(output, "Offset: %d\n", offset)
+			fmt.Fprintf(output, "Magic Number: %s\n", magicNumberToString(magicNumber))
+			fmt.Fprintf(output, "Length: %d bytes\n", length)
+			fmt.Fprintln(output)
+			offset += uint64(length)
+			continue
+		}
+
 		span, err := parseSpanAtOffset(db.mmapData, offset)
 		if err != nil {
+			fmt.Fprintf(output, "Magic number was %s\n", magicNumberToString(magicNumber))
 			fmt.Fprintf(output, "Error parsing span at offset %d: %v\n", offset, err)
 			break
 		}

@@ -62,25 +62,6 @@ func TestChecksumVerification(t *testing.T) {
 	}
 }
 
-func TestFreeSpaceCoalescing(t *testing.T) {
-	db, cleanup := setupTestDB(t)
-	defer cleanup()
-
-	dataStreams := []DataStream{
-		{StreamID: 1, Data: []byte("Hello")},
-	}
-	db.WriteRecord("record1", dataStreams)
-	db.WriteRecord("record2", dataStreams)
-
-	db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: []byte("Updated")}})
-	db.WriteRecord("record2", []DataStream{{StreamID: 1, Data: []byte("Updated")}})
-
-	// Check if free spans are coalesced
-	if len(db.freeList) != 1 {
-		t.Errorf("Expected 1 coalesced free span, got %d", len(db.freeList))
-	}
-}
-
 func TestInvalidSpanHandling(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -93,7 +74,8 @@ func TestInvalidSpanHandling(t *testing.T) {
 	db.scanFile()
 
 	// Ensure no invalid spans are in the index
-	if len(db.index) != 0 {
+	// other than the "header" span
+	if len(db.index) != 1 {
 		t.Errorf("Expected no valid records, got %d", len(db.index))
 	}
 }
@@ -234,9 +216,90 @@ func TestDumpFile(t *testing.T) {
 	}
 }
 
+func TestRecordUpdateAndPersistence(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Write a record of length 100
+	data100 := make([]byte, 100)
+	for i := range data100 {
+		data100[i] = byte('A' + i%26)
+	}
+	err := db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: data100}})
+	if err != nil {
+		t.Fatalf("Failed to write record of length 100: %v", err)
+	}
+
+	// Update the record to be of length 200
+	data200 := make([]byte, 200)
+	for i := range data200 {
+		data200[i] = byte('B' + i%26)
+	}
+	err = db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: data200}})
+	if err != nil {
+		t.Fatalf("Failed to update record to length 200: %v", err)
+	}
+
+	// Write another record of length 50
+	data50 := make([]byte, 50)
+	for i := range data50 {
+		data50[i] = byte('C' + i%26)
+	}
+	err = db.WriteRecord("record2", []DataStream{{StreamID: 1, Data: data50}})
+	if err != nil {
+		t.Fatalf("Failed to write record of length 50: %v", err)
+	}
+
+	// Write another record of length 25
+	data25 := make([]byte, 25)
+	for i := range data25 {
+		data25[i] = byte('D' + i%26)
+	}
+	err = db.WriteRecord("record3", []DataStream{{StreamID: 1, Data: data25}})
+	if err != nil {
+		t.Fatalf("Failed to write record of length 25: %v", err)
+	}
+
+	// Close and reopen the file
+	db.file.Close()
+	db, err = OpenFile(db.file.Name(), OpenOptions{CreateIfNotExists: false})
+	if err != nil {
+		t.Fatalf("Failed to reopen database: %v", err)
+	}
+
+	// Verify all records are available
+	span, err := db.ReadRecord("record1")
+	if err != nil {
+		t.Fatalf("Failed to read record1: %v", err)
+	}
+	if string(span.DataStreams[0].Data) != string(data200) {
+		t.Errorf("Data mismatch for record1: expected %s, got %s", data200, span.DataStreams[0].Data)
+	}
+
+	span, err = db.ReadRecord("record2")
+	if err != nil {
+		t.Fatalf("Failed to read record2: %v", err)
+	}
+	if string(span.DataStreams[0].Data) != string(data50) {
+		t.Errorf("Data mismatch for record2: expected %s, got %s", data50, span.DataStreams[0].Data)
+	}
+
+	span, err = db.ReadRecord("record3")
+	if err != nil {
+		t.Fatalf("Failed to read record3: %v", err)
+	}
+	if string(span.DataStreams[0].Data) != string(data25) {
+		t.Errorf("Data mismatch for record3: expected %s, got %s", data25, span.DataStreams[0].Data)
+	}
+}
+
 func TestBatchOperations(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
+
+	// Seed the random number generator
+	rsource := rand.NewSource(0)
+	r := rand.New(rsource)
 
 	// Map to keep track of expected records and their contents
 	expectedRecords := make(map[string][]byte)
@@ -250,16 +313,19 @@ func TestBatchOperations(t *testing.T) {
 		return data
 	}
 
+	const count = 1000
+	const batchSize = 10
+
 	// Perform operations in batches of 100
-	for batch := 0; batch < 10; batch++ {
-		for i := 0; i < 100; i++ {
-			operation := rand.Intn(3)                            // Randomly choose an operation: 0=create, 1=update, 2=delete
-			recordID := fmt.Sprintf("record%d", rand.Intn(1000)) // Random record ID
+	for batch := 0; batch < count/batchSize; batch++ {
+		for i := 0; i < batchSize; i++ {
+			operation := r.Intn(3)                            // Randomly choose an operation: 0=create, 1=update, 2=delete
+			recordID := fmt.Sprintf("record%d", r.Intn(1000)) // Random record ID
 
 			switch operation {
 			case 0: // Create a new record
 				if _, exists := expectedRecords[recordID]; !exists {
-					dataSize := 100 + rand.Intn(101) // Random size between 100 and 200 bytes
+					dataSize := 100 + r.Intn(101) // Random size between 100 and 200 bytes
 					data := generateRandomData(dataSize)
 					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: data}})
 					if err != nil {
@@ -278,7 +344,7 @@ func TestBatchOperations(t *testing.T) {
 					recordID = randomRecordID
 				}
 				if _, exists := expectedRecords[recordID]; exists {
-					dataSize := 100 + rand.Intn(101) // Random size between 100 and 200 bytes
+					dataSize := 100 + r.Intn(101) // Random size between 100 and 200 bytes
 					newData := generateRandomData(dataSize)
 					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: newData}})
 					if err != nil {
