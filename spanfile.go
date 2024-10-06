@@ -65,35 +65,52 @@ func OpenFile(filename string, options OpenOptions) (*DB, error) {
 		flags |= os.O_TRUNC
 	}
 
-	file, err := os.OpenFile(filename, flags, 0666)
-	if err != nil {
-		log.Printf("Error with openFiel")
-		return nil, err
-	}
+    file, err := os.OpenFile(filename, flags, 0666)
+    if err != nil {
+        log.Printf("Error opening file: %v", err)
+        return nil, err
+    }
 
-	mmapData, err := mmap.MapRegion(file, -1, mmap.RDWR, 0, 0)
-	if err != nil {
-		log.Printf("Error mapping file: %v", err)
-		file.Close()
-		return nil, err
-	}
+    // Check the file size
+    fileInfo, err := file.Stat()
+    if err != nil {
+        file.Close()
+        return nil, err
+    }
 
-	db := &DB{
-		file:           file,
-		mmapData:       mmapData,
-		index:          make(map[string]IndexEntry),
-		freeList:       []FreeSpan{},
-		sequenceNumber: 0,
-	}
+    // If the file is zero bytes, initialize it with a small amount of data
+    if fileInfo.Size() == 0 {
+        _, err = file.Write([]byte{0})
+        if err != nil {
+            file.Close()
+            return nil, err
+        }
+    }
 
-	err = db.scanFile()
-	if err != nil {
-		mmapData.Unmap()
-		file.Close()
-		return nil, err
-	}
+    // Memory map the file
+    mmapData, err := mmap.MapRegion(file, -1, mmap.RDWR, 0, 0)
+    if err != nil {
+        log.Printf("Error mapping file: %v", err)
+        file.Close()
+        return nil, err
+    }
 
-	return db, nil
+    db := &DB{
+        file:           file,
+        mmapData:       mmapData,
+        index:          make(map[string]IndexEntry),
+        freeList:       []FreeSpan{},
+        sequenceNumber: 0,
+    }
+
+    err = db.scanFile()
+    if err != nil {
+        mmapData.Unmap()
+        file.Close()
+        return nil, err
+    }
+
+    return db, nil
 }
 
 func (db *DB) scanFile() error {
