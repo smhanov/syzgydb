@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"sync"
 
@@ -66,11 +67,13 @@ func OpenFile(filename string, options OpenOptions) (*DB, error) {
 
 	file, err := os.OpenFile(filename, flags, 0666)
 	if err != nil {
+		log.Printf("Error with openFiel")
 		return nil, err
 	}
 
 	mmapData, err := mmap.MapRegion(file, -1, mmap.RDWR, 0, 0)
 	if err != nil {
+		log.Printf("Error mapping file: %v", err)
 		file.Close()
 		return nil, err
 	}
@@ -424,7 +427,7 @@ func (db *DB) appendToFile(data []byte) error {
 	return nil
 }
 
-func msync(data []byte) error {
+func msync(_ []byte) error {
 	// Implement msync logic
 	// This is a placeholder implementation
 	return nil
