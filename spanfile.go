@@ -175,14 +175,14 @@ func (db *SpanFile) scanFile() error {
 			db.addFreeSpan(uint64(offset), uint64(fileSize-offset))
 		}
 		length, _, err := read7Code(db.mmapData, offset+4)
-		log.Printf("Scanning span at offset %d...%d\n", offset, length)
+		//log.Printf("Scanning span at offset %d...%d\n", offset, length)
 
 		// Ensure there is enough data for the entire span
 		if err != nil || offset+int(length) > fileSize {
 			break // Not enough data for the complete span
 		}
 
-		log.Printf("Magicnumber %x", magicNumber)
+		//log.Printf("Magicnumber %x", magicNumber)
 
 		if magicNumber == activeMagic {
 			spanData := db.mmapData[offset : offset+int(length)]
@@ -555,7 +555,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 	}
 
 	// Debugging output
-	fmt.Printf("Serialized span length: %d bytes\n", length+4) // plus unknown padding?
+	//fmt.Printf("Serialized span length: %d bytes\n", length+4) // plus unknown padding?
 
 	return buf, nil
 }
@@ -657,7 +657,6 @@ func (db *SpanFile) getSpanLength(offset int) (uint64, error) {
 }
 
 func calculateChecksum(data []byte) uint32 {
-	log.Printf("Calc checksum on %v bytes", len(data))
 	return crc32.ChecksumIEEE(data)
 
 }
