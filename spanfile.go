@@ -186,7 +186,6 @@ func (db *SpanFile) scanFile() error {
 	fileSize := len(db.mmapData)
 	highestSeqNum := uint32(0)
 	sequences := make(map[string]uint32)
-	log.Printf("Rescanning file")
 	for offset < fileSize {
 		// Ensure there is enough data to read the magic number and length
 		if offset+minSpanLength > fileSize {
@@ -741,7 +740,6 @@ func parseSpanAtOffset(data []byte, offset uint64) (*Span, error) {
 	if offset >= uint64(len(data)) {
 		return nil, fmt.Errorf("offset out of bounds")
 	}
-	log.Printf("Parsing span at offset %d\n", offset)
 	return parseSpan(data[offset:])
 }
 

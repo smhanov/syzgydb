@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -260,9 +261,10 @@ func TestRecordUpdateAndPersistence(t *testing.T) {
 		t.Fatalf("Failed to write record of length 25: %v", err)
 	}
 
+	name := db.file.Name()
 	// Close and reopen the file
 	db.Close() // Use the new Close method
-	db, err = OpenFile(db.file.Name(), OpenOptions{CreateIfNotExists: false})
+	db, err = OpenFile(name, OpenOptions{CreateIfNotExists: false})
 	if err != nil {
 		t.Fatalf("Failed to reopen database: %v", err)
 	}
@@ -313,17 +315,32 @@ func TestBatchOperations(t *testing.T) {
 		return data
 	}
 
-	const count = 1000
-	const batchSize = 10
+	chooseRandomRecord := func() string {
+		if len(expectedRecords) == 0 {
+			return ""
+		}
+		keys := make([]string, 0, len(expectedRecords))
+		for k := range expectedRecords {
+			keys = append(keys, k)
+		}
 
+		sort.Strings(keys)
+		return keys[r.Intn(len(keys))]
+	}
+
+	const count = 10000
+	const batchSize = 100
+	nextRecordID := 0
+	var recordID string
 	// Perform operations in batches of 100
 	for batch := 0; batch < count/batchSize; batch++ {
 		for i := 0; i < batchSize; i++ {
-			operation := r.Intn(3)                            // Randomly choose an operation: 0=create, 1=update, 2=delete
-			recordID := fmt.Sprintf("record%d", r.Intn(1000)) // Random record ID
+			operation := r.Intn(3) // Randomly choose an operation: 0=create, 1=update, 2=delete
 
 			switch operation {
 			case 0: // Create a new record
+				recordID := fmt.Sprintf("record%d", nextRecordID)
+				nextRecordID++
 				if _, exists := expectedRecords[recordID]; !exists {
 					dataSize := 100 + r.Intn(101) // Random size between 100 and 200 bytes
 					data := generateRandomData(dataSize)
@@ -334,15 +351,7 @@ func TestBatchOperations(t *testing.T) {
 					expectedRecords[recordID] = data
 				}
 			case 1: // Update an existing record
-				if len(expectedRecords) > 0 {
-					// Choose a random record from expectedRecords
-					var randomRecordID string
-					for k := range expectedRecords {
-						randomRecordID = k
-						break
-					}
-					recordID = randomRecordID
-				}
+				recordID = chooseRandomRecord()
 				if _, exists := expectedRecords[recordID]; exists {
 					dataSize := 100 + r.Intn(101) // Random size between 100 and 200 bytes
 					newData := generateRandomData(dataSize)
@@ -353,15 +362,7 @@ func TestBatchOperations(t *testing.T) {
 					expectedRecords[recordID] = newData
 				}
 			case 2: // Delete an existing record
-				if len(expectedRecords) > 0 {
-					// Choose a random record from expectedRecords
-					var randomRecordID string
-					for k := range expectedRecords {
-						randomRecordID = k
-						break
-					}
-					recordID = randomRecordID
-				}
+				recordID = chooseRandomRecord()
 				if _, exists := expectedRecords[recordID]; exists {
 					delete(expectedRecords, recordID)
 					// Simulate deletion by writing an empty data stream
@@ -373,16 +374,19 @@ func TestBatchOperations(t *testing.T) {
 			}
 		}
 
+		name := db.file.Name()
+
 		// Close and reopen the spanfile
 		db.Close() // Use the new Close method
 		var err error
-		db, err = OpenFile(db.file.Name(), OpenOptions{CreateIfNotExists: false})
+		db, err = OpenFile(name, OpenOptions{CreateIfNotExists: false})
 		if err != nil {
 			t.Fatalf("Failed to reopen database: %v", err)
 		}
 
 		// Verify all expected records are present
 		for recordID, expectedData := range expectedRecords {
+			t.Logf("Verifying record %s", recordID)
 			span, err := db.ReadRecord(recordID)
 			if err != nil {
 				db.DumpFile(os.Stdout)
