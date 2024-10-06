@@ -43,14 +43,19 @@ func TestChecksumVerification(t *testing.T) {
 
 	// Manually corrupt the checksum
 	entry := db.index["record1"]
+	// Log the span length
+	t.Logf("Span length: %d bytes", entry.Span.Length)
+
 	// Calculate the expected location of the checksum
-	// The checksum is expected to be at the end of the span, which is located at entry.Offset + entry.Span.Length - 32
-	// The length of the span includes the checksum itself, so we subtract 32 bytes to get the start of the checksum
 	checksumOffset := entry.Offset + entry.Span.Length - 32
 	t.Logf("Checksum expected at offset: %d", checksumOffset)
 
 	// Corrupt the checksum by flipping a bit
-	db.mmapData[checksumOffset] ^= 0xFF
+	if checksumOffset < uint64(len(db.mmapData)) {
+		db.mmapData[checksumOffset] ^= 0xFF
+	} else {
+		t.Fatalf("Checksum offset out of bounds: %d", checksumOffset)
+	}
 
 	_, err := db.ReadRecord("record1")
 	if err == nil {
