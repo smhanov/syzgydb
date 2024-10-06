@@ -48,8 +48,15 @@ type DataStream struct {
 }
 
 func (db *SpanFile) Close() error {
+	db.fileMutex.Lock()
+	defer db.fileMutex.Unlock()
+
 	if db.mmapData != nil {
-		err := db.mmapData.Unmap()
+		err := msync(db.mmapData)
+		if err != nil {
+			return err
+		}
+		err = db.mmapData.Unmap()
 		if err != nil {
 			return err
 		}
@@ -82,7 +89,7 @@ type IndexEntry struct {
 
 type SpanFile struct {
 	file     *os.File
-	mmapData []byte
+	mmapData mmap.MMap
 	// map from string id to offset of the record
 	index          map[string]uint64
 	freeMap        freeMap // Change from freeList to freeMap
@@ -179,6 +186,7 @@ func (db *SpanFile) scanFile() error {
 	fileSize := len(db.mmapData)
 	highestSeqNum := uint32(0)
 	sequences := make(map[string]uint32)
+	log.Printf("Rescanning file")
 	for offset < fileSize {
 		// Ensure there is enough data to read the magic number and length
 		if offset+minSpanLength > fileSize {
@@ -190,6 +198,7 @@ func (db *SpanFile) scanFile() error {
 		// if the magic number of 0 then assume we are at the end of the file
 		// and mark the rest as free.
 		if magicNumber == 0 {
+			log.Printf("Marking rest of file as free space: span%v:%v/%v", offset, fileSize-offset, fileSize)
 			db.addFreeSpan(uint64(offset), uint64(fileSize-offset))
 		}
 		length, err := readUint32(db.mmapData, int(offset+4))
@@ -220,6 +229,8 @@ func (db *SpanFile) scanFile() error {
 				continue
 			}
 
+			log.Printf("USED: span:%v-%v/%v (%s)", offset, offset+int(length), length, span.RecordID)
+
 			if span.SequenceNumber > highestSeqNum {
 				highestSeqNum = span.SequenceNumber
 			}
@@ -230,6 +241,7 @@ func (db *SpanFile) scanFile() error {
 				db.index[span.RecordID] = uint64(offset)
 			}
 		} else if magicNumber == freeMagic {
+			log.Printf("FREE: span:%v-%v/%v", offset, offset+int(length), length)
 			db.addFreeSpan(uint64(offset), uint64(length))
 		}
 
@@ -311,7 +323,7 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 	// before the checksum, and add the length of this padding to the uint32
 	// stored at offset 4 of the spanBytes.
 	if remaining > 0 && remaining < minSpanLength {
-		log.Printf("--->Adding %v bytes of padding", remaining)
+		db.freeMap.markUsed(int(offset)+len(spanBytes)+4, int(remaining))
 		padding := make([]byte, remaining)
 		spanBytes = append(spanBytes, padding...)
 
@@ -324,7 +336,9 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 	spanBytes = append(spanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
 
 	log.Printf("Write %s to span:%v-%v/%v", recordID, offset, offset+uint64(len(spanBytes)), len(spanBytes))
-
+	if remaining > 0 && remaining < minSpanLength {
+		log.Printf("--->Adding %v bytes of padding", remaining)
+	}
 	// if the remaining space is > minSpanLength then we need to write a free span
 	// after it. This is simply the free magic number followed by the
 	// length of the remaining space.
@@ -365,27 +379,23 @@ func (db *SpanFile) allocateSpan(size int) (uint64, int64, error) {
 		return uint64(start), remaining, nil
 	}
 
-	// If no free space is available, append to the file
-	offset := uint64(len(db.mmapData))
-	err = db.appendToFile(make([]byte, size))
+	// Calculate the amount to expand the file by
+	currentLength := len(db.mmapData)
+	expandBy := max(4096, size, int(float64(currentLength)*0.05))
+
+	// Append the required amount of space to the file
+	err = db.appendToFile(make([]byte, expandBy))
 	if err != nil {
 		return 0, 0, err
 	}
 
-	return offset, 0, nil
+	// Return the new offset and remaining space
+	return uint64(currentLength), int64(expandBy - size), nil
 }
 
 func (db *SpanFile) writeAt(data []byte, offset uint64) error {
 	if offset+uint64(len(data)) > uint64(len(db.mmapData)) {
-		log.Printf("**Need to expand file by %d bytes", offset+uint64(len(data))-uint64(len(db.mmapData)))
-		err := db.file.Truncate(int64(offset + uint64(len(data))))
-		if err != nil {
-			return err
-		}
-		db.mmapData, err = mmap.Map(db.file, mmap.RDWR, 0)
-		if err != nil {
-			return err
-		}
+		log.Panic("writeAt: offset out of bounds")
 	}
 
 	copy(db.mmapData[offset:], data)
@@ -767,6 +777,7 @@ func (db *SpanFile) appendToFile(data []byte) error {
 	}
 
 	// Remap the file
+	db.mmapData.Unmap()
 	db.mmapData, err = mmap.Map(db.file, mmap.RDWR, 0)
 	if err != nil {
 		return err
