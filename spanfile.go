@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"github.com/go-mmap/mmap"
 	"sync"
 )
 
@@ -319,9 +320,19 @@ func verifyChecksum(data []byte) bool {
 	return false
 }
 
-func appendToFile(data []byte) error {
-	// Implement file appending
-	// This is a placeholder implementation
+func (db *DB) appendToFile(data []byte) error {
+	// Ensure the file is large enough
+	_, err := db.file.WriteAt(data, int64(len(db.mmapData)))
+	if err != nil {
+		return err
+	}
+
+	// Remap the file
+	db.mmapData, err = mmap.Map(db.file, mmap.RDWR, 0)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -331,11 +342,6 @@ func msync(data []byte) error {
 	return nil
 }
 
-func mmap(file *os.File) ([]byte, error) {
-	// Implement mmap logic
-	// This is a placeholder implementation
-	return nil, nil
-}
 
 func magicNumberToString(magic uint32) string {
 	// Convert magic number to string
