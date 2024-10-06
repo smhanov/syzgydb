@@ -167,10 +167,6 @@ type FreeSpan struct {
 	Length uint64
 }
 
-type OpenOptions struct {
-	CreateIfNotExists bool
-	OverwriteExisting bool
-}
 
 type FileMode int
 
@@ -181,13 +177,19 @@ const (
 	CreateAndOverwrite FileMode = 3 // Always create and overwrite the file if it exists
 )
 
-func OpenFile(filename string, options OpenOptions) (*SpanFile, error) {
+func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 	flags := os.O_RDWR
-	if options.CreateIfNotExists {
+	switch mode {
+	case CreateIfNotExists:
 		flags |= os.O_CREATE
-	}
-	if options.OverwriteExisting {
-		flags |= os.O_TRUNC
+	case ReadWrite:
+		// No additional flags needed
+	case ReadOnly:
+		flags = os.O_RDONLY
+	case CreateAndOverwrite:
+		flags |= os.O_CREATE | os.O_TRUNC
+	default:
+		return nil, fmt.Errorf("unsupported file mode")
 	}
 
 	file, err := os.OpenFile(filename, flags, 0666)
