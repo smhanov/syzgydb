@@ -120,7 +120,7 @@ func OpenFile(filename string, options OpenOptions) (*SpanFile, error) {
 
 		checkSum := calculateChecksum(spanBytes)
 		spanBytes = append(spanBytes, byte(checkSum>>24), byte(checkSum>>16), byte(checkSum>>8), byte(checkSum))
-		log.Printf("Write initial span:%v~%v", 0, len(spanBytes))
+		log.Printf("Write initial span:%v-%v/%v", 0, len(spanBytes), len(spanBytes))
 
 		// Write the span to the file
 		_, err = file.Write(spanBytes)
@@ -246,7 +246,7 @@ func (db *SpanFile) RemoveRecord(recordID string) error {
 		return err
 	}
 
-	log.Printf("Mark span:%d/%d as freed", offset, length)
+	log.Printf("Mark span:%d-%d/%d as freed", offset, offset+length, length)
 
 	// Mark the span as free
 	err = db.markSpanAsFreed(offset)
@@ -304,13 +304,13 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 	checksum := calculateChecksum(spanBytes)
 	spanBytes = append(spanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
 
-	log.Printf("Write %s to span:%v~%v", recordID, offset, len(spanBytes))
+	log.Printf("Write %s to span:%v-%v/%v", recordID, offset, offset+uint64(len(spanBytes)), len(spanBytes))
 
 	// if the remaining space is > minSpanLength then we need to write a free span
 	// after it. This is simply the free magic number followed by the
 	// length of the remaining space.
 	if remaining >= minSpanLength {
-		log.Printf(" -->Adding free space marker at span:%v~%v", int(offset)+len(spanBytes), remaining)
+		log.Printf(" -->Adding free space marker at span:%v-%v/%v", int(offset)+len(spanBytes), int(offset)+len(spanBytes)+int(remaining), remaining)
 		freeSpan := make([]byte, 8)
 		binary.BigEndian.PutUint32(freeSpan[0:4], freeMagic)
 		binary.BigEndian.PutUint32(freeSpan[4:8], uint32(remaining))
@@ -327,7 +327,7 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 		if err != nil {
 			return err
 		}
-		log.Printf(" -->Replaced record %s at span:%v~%v)", recordID, oldOffset, oldLength)
+		log.Printf(" -->Replaced record %s at span:%v-%v/%v)", recordID, oldOffset, oldOffset+oldLength, oldLength)
 		err = db.markSpanAsFreed(oldOffset)
 		if err != nil {
 			return err
