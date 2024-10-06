@@ -262,6 +262,8 @@ func (db *SpanFile) RemoveRecord(recordID string) error {
 		return err
 	}
 
+	log.Printf("Mark span %d of length %d as freed", offset, length)
+
 	// Mark the span as free
 	err = db.markSpanAsFreed(offset)
 	if err != nil {
@@ -323,7 +325,7 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 		db.addFreeSpan(oldOffset, oldLength)
 	}
 
-	log.Printf("Write %s to offset %v", recordID, offset)
+	log.Printf("Write %s to offset %v length %v", recordID, offset, len(spanBytes))
 
 	db.index[recordID] = offset
 
@@ -356,8 +358,8 @@ func (db *SpanFile) allocateSpan(size int) (uint64, error) {
 }
 
 func (db *SpanFile) writeAt(data []byte, offset uint64) error {
-	log.Printf("Writing %d bytes at offset %d", len(data), offset)
 	if offset+uint64(len(data)) > uint64(len(db.mmapData)) {
+		log.Printf("**Need to expand file by %d bytes", offset+uint64(len(data))-uint64(len(db.mmapData)))
 		err := db.file.Truncate(int64(offset + uint64(len(data))))
 		if err != nil {
 			return err
@@ -405,7 +407,7 @@ func (db *SpanFile) IterateRecords(callback func(recordID string, dataStreams []
 
 func (db *SpanFile) GetStats() (size uint64, numRecords int) {
 	size = uint64(len(db.mmapData))
-	numRecords = len(db.index)
+	numRecords = len(db.index) - 1 // Subtract 1 for the empty record
 	return
 }
 
@@ -549,7 +551,6 @@ func serializeSpan(span *Span) ([]byte, error) {
 		lengthOf7Code(uint64(len(recordIDBytes))) +
 		uint64(len(recordIDBytes)) +
 		1 + // DataStreamCount
-		uint64(len(span.DataStreams)) +
 		4 // Checksum
 
 	for _, stream := range span.DataStreams {
@@ -559,7 +560,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 	l1 := lengthOf7Code(length)
 	l1 = lengthOf7Code(l1 + length) // in case it put it over the edge
 	length += l1
-	log.Printf("Encoded length is %v l1=%v", length, l1)
+	//log.Printf("Encoded length is %v l1=%v", length, l1)
 
 	buf := make([]byte, 0, length)
 
@@ -586,7 +587,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 		buf = append(buf, ds.Data...)
 	}
 
-	log.Printf("length without checksum is %d", len(buf))
+	//log.Printf("length without checksum is %d", len(buf))
 
 	// Debugging output
 	//fmt.Printf("Serialized span length: %d bytes\n", length+4) // plus unknown padding?
@@ -641,7 +642,7 @@ func parseSpan(data []byte) (*Span, error) {
 	numStreams := int(data[at])
 	at++
 
-	log.Printf("IDlength is %d, RecordID is %s, numStreams is %d\n", idlength, span.RecordID, numStreams)
+	//log.Printf("IDlength is %d, RecordID is %s, numStreams is %d\n", idlength, span.RecordID, numStreams)
 	// Parse Data Streams
 	for i := 0; i < numStreams; i++ {
 		if at >= len(data) {

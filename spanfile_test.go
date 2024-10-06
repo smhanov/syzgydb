@@ -2,7 +2,9 @@ package syzgydb
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"strings"
 	"testing"
@@ -47,7 +49,7 @@ func TestChecksumVerification(t *testing.T) {
 	t.Logf("Span was written at offset %v", offset)
 
 	// Corrupt the record
-	db.mmapData[offset+7] ^= 0xFF
+	db.mmapData[offset+9] ^= 0xFF
 
 	_, err := db.ReadRecord("record1")
 	if err == nil {
@@ -251,7 +253,7 @@ func TestBatchOperations(t *testing.T) {
 	// Perform operations in batches of 100
 	for batch := 0; batch < 10; batch++ {
 		for i := 0; i < 100; i++ {
-			operation := rand.Intn(3) // Randomly choose an operation: 0=create, 1=update, 2=delete
+			operation := rand.Intn(3)                            // Randomly choose an operation: 0=create, 1=update, 2=delete
 			recordID := fmt.Sprintf("record%d", rand.Intn(1000)) // Random record ID
 
 			switch operation {
@@ -266,8 +268,18 @@ func TestBatchOperations(t *testing.T) {
 					expectedRecords[recordID] = data
 				}
 			case 1: // Update an existing record
-				if data, exists := expectedRecords[recordID]; exists {
-					newData := generateRandomData(len(data))
+				if len(expectedRecords) > 0 {
+					// Choose a random record from expectedRecords
+					var randomRecordID string
+					for k := range expectedRecords {
+						randomRecordID = k
+						break
+					}
+					recordID = randomRecordID
+				}
+				if _, exists := expectedRecords[recordID]; exists {
+					dataSize := 100 + rand.Intn(101) // Random size between 100 and 200 bytes
+					newData := generateRandomData(dataSize)
 					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: newData}})
 					if err != nil {
 						t.Fatalf("Failed to update record: %v", err)
@@ -275,10 +287,19 @@ func TestBatchOperations(t *testing.T) {
 					expectedRecords[recordID] = newData
 				}
 			case 2: // Delete an existing record
+				if len(expectedRecords) > 0 {
+					// Choose a random record from expectedRecords
+					var randomRecordID string
+					for k := range expectedRecords {
+						randomRecordID = k
+						break
+					}
+					recordID = randomRecordID
+				}
 				if _, exists := expectedRecords[recordID]; exists {
 					delete(expectedRecords, recordID)
 					// Simulate deletion by writing an empty data stream
-					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: []byte{}}})
+					err := db.RemoveRecord(recordID)
 					if err != nil {
 						t.Fatalf("Failed to delete record: %v", err)
 					}
@@ -288,7 +309,8 @@ func TestBatchOperations(t *testing.T) {
 
 		// Close and reopen the spanfile
 		db.file.Close()
-		db, err := OpenFile(db.file.Name(), OpenOptions{CreateIfNotExists: false})
+		var err error
+		db, err = OpenFile(db.file.Name(), OpenOptions{CreateIfNotExists: false})
 		if err != nil {
 			t.Fatalf("Failed to reopen database: %v", err)
 		}
@@ -297,6 +319,7 @@ func TestBatchOperations(t *testing.T) {
 		for recordID, expectedData := range expectedRecords {
 			span, err := db.ReadRecord(recordID)
 			if err != nil {
+				db.DumpFile(os.Stdout)
 				t.Fatalf("Failed to read record %s: %v", recordID, err)
 			}
 			if string(span.DataStreams[0].Data) != string(expectedData) {
