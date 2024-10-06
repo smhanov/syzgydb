@@ -50,7 +50,9 @@ func (c *Collection) GetDocumentCount() int {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	return len(c.memfile.idOffsets)
+	// Use spanfile to count records
+	_, numRecords := c.spanfile.GetStats()
+	return numRecords
 }
 
 /*
@@ -65,7 +67,7 @@ func (c *Collection) ComputeStats() CollectionStats {
 	documentCount := len(c.memfile.idOffsets)
 
 	// Calculate the storage size
-	storageSize := c.memfile.Len()
+	storageSize, _ := c.spanfile.GetStats()
 
 	// Calculate the average distance
 	averageDistance := c.computeAverageDistance(100) // Example: use 100 samples
@@ -301,10 +303,14 @@ func (c *Collection) GetAllIDs() []uint64 {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	ids := make([]uint64, 0, len(c.memfile.idOffsets))
-	for id := range c.memfile.idOffsets {
-		ids = append(ids, id)
-	}
+	var ids []uint64
+	c.spanfile.IterateRecords(func(recordID string, sr *SpanReader) error {
+		id, err := strconv.ParseUint(recordID, 10, 64)
+		if err == nil {
+			ids = append(ids, id)
+		}
+		return nil
+	})
 
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 
@@ -316,17 +322,24 @@ ComputeAverageDistance calculates the average distance between random pairs of d
 It returns the average distance or 0.0 if there are fewer than two documents or if the sample size is non-positive.
 */
 func (c *Collection) computeAverageDistance(samples int) float64 {
-	if len(c.memfile.idOffsets) < 2 || samples <= 0 {
+	if samples <= 0 {
 		return 0.0
 	}
 
 	totalDistance := 0.0
 	count := 0
 
-	// Create a slice of all document IDs
-	ids := make([]uint64, 0, len(c.memfile.idOffsets))
-	for id := range c.memfile.idOffsets {
-		ids = append(ids, id)
+	var ids []uint64
+	c.spanfile.IterateRecords(func(recordID string, sr *SpanReader) error {
+		id, err := strconv.ParseUint(recordID, 10, 64)
+		if err == nil {
+			ids = append(ids, id)
+		}
+		return nil
+	})
+
+	if len(ids) < 2 {
+		return 0.0
 	}
 
 	// Perform up to 'samples' comparisons
@@ -369,16 +382,12 @@ func (c *Collection) Close() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	if c.memfile != nil {
-		err := c.memfile.Sync()
+	if c.spanfile != nil {
+		err := c.spanfile.Close()
 		if err != nil {
 			return err
 		}
-		err = c.memfile.Close()
-		if err != nil {
-			return err
-		}
-		c.memfile = nil
+		c.spanfile = nil
 	}
 
 	return nil
@@ -455,23 +464,21 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	// Read the existing record
-	data, err := c.memfile.readRecord(id)
+	span, err := c.spanfile.ReadRecord(fmt.Sprintf("%d", id))
 	if err != nil {
 		return err
 	}
 
-	// Decode the existing document
-	doc := c.decodeDocument(data, id)
+	vector := decodeVector(span.DataStreams[1].Data, c.DimensionCount, c.Quantization)
 
-	// Update the metadata
-	doc.Metadata = newMetadata
-
-	// Encode the updated document
-	encodedData := encodeDocument(doc, c.Quantization)
-
-	// Update the document in the memfile
-	c.memfile.addRecord(id, encodedData)
+	dataStreams := []DataStream{
+		{StreamID: 0, Data: newMetadata},
+		{StreamID: 1, Data: span.DataStreams[1].Data},
+	}
+	err = c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -593,9 +600,13 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 
 	if args.Radius == 0 && args.K == 0 || args.Precision == "exact" {
 		// Exhaustive search: consider all documents
-		for id := range c.memfile.idOffsets {
-			consider(id)
-		}
+		c.spanfile.IterateRecords(func(recordID string, sr *SpanReader) error {
+			id, err := strconv.ParseUint(recordID, 10, 64)
+			if err == nil {
+				consider(id)
+			}
+			return nil
+		})
 	} else {
 		c.index.search(args.Vector, consider)
 	}
