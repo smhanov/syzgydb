@@ -7,7 +7,7 @@ import (
 	"sort"
 )
 
-const verboseFreeMap = false
+const verboseFreeMap = true
 
 // markUsed marks a range of space as used.
 func (fm *freeMap) markUsed(start, length int) {
@@ -76,6 +76,9 @@ func (fm *freeMap) markFree(start, length int) {
 		return fm.freeSpaces[i].start < fm.freeSpaces[j].start
 	})
 
+	log.Printf("Before merge:")
+	fm.logSpaces()
+
 	// Merge contiguous free spaces
 	merged := []space{}
 	for _, s := range fm.freeSpaces {
@@ -88,6 +91,7 @@ func (fm *freeMap) markFree(start, length int) {
 	fm.freeSpaces = merged
 
 	if verboseFreeMap {
+		log.Printf("After merge:")
 		fm.logSpaces()
 	}
 }
@@ -112,13 +116,17 @@ func (fm *freeMap) getFreeRange(length int) (int64, int64, error) {
 			}
 
 			remaining := s.length - length
+			log.Printf("Mark used: start=%d, length=%d\n", start, length)
 			if verboseFreeMap {
 				fm.logSpaces()
 			}
 			return int64(start), int64(remaining), nil
 		}
 	}
-
+	if verboseFreeMap {
+		log.Printf("   could not find free space in these spaces")
+		fm.logSpaces()
+	}
 	return 0, 0, errors.New("no sufficient free space available")
 }
 
