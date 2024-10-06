@@ -231,3 +231,77 @@ func TestDumpFile(t *testing.T) {
 		t.Fatalf("Failed to dump file: %v", err)
 	}
 }
+
+func TestBatchOperations(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Map to keep track of expected records and their contents
+	expectedRecords := make(map[string][]byte)
+
+	// Function to generate random data of a given size
+	generateRandomData := func(size int) []byte {
+		data := make([]byte, size)
+		for i := range data {
+			data[i] = byte('A' + i%26) // Simple pattern for test data
+		}
+		return data
+	}
+
+	// Perform operations in batches of 100
+	for batch := 0; batch < 10; batch++ {
+		for i := 0; i < 100; i++ {
+			operation := rand.Intn(3) // Randomly choose an operation: 0=create, 1=update, 2=delete
+			recordID := fmt.Sprintf("record%d", rand.Intn(1000)) // Random record ID
+
+			switch operation {
+			case 0: // Create a new record
+				if _, exists := expectedRecords[recordID]; !exists {
+					dataSize := 100 + rand.Intn(101) // Random size between 100 and 200 bytes
+					data := generateRandomData(dataSize)
+					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: data}})
+					if err != nil {
+						t.Fatalf("Failed to write record: %v", err)
+					}
+					expectedRecords[recordID] = data
+				}
+			case 1: // Update an existing record
+				if data, exists := expectedRecords[recordID]; exists {
+					newData := generateRandomData(len(data))
+					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: newData}})
+					if err != nil {
+						t.Fatalf("Failed to update record: %v", err)
+					}
+					expectedRecords[recordID] = newData
+				}
+			case 2: // Delete an existing record
+				if _, exists := expectedRecords[recordID]; exists {
+					delete(expectedRecords, recordID)
+					// Simulate deletion by writing an empty data stream
+					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: []byte{}}})
+					if err != nil {
+						t.Fatalf("Failed to delete record: %v", err)
+					}
+				}
+			}
+		}
+
+		// Close and reopen the spanfile
+		db.file.Close()
+		db, err := OpenFile(db.file.Name(), OpenOptions{CreateIfNotExists: false})
+		if err != nil {
+			t.Fatalf("Failed to reopen database: %v", err)
+		}
+
+		// Verify all expected records are present
+		for recordID, expectedData := range expectedRecords {
+			span, err := db.ReadRecord(recordID)
+			if err != nil {
+				t.Fatalf("Failed to read record %s: %v", recordID, err)
+			}
+			if string(span.DataStreams[0].Data) != string(expectedData) {
+				t.Errorf("Data mismatch for record %s: expected %s, got %s", recordID, expectedData, span.DataStreams[0].Data)
+			}
+		}
+	}
+}
