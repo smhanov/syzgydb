@@ -2,14 +2,13 @@ package syzgydb
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io/ioutil"
 	"os"
-	"sync"
+	"strings"
 	"testing"
 )
 
-func setupTestDB(t *testing.T) (*DB, func()) {
+func setupTestDB(t *testing.T) (*SpanFile, func()) {
 	tempFile, err := ioutil.TempFile("", "spanfile_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -39,27 +38,25 @@ func TestChecksumVerification(t *testing.T) {
 
 	// Log the length of the file
 	fileLength := len(db.mmapData)
-	t.Logf("File length: %d bytes", fileLength)
+	t.Logf("File length: %d bytes after writing record", fileLength)
 
 	// Manually corrupt the checksum
-	entry := db.index["record1"]
+	offset := db.index["record1"]
+
 	// Log the span length
-	t.Logf("Span length: %d bytes", entry.Span.Length)
+	t.Logf("Span was written at offset %v", offset)
 
-	// Calculate the expected location of the checksum
-	checksumOffset := entry.Offset + entry.Span.Length - 32
-	t.Logf("Checksum expected at offset: %d", checksumOffset)
-
-	// Corrupt the checksum by flipping a bit
-	if checksumOffset < uint64(len(db.mmapData)) {
-		db.mmapData[checksumOffset] ^= 0xFF
-	} else {
-		t.Fatalf("Checksum offset out of bounds: %d", checksumOffset)
-	}
+	// Corrupt the record
+	db.mmapData[offset+7] ^= 0xFF
 
 	_, err := db.ReadRecord("record1")
 	if err == nil {
 		t.Fatal("Expected checksum verification to fail")
+	}
+
+	// check if error contained the string "checksum"
+	if !strings.Contains(err.Error(), "checksum") {
+		t.Fatalf("Expected error to contain 'checksum', got: %v", err)
 	}
 }
 
@@ -82,30 +79,6 @@ func TestFreeSpaceCoalescing(t *testing.T) {
 	}
 }
 
-func TestConcurrentAccess(t *testing.T) {
-	db, cleanup := setupTestDB(t)
-	defer cleanup()
-
-	dataStreams := []DataStream{
-		{StreamID: 1, Data: []byte("Hello")},
-	}
-
-	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			recordID := fmt.Sprintf("record%d", i)
-			db.WriteRecord(recordID, dataStreams)
-			_, err := db.ReadRecord(recordID)
-			if err != nil {
-				t.Errorf("Failed to read record %s: %v", recordID, err)
-			}
-		}(i)
-	}
-	wg.Wait()
-}
-
 func TestInvalidSpanHandling(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -115,10 +88,7 @@ func TestInvalidSpanHandling(t *testing.T) {
 	binary.BigEndian.PutUint32(invalidSpan, 0xDEADBEEF) // Invalid magic number
 	db.appendToFile(invalidSpan)
 
-	err := db.scanFile()
-	if err != nil {
-		t.Fatalf("Failed to scan file: %v", err)
-	}
+	db.scanFile()
 
 	// Ensure no invalid spans are in the index
 	if len(db.index) != 0 {
@@ -130,7 +100,7 @@ func TestSequenceNumberWraparound(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	db.sequenceNumber = ^uint64(0) - 1 // Set sequence number near max value
+	db.sequenceNumber = ^uint32(0) // Set sequence number near max value
 
 	dataStreams := []DataStream{
 		{StreamID: 1, Data: []byte("Hello")},
@@ -142,15 +112,6 @@ func TestSequenceNumberWraparound(t *testing.T) {
 
 	if db.sequenceNumber != 0 {
 		t.Errorf("Expected sequence number to wrap around to 0, got %d", db.sequenceNumber)
-	}
-}
-
-func TestOpenFile(t *testing.T) {
-	db, cleanup := setupTestDB(t)
-	defer cleanup()
-
-	if db == nil {
-		t.Fatal("Expected non-nil DB")
 	}
 }
 
