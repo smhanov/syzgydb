@@ -356,6 +356,7 @@ func (db *SpanFile) allocateSpan(size int) (uint64, error) {
 }
 
 func (db *SpanFile) writeAt(data []byte, offset uint64) error {
+	log.Printf("Writing %d bytes at offset %d", len(data), offset)
 	if offset+uint64(len(data)) > uint64(len(db.mmapData)) {
 		err := db.file.Truncate(int64(offset + uint64(len(data))))
 		if err != nil {
@@ -585,6 +586,8 @@ func serializeSpan(span *Span) ([]byte, error) {
 		buf = append(buf, ds.Data...)
 	}
 
+	log.Printf("length without checksum is %d", len(buf))
+
 	// Debugging output
 	//fmt.Printf("Serialized span length: %d bytes\n", length+4) // plus unknown padding?
 
@@ -612,7 +615,7 @@ func parseSpan(data []byte) (*Span, error) {
 
 	// Ensure the data slice is long enough for the entire span
 	if int(span.Length) > len(data) {
-		return nil, fmt.Errorf("data too short for span length")
+		return nil, fmt.Errorf("data too short for span length, data=%v lengthRead=%v", len(data), span.Length)
 	}
 
 	if !verifyChecksum(data[:span.Length]) {
