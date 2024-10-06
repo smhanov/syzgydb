@@ -136,8 +136,19 @@ func (db *DB) scanFile() error {
 	highestSeqNum := uint64(0)
 
 	for offset < fileSize {
+		// Ensure there is enough data to read the magic number and length
+		if offset+12 > fileSize {
+			break // Not enough data for a complete span header
+		}
+
 		magicNumber := binary.BigEndian.Uint32(db.mmapData[offset : offset+4])
 		length := binary.BigEndian.Uint64(db.mmapData[offset+4 : offset+12])
+
+		// Ensure there is enough data for the entire span
+		if offset+length > fileSize {
+			break // Not enough data for the complete span
+		}
+
 		spanData := db.mmapData[offset : offset+length]
 
 		if !verifyChecksum(spanData) {
