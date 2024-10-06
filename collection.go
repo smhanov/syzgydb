@@ -3,11 +3,13 @@ package syzgydb
 import (
 	"container/heap"
 	"encoding/binary"
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
 	"os"
 	"sort"
+	"strconv"
 	"sync"
 )
 
@@ -63,11 +65,8 @@ func (c *Collection) ComputeStats() CollectionStats {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	// Calculate the number of documents
-	documentCount := len(c.memfile.idOffsets)
-
 	// Calculate the storage size
-	storageSize, _ := c.spanfile.GetStats()
+	storageSize, documentCount := c.spanfile.GetStats()
 
 	// Calculate the average distance
 	averageDistance := c.computeAverageDistance(100) // Example: use 100 samples
@@ -283,14 +282,15 @@ func NewCollection(options CollectionOptions) *Collection {
 
 	// If the file exists, iterate through all existing documents and add them to the LSH table
 	if fileExists {
-		for id := range memFile.idOffsets {
-			data, err := memFile.readRecord(id)
+		c.spanfile.IterateRecords(func(recordID string, sr *SpanReader) error {
+			id, err := strconv.ParseUint(recordID, 10, 64)
 			if err != nil {
-				continue
+				return nil
 			}
-			doc := c.decodeDocument(data, id)
+			doc := c.decodeDocument(sr, id)
 			c.lshTree.addPoint(id, doc.Vector)
-		}
+			return nil
+		})
 	}
 
 	return c
@@ -413,7 +413,7 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	}
 
 	// Encode the document
-	encodedData := encodeDocument(doc, c.Quantization)
+	encodedVector := encodeDocument(doc, c.Quantization)
 
 	// Write to spanfile
 	dataStreams := []DataStream{
@@ -468,8 +468,6 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	if err != nil {
 		return err
 	}
-
-	vector := decodeVector(span.DataStreams[1].Data, c.DimensionCount, c.Quantization)
 
 	dataStreams := []DataStream{
 		{StreamID: 0, Data: newMetadata},
@@ -617,9 +615,11 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		results[i] = heap.Pop(resultsPQ).(*resultItem).SearchResult
 	}
 
+	_, numRecords := c.spanfile.GetStats()
+
 	return SearchResults{
 		Results:         results,
-		PercentSearched: float64(pointsSearched) / float64(len(c.memfile.idOffsets)) * 100,
+		PercentSearched: float64(pointsSearched) / float64(numRecords) * 100,
 	}
 }
 
@@ -628,7 +628,7 @@ func encodeDocument(doc *Document, quantization int) []byte {
 
 	vectorSize := getVectorSize(quantization, dimensions)
 
-	docSize := vectorSize + 4 + len(doc.Metadata)
+	docSize := vectorSize
 	data := make([]byte, docSize)
 
 	// Encode the vector
@@ -653,57 +653,57 @@ func encodeDocument(doc *Document, quantization int) []byte {
 		}
 	}
 
-	// Encode the metadata length after the vector
-	metadataLengthOffset := vectorOffset + vectorSize
-	binary.BigEndian.PutUint32(data[metadataLengthOffset:], uint32(len(doc.Metadata)))
-
-	// Encode the metadata
-	metadataOffset := metadataLengthOffset + 4
-	copy(data[metadataOffset:], doc.Metadata)
-
 	return data
 }
+func (c *Collection) decodeDocument(sr *SpanReader, id uint64) *Document {
+	data, err := sr.getStream(1)
+	if err != nil {
+		log.Panic("Failed to read vector data")
+	}
 
-func (c *Collection) decodeDocument(data []byte, id uint64) *Document {
-	dimensions := c.DimensionCount
-	quantization := c.Quantization
+	vector := decodeVector(data, c.DimensionCount, c.Quantization)
+
+	metadata, err := sr.getStream(1)
+	if err != nil {
+		log.Panic("Failed to read metadata")
+	}
+
+	metadataCopy := make([]byte, len(metadata))
+	copy(metadataCopy, metadata)
+
+	return &Document{
+		ID:       id,
+		Vector:   vector,
+		Metadata: metadataCopy,
+	}
+}
+
+func decodeVector(data []byte, dimensions int, quantization int) []float64 {
 	vector := make([]float64, dimensions)
-	vectorOffset := 0
 
 	for i := range vector {
 		var quantizedValue uint64
 		switch quantization {
 		case 4:
 			if i%2 == 0 {
-				quantizedValue = uint64(data[vectorOffset+i/2] >> 4)
+				quantizedValue = uint64(data[i/2] >> 4)
 			} else {
-				quantizedValue = uint64(data[vectorOffset+i/2] & 0x0F)
+				quantizedValue = uint64(data[i/2] & 0x0F)
 			}
 		case 8:
-			quantizedValue = uint64(data[vectorOffset+i])
+			quantizedValue = uint64(data[i])
 		case 16:
-			quantizedValue = uint64(binary.BigEndian.Uint16(data[vectorOffset+i*2:]))
+			quantizedValue = uint64(binary.BigEndian.Uint16(data[i*2:]))
 		case 32:
-			quantizedValue = uint64(binary.BigEndian.Uint32(data[vectorOffset+i*4:]))
+			quantizedValue = uint64(binary.BigEndian.Uint32(data[i*4:]))
 		case 64:
-			quantizedValue = binary.BigEndian.Uint64(data[vectorOffset+i*8:])
+			quantizedValue = binary.BigEndian.Uint64(data[i*8:])
 		}
 
 		vector[i] = dequantize(quantizedValue, quantization)
 	}
 
-	// Decode the metadata length after the vector
-	metadataLengthOffset := vectorOffset + getVectorSize(quantization, dimensions)
-	metadataLength := binary.BigEndian.Uint32(data[metadataLengthOffset:])
-
-	// Decode the metadata
-	metadataOffset := metadataLengthOffset + 4
-
-	return &Document{
-		ID:       id,
-		Vector:   vector,
-		Metadata: data[metadataOffset : metadataOffset+int(metadataLength)],
-	}
+	return vector
 }
 
 func getVectorSize(quantization int, dimensions int) int {
