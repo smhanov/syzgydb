@@ -136,50 +136,50 @@ func (db *DB) scanFile() error {
 	highestSeqNum := uint64(0)
 
 	for offset < fileSize {
-		// Ensure there is enough data to read the magic number and length
-		if offset+12 > fileSize {
-			break // Not enough data for a complete span header
-		}
+        // Ensure there is enough data to read the magic number and length
+        if offset+12 > fileSize {
+            break // Not enough data for a complete span header
+        }
 
-		magicNumber := binary.BigEndian.Uint32(db.mmapData[offset : offset+4])
-		length := binary.BigEndian.Uint64(db.mmapData[offset+4 : offset+12])
+        magicNumber := binary.BigEndian.Uint32(db.mmapData[offset : offset+4])
+        length := binary.BigEndian.Uint64(db.mmapData[offset+4 : offset+12])
 
-		// Ensure there is enough data for the entire span
-		if offset+length > fileSize {
-			break // Not enough data for the complete span
-		}
+        // Ensure there is enough data for the entire span
+        if offset+length > fileSize {
+            break // Not enough data for the complete span
+        }
 
-		spanData := db.mmapData[offset : offset+length]
+        spanData := db.mmapData[offset : offset+length]
 
-		if !verifyChecksum(spanData) {
-			offset += length
-			continue
-		}
+        if !verifyChecksum(spanData) {
+            offset += length
+            continue
+        }
 
-		span, err := parseSpan(spanData)
-		if err != nil {
-			offset += length
-			continue
-		}
+        span, err := parseSpan(spanData)
+        if err != nil {
+            offset += length
+            continue
+        }
 
-		if span.SequenceNumber > highestSeqNum {
-			highestSeqNum = span.SequenceNumber
-		}
+        if span.SequenceNumber > highestSeqNum {
+            highestSeqNum = span.SequenceNumber
+        }
 
-		if magicNumber == activeMagic {
-			existingEntry, exists := db.index[span.RecordID]
-			if !exists || span.SequenceNumber > existingEntry.SequenceNumber {
-				db.index[span.RecordID] = IndexEntry{
-					Offset:         offset,
-					Span:           span,
-					SequenceNumber: span.SequenceNumber,
-				}
-			}
-		} else if magicNumber == freeMagic {
-			db.addFreeSpan(offset, length)
-		}
+        if magicNumber == activeMagic {
+            existingEntry, exists := db.index[span.RecordID]
+            if !exists || span.SequenceNumber > existingEntry.SequenceNumber {
+                db.index[span.RecordID] = IndexEntry{
+                    Offset:         offset,
+                    Span:           span,
+                    SequenceNumber: span.SequenceNumber,
+                }
+            }
+        } else if magicNumber == freeMagic {
+            db.addFreeSpan(offset, length)
+        }
 
-		offset += length
+        offset += length
 	}
 
 	db.sequenceNumber = highestSeqNum + 1
@@ -349,9 +349,11 @@ func serializeSpan(span *Span) ([]byte, error) {
 	binary.BigEndian.PutUint32(magicBuf, span.MagicNumber)
 	buf = append(buf, magicBuf...)
 
-	// Serialize Length (placeholder, will be updated later)
+	// Calculate Length
+	length := uint64(len(buf) + 32) // +32 for checksum
 	lengthBuf := make([]byte, 8)
-	buf = append(buf, lengthBuf...)
+	binary.BigEndian.PutUint64(lengthBuf, length)
+	buf = append(buf[:4], append(lengthBuf, buf[4:]...)...) // Insert length after magic number
 
 	// Serialize SequenceNumber
 	seqNumBuf := make([]byte, 8)
