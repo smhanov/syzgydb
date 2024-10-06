@@ -350,7 +350,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 	buf = append(buf, magicBuf...)
 
 	// Calculate Length
-	length := uint64(len(buf) + 32) // +32 for checksum
+	length := uint64(len(magicBuf) + 8 + len(seqNumBuf) + 1 + len(recordIDBytes) + 1 + len(span.DataStreams)*9 + 32) // +32 for checksum
 	lengthBuf := make([]byte, 8)
 	binary.BigEndian.PutUint64(lengthBuf, length)
 	buf = append(buf, lengthBuf...)
