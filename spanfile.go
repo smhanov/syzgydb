@@ -349,11 +349,40 @@ func serializeSpan(span *Span) ([]byte, error) {
 	binary.BigEndian.PutUint32(magicBuf, span.MagicNumber)
 	buf = append(buf, magicBuf...)
 
-	// Calculate Length
-	length := uint64(len(buf) + 12 + 32) // +12 for magic number and length, +32 for checksum
+	// Placeholder for Length (will be updated later)
 	lengthBuf := make([]byte, 8)
-	binary.BigEndian.PutUint64(lengthBuf, length)
-	buf = append(buf[:4], append(lengthBuf, buf[4:]...)...) // Insert length after magic number
+	buf = append(buf, lengthBuf...)
+
+	// Serialize SequenceNumber
+	seqNumBuf := make([]byte, 8)
+	binary.BigEndian.PutUint64(seqNumBuf, span.SequenceNumber)
+	buf = append(buf, seqNumBuf...)
+
+	// Serialize RecordID Length and RecordID
+	recordIDBytes := []byte(span.RecordID)
+	buf = append(buf, byte(len(recordIDBytes)))
+	buf = append(buf, recordIDBytes...)
+
+	// Serialize Number of Data Streams
+	buf = append(buf, byte(len(span.DataStreams)))
+
+	// Serialize Data Streams
+	for _, ds := range span.DataStreams {
+		buf = append(buf, ds.StreamID)
+		streamLenBuf := make([]byte, 8)
+		binary.PutUvarint(streamLenBuf, uint64(len(ds.Data)))
+		buf = append(buf, streamLenBuf...)
+		buf = append(buf, ds.Data...)
+	}
+
+	// Calculate Length
+	length := uint64(len(buf) + 32) // +32 for checksum
+	binary.BigEndian.PutUint64(buf[4:12], length) // Update length in the buffer
+
+	// Debugging output
+	fmt.Printf("Serialized span length: %d bytes\n", length)
+
+	return buf, nil
 
 	// Serialize SequenceNumber
 	seqNumBuf := make([]byte, 8)
