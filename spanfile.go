@@ -3,7 +3,7 @@ Span File Format Grammar:
 
 SpanFile ::= Span*
 Span ::= MagicNumber (4)
-         SpanLength (7code)
+         SpanLength (4)
          SequenceNumber (7code)
          RecordIDLength (7code)
          RecordID (...bytes)
@@ -40,7 +40,7 @@ const (
 	freeMagic   = 0x46524545 // 'FREE'
 )
 
-const minSpanLength = 12
+const minSpanLength = 15
 
 type DataStream struct {
 	StreamID uint8
@@ -118,9 +118,9 @@ func OpenFile(filename string, options OpenOptions) (*SpanFile, error) {
 			return nil, err
 		}
 
-		log.Printf("Write span at checksum offset %d...%d", 0, len(spanBytes))
 		checkSum := calculateChecksum(spanBytes)
 		spanBytes = append(spanBytes, byte(checkSum>>24), byte(checkSum>>16), byte(checkSum>>8), byte(checkSum))
+		log.Printf("Write initial span:%v~%v", 0, len(spanBytes))
 
 		// Write the span to the file
 		_, err = file.Write(spanBytes)
@@ -174,7 +174,7 @@ func (db *SpanFile) scanFile() error {
 		if magicNumber == 0 {
 			db.addFreeSpan(uint64(offset), uint64(fileSize-offset))
 		}
-		length, _, err := read7Code(db.mmapData, offset+4)
+		length, err := readUint32(db.mmapData, offset+4)
 		//log.Printf("Scanning span at offset %d...%d\n", offset, length)
 
 		// Ensure there is enough data for the entire span
@@ -212,7 +212,7 @@ func (db *SpanFile) scanFile() error {
 				db.index[span.RecordID] = uint64(offset)
 			}
 		} else if magicNumber == freeMagic {
-			db.addFreeSpan(uint64(offset), length)
+			db.addFreeSpan(uint64(offset), uint64(length))
 		}
 
 		offset += int(length)
@@ -246,7 +246,7 @@ func (db *SpanFile) RemoveRecord(recordID string) error {
 		return err
 	}
 
-	log.Printf("Mark span %d of length %d as freed", offset, length)
+	log.Printf("Mark span:%d/%d as freed", offset, length)
 
 	// Mark the span as free
 	err = db.markSpanAsFreed(offset)
@@ -283,12 +283,38 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 		return err
 	}
 
+	offset, remaining, err := db.allocateSpan(len(spanBytes) + 4) //+4 for checksum
+	if err != nil {
+		return err
+	}
+
+	// If remaining is > 0 and < minSpanLength then we need to add padding
+	// before the checksum, and add the length of this padding to the uint32
+	// stored at offset 4 of the spanBytes.
+	if remaining > 0 && remaining < minSpanLength {
+		log.Printf("--->Adding %v bytes of padding", remaining)
+		padding := make([]byte, remaining)
+		spanBytes = append(spanBytes, padding...)
+
+		// Update the length in the spanBytes
+		length := uint32(len(spanBytes) + 4) // +4 for the checksum
+		binary.BigEndian.PutUint32(spanBytes[4:8], length)
+	}
+
 	checksum := calculateChecksum(spanBytes)
 	spanBytes = append(spanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
 
-	offset, err := db.allocateSpan(len(spanBytes))
-	if err != nil {
-		return err
+	log.Printf("Write %s to span:%v~%v", recordID, offset, len(spanBytes))
+
+	// if the remaining space is > minSpanLength then we need to write a free span
+	// after it. This is simply the free magic number followed by the
+	// length of the remaining space.
+	if remaining >= minSpanLength {
+		log.Printf(" -->Adding free space marker at span:%v~%v", int(offset)+len(spanBytes), remaining)
+		freeSpan := make([]byte, 8)
+		binary.BigEndian.PutUint32(freeSpan[0:4], freeMagic)
+		binary.BigEndian.PutUint32(freeSpan[4:8], uint32(remaining))
+		spanBytes = append(spanBytes, freeSpan...)
 	}
 
 	err = db.writeAt(spanBytes, offset)
@@ -296,12 +322,12 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 		return err
 	}
 
-	//TODO: Padding logic
 	if oldOffset, exists := db.index[recordID]; exists {
 		oldLength, err := db.getSpanLength(int(oldOffset))
 		if err != nil {
 			return err
 		}
+		log.Printf(" -->Replaced record %s at span:%v~%v)", recordID, oldOffset, oldLength)
 		err = db.markSpanAsFreed(oldOffset)
 		if err != nil {
 			return err
@@ -309,27 +335,25 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 		db.addFreeSpan(oldOffset, oldLength)
 	}
 
-	log.Printf("Write %s to offset %v length %v", recordID, offset, len(spanBytes))
-
 	db.index[recordID] = offset
 
 	return nil
 }
 
-func (db *SpanFile) allocateSpan(size int) (uint64, error) {
-	start, _, err := db.freeMap.getFreeRange(size)
+func (db *SpanFile) allocateSpan(size int) (uint64, int64, error) {
+	start, remaining, err := db.freeMap.getFreeRange(size)
 	if err == nil {
-		return uint64(start), nil
+		return uint64(start), remaining, nil
 	}
 
 	// If no free space is available, append to the file
 	offset := uint64(len(db.mmapData))
 	err = db.appendToFile(make([]byte, size))
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
-	return offset, nil
+	return offset, 0, nil
 }
 
 func (db *SpanFile) writeAt(data []byte, offset uint64) error {
@@ -516,12 +540,20 @@ func writeUint32(buf []byte, n uint32) []byte {
 	return buf
 }
 
+func readUint32(buf []byte, offset int) (uint32, error) {
+	if offset+4 > len(buf) {
+		return 0, fmt.Errorf("record too short to contain length")
+	}
+	return uint32(buf[offset])<<24 | uint32(buf[offset+1])<<16 |
+		uint32(buf[offset+2])<<8 | uint32(buf[offset+3]), nil
+}
+
 func serializeSpan(span *Span) ([]byte, error) {
 
 	recordIDBytes := []byte(span.RecordID)
 
 	// Calculate Length
-	length := 4 + 0 + // placeholder for length
+	length := 4 + 4 + // magic + length
 		lengthOf7Code(uint64(span.SequenceNumber)) +
 		lengthOf7Code(uint64(len(recordIDBytes))) +
 		uint64(len(recordIDBytes)) +
@@ -532,9 +564,6 @@ func serializeSpan(span *Span) ([]byte, error) {
 		length += 1 + lengthOf7Code(uint64(len(stream.Data))) + uint64(len(stream.Data))
 	}
 
-	l1 := lengthOf7Code(length)
-	l1 = lengthOf7Code(l1 + length) // in case it put it over the edge
-	length += l1
 	//log.Printf("Encoded length is %v l1=%v", length, l1)
 
 	buf := make([]byte, 0, length)
@@ -543,7 +572,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 	buf = writeUint32(buf, span.MagicNumber)
 
 	// length
-	buf = write7Code(buf, length)
+	buf = writeUint32(buf, uint32(length))
 
 	// sequence number
 	buf = write7Code(buf, uint64(span.SequenceNumber))
@@ -584,7 +613,10 @@ func parseSpan(data []byte) (*Span, error) {
 	}
 
 	var err error
-	span.Length, at, err = read7Code(data, at)
+	var l uint32
+	l, err = readUint32(data, at)
+	at += 4
+	span.Length = uint64(l)
 	if err != nil {
 		return nil, err
 	}
@@ -664,11 +696,11 @@ func parseSpanAtOffset(data []byte, offset uint64) (*Span, error) {
 
 func (db *SpanFile) getSpanLength(offset int) (uint64, error) {
 	// Read the length of the span
-	length, _, err := read7Code(db.mmapData, offset+4)
+	length, err := readUint32(db.mmapData, offset+4)
 	if err != nil {
 		return 0, err
 	}
-	return length, nil
+	return uint64(length), nil
 }
 
 func calculateChecksum(data []byte) uint32 {
