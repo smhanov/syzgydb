@@ -31,6 +31,10 @@ import (
 	"log"
 	"os"
 	"sync"
+)
+
+type SpanReader struct {
+	data []byte
 
 	"github.com/edsrzf/mmap-go"
 )
@@ -45,6 +49,57 @@ const minSpanLength = 15
 type DataStream struct {
 	StreamID uint8
 	Data     []byte
+}
+
+func (sr *SpanReader) getStream(id uint8) ([]byte, error) {
+	at := 4 // Skip MagicNumber
+	length, err := readUint32(sr.data, at)
+	if err != nil {
+		return nil, err
+	}
+	at += 4
+
+	// Skip SequenceNumber
+	_, at, err = read7Code(sr.data, at)
+	if err != nil {
+		return nil, err
+	}
+
+	// Skip RecordID
+	idLength, at, err := read7Code(sr.data, at)
+	if err != nil {
+		return nil, err
+	}
+	at += int(idLength)
+
+	// Read Number of Data Streams
+	numStreams := int(sr.data[at])
+	at++
+
+	for i := 0; i < numStreams; i++ {
+		if at >= len(sr.data) {
+			return nil, fmt.Errorf("data too short to contain all streams")
+		}
+		streamID := sr.data[at]
+		at++
+
+		streamLen, at, err := read7Code(sr.data, at)
+		if err != nil {
+			return nil, err
+		}
+
+		if at+int(streamLen) > len(sr.data) {
+			return nil, fmt.Errorf("data too short for stream data")
+		}
+
+		if streamID == id {
+			return sr.data[at : at+int(streamLen)], nil
+		}
+
+		at += int(streamLen)
+	}
+
+	return nil, fmt.Errorf("stream ID %d not found", id)
 }
 
 func (db *SpanFile) Close() error {
@@ -414,17 +469,15 @@ func (db *SpanFile) ReadRecord(recordID string) (*Span, error) {
 	return parseSpanAtOffset(db.mmapData, offset)
 }
 
-func (db *SpanFile) IterateRecords(callback func(recordID string, dataStreams []DataStream) error) error {
+func (db *SpanFile) IterateRecords(callback func(recordID string, sr *SpanReader) error) error {
 	for recordID, offset := range db.index {
 		if recordID == "" {
 			continue
 		}
-		span, err := parseSpanAtOffset(db.mmapData, offset)
-		if err != nil {
-			return err
-		}
+		spanData := db.mmapData[offset:]
+		sr := &SpanReader{data: spanData}
 
-		err = callback(recordID, span.DataStreams)
+		err := callback(recordID, sr)
 		if err != nil {
 			return err
 		}
