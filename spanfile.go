@@ -1,3 +1,22 @@
+/*
+Span File Format Grammar:
+
+SpanFile ::= Span*
+Span ::= MagicNumber SpanLength SequenceNumber RecordIDLength RecordID DataStreamCount DataStream* Checksum
+
+MagicNumber ::= 4 bytes
+SpanLength ::= 8 bytes
+SequenceNumber ::= 8 bytes
+RecordIDLength ::= Varint
+RecordID ::= bytes
+DataStreamCount ::= Varint
+DataStream ::= StreamID StreamLength StreamData
+StreamID ::= 1 byte
+StreamLength ::= Varint
+StreamData ::= bytes
+Checksum ::= 32 bytes (SHA-256)
+*/
+
 package syzgydb
 
 import (
