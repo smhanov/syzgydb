@@ -58,7 +58,6 @@ func TestFreeSpaceCoalescing(t *testing.T) {
 	db.WriteRecord("record2", dataStreams)
 
 	db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: []byte("Updated")}})
-}
 	db.WriteRecord("record2", []DataStream{{StreamID: 1, Data: []byte("Updated")}})
 
 	// Check if free spans are coalesced
@@ -96,7 +95,6 @@ func TestInvalidSpanHandling(t *testing.T) {
 	defer cleanup()
 
 	// Manually write an invalid span
-	offset := uint64(len(db.mmapData))
 	invalidSpan := make([]byte, 20)
 	binary.BigEndian.PutUint32(invalidSpan, 0xDEADBEEF) // Invalid magic number
 	db.appendToFile(invalidSpan)
@@ -198,19 +196,6 @@ func TestUpdateRecord(t *testing.T) {
 		t.Errorf("Expected data 'Updated', got '%s'", span.DataStreams[0].Data)
 	}
 }
-
-func TestFreeSpaceReuse(t *testing.T) {
-	db, cleanup := setupTestDB(t)
-	defer cleanup()
-
-	dataStreams := []DataStream{
-		{StreamID: 1, Data: []byte("Hello")},
-	}
-	db.WriteRecord("record1", dataStreams)
-	db.WriteRecord("record2", dataStreams)
-
-	db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: []byte("Updated")}})
-
 
 func TestIterateRecords(t *testing.T) {
 	db, cleanup := setupTestDB(t)

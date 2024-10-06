@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"github.com/go-mmap/mmap"
 	"sync"
+
+	"github.com/edsrzf/mmap-go"
 )
 
 const (
@@ -68,7 +69,7 @@ func OpenFile(filename string, options OpenOptions) (*DB, error) {
 		return nil, err
 	}
 
-	mmapData, err := mmap.Map(file, mmap.RDWR, 0)
+	mmapData, err := mmap.MapRegion(file, -1, mmap.RDWR, 0, 0)
 	if err != nil {
 		file.Close()
 		return nil, err
@@ -341,7 +342,6 @@ func msync(data []byte) error {
 	// This is a placeholder implementation
 	return nil
 }
-
 
 func magicNumberToString(magic uint32) string {
 	// Convert magic number to string

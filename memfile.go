@@ -13,9 +13,9 @@ type FileMode int
 
 const (
 	CreateIfNotExists  FileMode = 0 // Create the file only if it doesn't exist
-	ReadWrite                   = 1 // Open the file for read/write access
-	ReadOnly                    = 2 // Open the file for read-only access
-	CreateAndOverwrite          = 3 // Always create and overwrite the file if it exists
+	ReadWrite          FileMode = 1 // Open the file for read/write access
+	ReadOnly           FileMode = 2 // Open the file for read-only access
+	CreateAndOverwrite FileMode = 3 // Always create and overwrite the file if it exists
 )
 
 // The memory file consists of a header followed by a series of records.
