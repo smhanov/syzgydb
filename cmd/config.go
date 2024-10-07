@@ -23,7 +23,7 @@ func LoadConfig() error {
 	viper.SetDefault("ollama_server", "127.0.0.1:11434")
 	viper.SetDefault("text_model", "all-minilm")
 	viper.SetDefault("image_model", "minicpm-v")
-	viper.SetDefault("data_folder", ".data")
+	viper.SetDefault("data_folder", "./data")
 
 	// Bind command-line flags to Viper
 	viper.BindPFlags(pflag.CommandLine)

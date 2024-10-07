@@ -8,11 +8,15 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 const maxCacheSize = 100
 
-var embeddingCache = newLRUCache(maxCacheSize)
+var (
+	embeddingCache = newLRUCache(maxCacheSize)
+	cacheMutex     sync.RWMutex
+)
 
 type EmbedTextFunc func(text []string) ([][]float64, error)
 
@@ -25,6 +29,8 @@ func EmbedText(texts []string) ([][]float64, error) {
 	// Check the cache first
 	cachedEmbeddings := make([][]float64, len(texts))
 	allCached := true
+
+	cacheMutex.RLock()
 	for i, text := range texts {
 		if embedding, found := embeddingCache.get(text); found {
 			cachedEmbeddings[i] = embedding
@@ -33,6 +39,7 @@ func EmbedText(texts []string) ([][]float64, error) {
 			break
 		}
 	}
+	cacheMutex.RUnlock()
 
 	if allCached {
 		return cachedEmbeddings, nil
@@ -86,9 +93,11 @@ func EmbedText(texts []string) ([][]float64, error) {
 	}
 
 	// Store the new embeddings in the cache
+	cacheMutex.Lock()
 	for i, text := range texts {
 		embeddingCache.put(text, response.Embeddings[i])
 	}
+	cacheMutex.Unlock()
 
 	return response.Embeddings, nil
 }
