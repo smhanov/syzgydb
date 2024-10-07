@@ -49,12 +49,12 @@ class SyzgyDBClient:
 def processTweets():
     name = "tweets2"
     # Create a collection
-    print("Deleting collection...")
-    print(client.delete_collection("tweets2"))
+    #print("Deleting collection...")
+    #print(client.delete_collection("tweets2"))
 
 
     #print("Creating collection...")
-    print(client.create_collection("tweets2", 768, 8, "cosine"))
+    #print(client.create_collection("tweets2", 768, 8, "cosine"))
 
     # Read the csv file "training.1600000.processed.noemoticon.csv"
     # Collect all tweets from the 6th column in the collection
