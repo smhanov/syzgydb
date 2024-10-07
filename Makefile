@@ -35,24 +35,21 @@ VERSION = 1.0.0
 # Define the package name
 PACKAGE_NAME = syzgy
 
-# Define the path to the configuration file
-CONFIG_FILE = syzgy.conf
-
 # Create a .deb package
 deb: cmd
 	fpm -s dir -t deb -n $(PACKAGE_NAME) -v $(VERSION) \
 		--prefix /usr/bin \
-		--config-files /etc/$(CONFIG_FILE) \
-		syzgy=/usr/bin/syzgy \
-		$(CONFIG_FILE)=/etc/$(CONFIG_FILE)
+		./syzgy.conf=/etc/syzgy.conf \
+		./syzgy=/usr/bin/syzgy \
+
 
 # Create a .rpm package
 rpm: cmd
 	fpm -s dir -t rpm -n $(PACKAGE_NAME) -v $(VERSION) \
 		--prefix /usr/bin \
-		--config-files /etc/$(CONFIG_FILE) \
-		syzgy=/usr/bin/syzgy \
-		$(CONFIG_FILE)=/etc/$(CONFIG_FILE)
+		./syzgy=/usr/bin/syzgy \
+		./syzgy.conf=/etc/syzgy.conf
+
 push-hub: update
 	docker tag $(IMAGE_NAME) smhanov/syzgydb:latest
 	docker push smhanov/syzgydb:latest
