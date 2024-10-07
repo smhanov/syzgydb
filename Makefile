@@ -35,11 +35,13 @@ VERSION = 1.0.0
 # Define the package name
 PACKAGE_NAME = syzgy
 
+DEB_NAME := $(PACKAGE_NAME)_$(VERSION)_amd64.deb
+
 # Create a .deb package
 deb: cmd
+	-rm $(DEB_NAME)
 	fpm -s dir -t deb -n $(PACKAGE_NAME) -v $(VERSION) \
-		--prefix /usr/bin \
-		--config-files /etc/syzgy.conf \
+		--config-files ./syzgy.conf \
 		./syzgy=/usr/bin/syzgy \
 		./syzgy.conf=/etc/syzgy.conf \
 		./syzgy.service=/lib/systemd/system/syzgy.service
@@ -47,7 +49,6 @@ deb: cmd
 # Create a .rpm package
 rpm: cmd
 	fpm -s dir -t rpm -n $(PACKAGE_NAME) -v $(VERSION) \
-		--prefix /usr/bin \
 		--config-files /etc/syzgy.conf \
 		./syzgy=/usr/bin/syzgy \
 		./syzgy.conf=/etc/syzgy.conf \
