@@ -234,7 +234,23 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 		}
 	}
 
-	// Memory map the file
+	// Check the magic number if the file is not empty
+	if fileInfo.Size() > 0 {
+		// Read the first 4 bytes to check the magic number
+		magicNumber := make([]byte, 4)
+		_, err := file.ReadAt(magicNumber, 0)
+		if err != nil {
+			file.Close()
+			return nil, err
+		}
+
+		// Convert the bytes to uint32
+		magic := binary.BigEndian.Uint32(magicNumber)
+		if magic != activeMagic && magic != freeMagic {
+			file.Close()
+			return nil, fmt.Errorf("invalid magic number: %x", magic)
+		}
+	}
 	mmapData, err := mmap.MapRegion(file, -1, mmap.RDWR, 0, 0)
 	if err != nil {
 		log.Printf("Error mapping file: %v", err)

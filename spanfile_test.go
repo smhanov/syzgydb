@@ -30,6 +30,28 @@ func setupTestDB(t *testing.T) (*SpanFile, func()) {
 	return db, cleanup
 }
 
+func TestOpenFileWithInvalidMagicNumber(t *testing.T) {
+	tempFile, err := ioutil.TempFile("", "invalid_magic_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	// Write an invalid magic number to the file
+	invalidMagic := []byte{0x00, 0x00, 0x00, 0x00}
+	_, err = tempFile.Write(invalidMagic)
+	if err != nil {
+		t.Fatalf("Failed to write invalid magic number: %v", err)
+	}
+	tempFile.Close()
+
+	// Attempt to open the file
+	_, err = OpenFile(tempFile.Name(), ReadWrite)
+	if err == nil || !strings.Contains(err.Error(), "invalid magic number") {
+		t.Fatalf("Expected error for invalid magic number, got: %v", err)
+	}
+}
+
 func TestGetSpanReader(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
