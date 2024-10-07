@@ -6,7 +6,7 @@ CONTAINER_NAME = syzgydb-container
 PORT = 8080
 
 # Declare phony targets to avoid conflicts with files of the same name
-.PHONY: stop build run update push-hub
+.PHONY: stop build run update push-hub deb rpm
 
 # Stop and remove the running container if it exists
 stop:
@@ -29,7 +29,26 @@ update: stop build run
 cmd: 
 	cd cmd && go build -o ../syzgydb
 
-# Push the Docker image to Docker Hub
+# Define the version of the package
+VERSION = 1.0.0
+
+# Define the package name
+PACKAGE_NAME = syzgy
+
+# Define the path to the configuration file
+CONFIG_FILE = syzgy.conf
+
+# Create a .deb package
+deb: cmd
+	fpm -s dir -t deb -n $(PACKAGE_NAME) -v $(VERSION) \
+		--prefix /usr/bin syzgydb=/usr/bin/syzgy \
+		--config-files /etc/$(CONFIG_FILE) $(CONFIG_FILE)=/etc/$(CONFIG_FILE)
+
+# Create a .rpm package
+rpm: cmd
+	fpm -s dir -t rpm -n $(PACKAGE_NAME) -v $(VERSION) \
+		--prefix /usr/bin syzgydb=/usr/bin/syzgy \
+		--config-files /etc/$(CONFIG_FILE) $(CONFIG_FILE)=/etc/$(CONFIG_FILE)
 push-hub: update
 	docker tag $(IMAGE_NAME) smhanov/syzgydb:latest
 	docker push smhanov/syzgydb:latest
