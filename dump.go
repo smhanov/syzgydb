@@ -1,7 +1,6 @@
 package syzgydb
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -15,126 +14,42 @@ func DumpIndex(filename string) {
 	if err != nil {
 		log.Fatalf("Failed to open file: %v", err)
 	}
+
 	defer file.Close()
 
-	// Read and display the header
-	version, _ := readUint(file, 4)
-	headerLength, _ := readUint(file, 4)
-	distanceMethod, _ := readUint(file, 1)
-	dimensionCount, _ := readUint(file, 4)
-	quantization, _ := readUint(file, 1) // Add this line
+	// Get the file size
+	stat, err := file.Stat()
+	if err != nil {
+		log.Fatalf("Failed to get file stats: %v", err)
+	}
 
-	fmt.Printf("Header:\n")
-	fmt.Printf("  Version: %d\n", version)
-	fmt.Printf("  Header Length: %d\n", headerLength)
-	fmt.Printf("  Distance Method: %d\n", distanceMethod)
-	fmt.Printf("  Number of Dimensions: %d\n", dimensionCount)
-	fmt.Printf("  Quantization: %d-bit\n", quantization) // Add this line
+	// Read the file into a buffer
+	size := stat.Size()
+	buffer := make([]byte, size)
+	_, err = io.ReadFull(file, buffer)
+	if err != nil {
+		log.Fatalf("Failed to read file: %v", err)
+	}
 
-	// Iterate over all records
-	fmt.Println("Records:")
+	at := 0
 	for {
-		offset, _ := file.Seek(0, io.SeekCurrent)
-		recordLength, err := readUint(file, 8)
+		start := at
+		magic, err := readUint32(buffer, at)
 		if err != nil {
+			fmt.Printf("[%08x] Reached end of file")
+			break
+		}
+		at += 4
+
+		log.Printf("[%08x] Magic: %08x (%s)", at, magic, magicNumberToString(magic))
+
+		length, err := readUint32(buffer, at)
+		if err != nil {
+			fmt.Printf("[%08x] Could not read length.", at)
 			break
 		}
 
-		fmt.Printf("[%d] Total Length: %d\n", offset, recordLength)
-		if recordLength == 0 {
-			fmt.Println("     (Indicates end of usable records)")
-			remainingBytes, _ := file.Seek(0, io.SeekEnd)
-			fmt.Printf("Remaining bytes in file: %d\n", remainingBytes-offset)
-			break
-		}
+		//TODO: fill in the rest of the code.
 
-		// Read the ID
-		recordID, _ := readUint(file, 8)
-
-		if recordID == deletedRecordMarker {
-			fmt.Printf("  Record is deleted\n")
-			file.Seek(int64(recordLength)-16, io.SeekCurrent)
-			continue
-		}
-
-		fmt.Printf("  Record ID: %d\n", recordID)
-
-		// Calculate the vector size based on quantization
-		vectorSize := getVectorSize(int(quantization), int(dimensionCount))
-		vectorData := make([]byte, vectorSize)
-		if _, err := file.Read(vectorData); err != nil {
-			break
-		}
-
-		vector := make([]float64, dimensionCount)
-		vectorOffset := 0
-
-		for i := range vector {
-			var quantizedValue uint64
-			switch quantization {
-			case 4:
-				if i%2 == 0 {
-					quantizedValue = uint64(vectorData[vectorOffset+i/2] >> 4)
-				} else {
-					quantizedValue = uint64(vectorData[vectorOffset+i/2] & 0x0F)
-				}
-			case 8:
-				quantizedValue = uint64(vectorData[vectorOffset+i])
-			case 16:
-				quantizedValue = uint64(binary.BigEndian.Uint16(vectorData[vectorOffset+i*2:]))
-			case 32:
-				quantizedValue = uint64(binary.BigEndian.Uint32(vectorData[vectorOffset+i*4:]))
-			case 64:
-				quantizedValue = binary.BigEndian.Uint64(vectorData[vectorOffset+i*8:])
-			}
-
-			vector[i] = dequantize(quantizedValue, int(quantization))
-		}
-
-		fmt.Printf("    Vector: %v\n", vector)
-
-		// Read the metadata length
-		metadataLength, _ := readUint(file, 4)
-		fmt.Printf("    Metadata length: %v\n", metadataLength)
-
-		// Read the metadata
-		metadata := make([]byte, metadataLength)
-		if _, err := file.Read(metadata); err != nil {
-			break
-		}
-		fmt.Printf("    Metadata: %s\n", string(metadata))
-
-		// We should be at offset + recordLength. Check if we are.
-		currentOffset, _ := file.Seek(0, io.SeekCurrent)
-		expectedOffset := offset + int64(recordLength)
-		if currentOffset != expectedOffset {
-			if currentOffset < expectedOffset {
-				fmt.Printf("    PADDING: %d bytes\n", expectedOffset-currentOffset)
-				file.Seek(expectedOffset, io.SeekStart)
-			} else {
-				fmt.Printf("    WARNING: Extra %d bytes\n", currentOffset-expectedOffset)
-			}
-		}
 	}
-}
-
-func readUint(f io.Reader, size int) (uint64, error) {
-	buf := make([]byte, size)
-	if _, err := f.Read(buf); err != nil {
-		return 0, err
-	}
-
-	switch size {
-	case 1:
-		return uint64(buf[0]), nil
-	case 2:
-		return uint64(binary.BigEndian.Uint16(buf)), nil
-	case 4:
-		return uint64(binary.BigEndian.Uint32(buf)), nil
-	case 8:
-		return uint64(binary.BigEndian.Uint64(buf)), nil
-	default:
-		log.Fatalf("Invalid number of bytes: %d", size)
-	}
-	return 0, nil
 }
