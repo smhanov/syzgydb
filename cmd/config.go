@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/smhanov/syzgydb"
 	"github.com/spf13/pflag"
@@ -16,22 +17,31 @@ func init() {
 	pflag.String("image-model", "", "Name of the image embedding model")
 	pflag.String("config", "", "Path to the configuration file")
 	pflag.String("data-folder", "./data", "Path to the data folder")
-	pflag.String("sygy-host", "0.0.0.0:8080", "Host and port for the Syzygy server")
+	pflag.String("syzgy-host", "0.0.0.0:8080", "Host and port for the Syzygy server")
+
+	f := pflag.CommandLine
+	normalizeFunc := f.GetNormalizeFunc()
+	f.SetNormalizeFunc(func(fs *pflag.FlagSet, name string) pflag.NormalizedName {
+		result := normalizeFunc(fs, name)
+		name = strings.ReplaceAll(string(result), "-", "_")
+		return pflag.NormalizedName(name)
+	})
 }
 
 func LoadConfig() error {
 	// Set default values
-	viper.SetDefault("sygy_host", "0.0.0.0:8080")
+	viper.SetDefault("syzgy_host", "0.0.0.0:8080")
 	viper.SetDefault("ollama_server", "127.0.0.1:11434")
 	viper.SetDefault("text_model", "all-minilm")
 	viper.SetDefault("image_model", "minicpm-v")
 	viper.SetDefault("data_folder", "./data")
-
-	// Bind command-line flags to Viper
-	viper.BindPFlags(pflag.CommandLine)
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
 	// Parse command-line flags
 	pflag.Parse()
+
+	// Bind command-line flags to Viper
+	viper.BindPFlags(pflag.CommandLine)
 
 	// Bind environment variables
 	viper.AutomaticEnv()
@@ -42,8 +52,9 @@ func LoadConfig() error {
 		viper.SetConfigFile(configFile)
 	} else {
 		viper.SetConfigName("syzgy.conf")
+		viper.SetConfigType("yaml")
 		viper.AddConfigPath(".")
-		viper.AddConfigPath("/etc/syzgydb/")
+		viper.AddConfigPath("/etc")
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
@@ -68,7 +79,7 @@ func LoadConfig() error {
 	fmt.Printf("Text Model: %s\n", cfg.TextModel)
 	fmt.Printf("Image Model: %s\n", cfg.ImageModel)
 	fmt.Printf("Data Folder: %s\n", cfg.DataFolder)
-	fmt.Printf("Syzygy Host: %s\n", cfg.SygyHost)
+	fmt.Printf("Port: %s\n", cfg.SyzgyHost)
 
 	// Assign the loaded configuration to the global variable
 	syzgydb.Configure(cfg)

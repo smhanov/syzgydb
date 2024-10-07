@@ -15,10 +15,10 @@ COPY . .
 
 # Set the default data folder environment variable
 ENV DATA_FOLDER=/data
-RUN cd cmd && go build -o ../syzgydb 
+RUN cd cmd && go build -o ../syzgy
 
 # Expose the port that the application will run on
 EXPOSE 8080
 
 # Command to run the executable
-CMD ["./syzgydb", "--serve"]
+CMD ["./syzgy", "--serve"]

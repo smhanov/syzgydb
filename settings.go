@@ -6,7 +6,7 @@ type Config struct {
 	TextModel    string `mapstructure:"text_model"`
 	ImageModel   string `mapstructure:"image_model"`
 	DataFolder   string `mapstructure:"data_folder"`
-	SygyHost     string `mapstructure:"sygy_host"`
+	SyzgyHost    string `mapstructure:"syzgy_host"`
 }
 
 var GlobalConfig *Config

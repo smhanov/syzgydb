@@ -2,5 +2,5 @@
 set -e
 
 # Enable and start the syzygy service
-systemctl enable syzygy.service
-systemctl start syzygy.service
+systemctl enable syzgy.service
+systemctl start syzgy.service

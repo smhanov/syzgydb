@@ -2,4 +2,4 @@
 set -e
 
 # Stop the syzygy service
-systemctl stop syzygy.service
+systemctl stop syzgy.service

@@ -47,26 +47,29 @@ class SyzgyDBClient:
         return response.json()
 
 def processTweets():
-    name = "tweets2"
+    name = "tweets"
+    #print("Creating collection...")
+    #print(client.create_collection(name, 384, 8, "cosine"))
+    
     # Get collection info
     collection_info = client.get_info(name)
     document_count = collection_info.get("document_count", 0)
 
 
-    #print("Creating collection...")
-    #print(client.create_collection("tweets2", 768, 8, "cosine"))
-
     # Read the csv file "training.1600000.processed.noemoticon.csv"
     # Collect all tweets from the 6th column in the collection
 
-    batch_size = 1
+    batch_size = 100
     records = []
     with open("training.1600000.processed.noemoticon.csv", mode='r', encoding='utf-8') as file:
         csv_reader = csv.reader(file)
+
+        print("Skipping {} rows".format(document_count))
         
         # Skip rows based on document_count
         for _ in range(document_count):
             next(csv_reader, None)
+
         for row in csv_reader:
             # Extract the tweet from the 6th column (index 5)
             tweet_text = row[5]
@@ -83,14 +86,14 @@ def processTweets():
             # Insert records in batches of 100
             if len(records) == batch_size:
                 print(f"Inserting batch of {batch_size} records...")
-                response = client.insert_records("tweets2", records)
+                response = client.insert_records(name, records)
                 print(response)
                 records = []  # Clear the batch
 
     # Insert any remaining records
     if records:
         print(f"Inserting final batch of {len(records)} records...")
-        response = client.insert_records("tweets2", records)
+        response = client.insert_records(name, records)
         print(response)
             
             
