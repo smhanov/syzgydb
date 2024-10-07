@@ -42,6 +42,10 @@ deb: cmd
 	-rm $(DEB_NAME)
 	fpm -s dir -t deb -n $(PACKAGE_NAME) -v $(VERSION) \
 		--config-files ./syzgy.conf \
+		--after-install ./postinst \
+		--before-remove ./prerm \
+		--after-install ./postinst \
+		--before-remove ./prerm \
 		./syzgy=/usr/bin/syzgy \
 		./syzgy.conf=/etc/syzgy.conf \
 		./syzgy.service=/lib/systemd/system/syzgy.service

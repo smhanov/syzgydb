@@ -1,0 +1,6 @@
+#!/bin/bash
+set -e
+
+# Enable and start the syzygy service
+systemctl enable syzygy.service
+systemctl start syzygy.service
