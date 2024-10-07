@@ -237,21 +237,6 @@ func TestGetStats(t *testing.T) {
 	}
 }
 
-func TestDumpFile(t *testing.T) {
-	db, cleanup := setupTestDB(t)
-	defer cleanup()
-
-	dataStreams := []DataStream{
-		{StreamID: 1, Data: []byte("Hello")},
-	}
-	db.WriteRecord("record1", dataStreams)
-
-	err := db.DumpFile(os.Stdout)
-	if err != nil {
-		t.Fatalf("Failed to dump file: %v", err)
-	}
-}
-
 func TestRecordUpdateAndPersistence(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -414,7 +399,7 @@ func TestBatchOperations(t *testing.T) {
 		// Close and reopen the spanfile
 		db.Close() // Use the new Close method
 		var err error
-		db, err = OpenFile(name, OpenOptions{CreateIfNotExists: false})
+		db, err = OpenFile(name, 0)
 		if err != nil {
 			t.Fatalf("Failed to reopen database: %v", err)
 		}
@@ -424,7 +409,7 @@ func TestBatchOperations(t *testing.T) {
 			t.Logf("Verifying record %s", recordID)
 			span, err := db.ReadRecord(recordID)
 			if err != nil {
-				db.DumpFile(os.Stdout)
+				DumpIndex(name)
 				t.Fatalf("Failed to read record %s: %v", recordID, err)
 			}
 			if string(span.DataStreams[0].Data) != string(expectedData) {

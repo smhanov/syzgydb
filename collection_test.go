@@ -163,7 +163,7 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 	t.Logf("Verifying that removed documents are not accessible")
 	// Verify that removed documents are not accessible
 	for i := 0; i < 1000; i++ {
-		_, err := collection.memfile.readRecord(uint64(i))
+		_, err := collection.GetDocument(uint64(i))
 		if i%10 == 0 {
 			// Expect an error for removed documents
 			if err == nil {
@@ -198,13 +198,10 @@ func TestUpdateDocument(t *testing.T) {
 	}
 
 	// Read the updated document
-	data, err := collection.memfile.readRecord(1)
+	doc, err := collection.GetDocument(1)
 	if err != nil {
 		t.Errorf("Failed to read updated document: %v", err)
 	}
-
-	// Decode the document
-	doc := collection.decodeDocument(data, 1)
 
 	// Check if the metadata was updated
 	if string(doc.Metadata) != "updated" {
@@ -386,6 +383,7 @@ func TestCollectionPersistence(t *testing.T) {
 	for i := 0; i < numRecords; i++ {
 		doc, err := collection.GetDocument(uint64(i))
 		if err != nil {
+			DumpIndex(collectionName)
 			t.Errorf("Failed to retrieve document with ID %d: %v", i, err)
 		}
 		expectedVector := []float64{float64(i), float64(i + 1), float64(i + 2)}
@@ -468,7 +466,9 @@ func TestCollectionAddDeleteAndRetrieve(t *testing.T) {
 	// Retrieve the record
 	doc, err := collection.GetDocument(1)
 	if err != nil {
-		t.Errorf("Failed to retrieve document: %v", err)
+		collection.Close()
+		DumpIndex(collectionName)
+		t.Fatalf("Failed to retrieve document: %v", err)
 	}
 
 	// Verify the record's metadata

@@ -391,12 +391,14 @@ func TestGetAllCollections(t *testing.T) {
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
+		FileMode:       CreateAndOverwrite,
 	})
 	server.collections["collection2"] = NewCollection(CollectionOptions{
 		Name:           "collection2.dat",
 		DistanceMethod: Euclidean,
 		DimensionCount: 64,
 		Quantization:   32,
+		FileMode:       CreateAndOverwrite,
 	})
 
 	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections", nil)

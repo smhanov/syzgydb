@@ -3,6 +3,7 @@ package syzgydb
 import (
 	"container/heap"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -31,10 +32,10 @@ type CollectionOptions struct {
 
 	// DistanceMethod specifies the method used to calculate distances between vectors.
 	// It can be either Euclidean or Cosine.
-	DistanceMethod int
+	DistanceMethod int `json:"distance_method"`
 
 	// DimensionCount is the number of dimensions for each vector in the collection.
-	DimensionCount int
+	DimensionCount int `json:"dimension_count"`
 
 	// Quantization specifies the bit-level quantization for storing vectors.
 	// Supported values are 4, 8, 16, 32, and 64, with 64 as the default.
@@ -180,12 +181,6 @@ type CollectionStats struct {
 
 type FilterFn func(id uint64, metadata []byte) bool
 
-// 4 bytes: version
-// 4 bytes: length of the header
-// 1 byte: distance method
-// 4 bytes: number of dimensions
-const headerSize = 14 // Update the header size to 14
-
 const (
 	Euclidean = iota
 	Cosine
@@ -209,9 +204,6 @@ It initializes the collection's memory file and pivots manager.
 */
 func NewCollection(options CollectionOptions) *Collection {
 
-	// Define the header size and create a buffer to read it
-	header := make([]byte, headerSize)
-
 	// Check if the file exists
 	fileExists := false
 	if options.FileMode != CreateAndOverwrite {
@@ -229,32 +221,36 @@ func NewCollection(options CollectionOptions) *Collection {
 	}
 
 	if fileExists {
-		// Read the header from the file
-		if _, err := spanFile.file.ReadAt(header, 0); err != nil {
+		// Read the header to get the collection options
+		header, err := spanFile.ReadRecord("")
+		if err != nil {
 			panic(err)
 		}
 
-		// Extract the values from the header
-		options.DistanceMethod = int(header[8])
-		options.DimensionCount = int(binary.BigEndian.Uint32(header[9:]))
-		options.Quantization = int(header[13])
+		// Decode the collection options from the header
+		err = json.Unmarshal(header.DataStreams[0].Data, &options)
+		if err != nil {
+			panic(err)
+		}
 	} else {
 		if options.Quantization == 0 {
 			options.Quantization = 64
 		}
 
-		// Fill in the header
-		binary.BigEndian.PutUint32(header[0:], 1)                  // version
-		binary.BigEndian.PutUint32(header[4:], uint32(headerSize)) // length of the header
-		header[8] = byte(options.DistanceMethod)
-		binary.BigEndian.PutUint32(header[9:], uint32(options.DimensionCount))
-		header[13] = byte(options.Quantization)
-
-		// Write the header to the new file
-		if _, err := spanFile.file.WriteAt(header, 0); err != nil {
+		// Write the options to a JSON string and save it to the spanFile as record with id ""
+		// as datastream 0
+		optionsData, err := json.Marshal(options)
+		if err != nil {
 			panic(err)
 		}
-		spanFile.file.Sync()
+
+		dataStreams := []DataStream{
+			{StreamID: 0, Data: optionsData},
+		}
+		err = spanFile.WriteRecord("", dataStreams)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	// Determine the distance function
@@ -658,12 +654,12 @@ func encodeDocument(doc *Document, quantization int) []byte {
 func (c *Collection) decodeDocument(sr *SpanReader, id uint64) *Document {
 	data, err := sr.getStream(1)
 	if err != nil {
-		log.Panic("Failed to read vector data")
+		log.Panicf("Failed to read vector data of doc %d: %v", id, err)
 	}
 
 	vector := decodeVector(data, c.DimensionCount, c.Quantization)
 
-	metadata, err := sr.getStream(1)
+	metadata, err := sr.getStream(0)
 	if err != nil {
 		log.Panic("Failed to read metadata")
 	}

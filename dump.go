@@ -36,44 +36,72 @@ func DumpIndex(filename string) {
 		start := at
 		magic, err := readUint32(buffer, at)
 		if err != nil {
-			fmt.Printf("[%08x] Reached end of file\n", start)
+			fmt.Printf("[%08d] Reached end of file\n", start)
 			break
 		}
 		at += 4
 
-		log.Printf("[%08x] Magic: %08x (%s)", start, magic, magicNumberToString(magic))
+		fmt.Printf("[%08d] Magic: %08d (%s)\n", start, magic, magicNumberToString(magic))
 
 		length, err := readUint32(buffer, at)
 		if err != nil {
-			fmt.Printf("[%08x] Could not read length.\n", at)
+			fmt.Printf("[%08d] Could not read length.\n", at)
 			break
 		}
 		at += 4
 
-		if int(at)+int(length) > len(buffer) {
-			fmt.Printf("[%08x] Span length exceeds buffer size.\n", at)
+		if int(start)+int(length) > len(buffer) {
+			fmt.Printf("[%08d] Span length exceeds buffer size.\n", at)
 			break
 		}
+		fmt.Printf("[%08d] Length: %d bytes\n", at, length)
 
 		if magic == activeMagic {
-			spanData := buffer[start : start+int(length)]
-			span, err := parseSpan(spanData)
+			var seq uint64
+			seq, at, err = read7Code(buffer, at)
 			if err != nil {
-				fmt.Printf("[%08x] Error parsing span: %v\n", start, err)
-				at += int(length)
+				fmt.Printf("[%08d] Could not read sequence number.\n", at)
+				at = start + int(length)
 				continue
 			}
+			fmt.Printf("[%08d] Sequence Number: %d\n", start, seq)
 
-			fmt.Printf("[%08x] Length: %d bytes\n", start, span.Length)
-			fmt.Printf("[%08x] Sequence Number: %d\n", start, span.SequenceNumber)
-			fmt.Printf("[%08x] Record ID: %s\n", start, span.RecordID)
-			fmt.Printf("[%08x] Data Streams:\n", start)
-			for _, ds := range span.DataStreams {
-				fmt.Printf("  Stream ID: %d, Length: %d bytes\n", ds.StreamID, len(ds.Data))
+			var idlen uint64
+			was := at
+			idlen, at, err = read7Code(buffer, at)
+			if err != nil {
+				fmt.Printf("[%08d] Could not read rec id len.\n", at)
+				at = start + int(length)
+				continue
 			}
-			fmt.Printf("[%08x] Checksum: %x\n", start, span.Checksum)
+			fmt.Printf("[%08d] Record ID length: %d\n", was, idlen)
+			fmt.Printf("[%08d] Record ID: %s\n", at, string(buffer[at:at+int(idlen)]))
+			at += int(idlen)
+
+			numStreams := buffer[at]
+			fmt.Printf("[%08d] Data Streams: %d\n", at, buffer[at])
+			at++
+			for i := 0; i < int(numStreams); i++ {
+				streamId := buffer[at]
+				fmt.Printf("[%08d] Stream ID: %d\n", at, streamId)
+				at++
+				var streamLen uint64
+				streamLen, at, err = read7Code(buffer, at)
+				if err != nil {
+					fmt.Printf("[%08d] Could not read stream length.\n", at)
+					at = start + int(length)
+					continue
+				}
+				fmt.Printf("[%08d] Stream Length: %d\n", at, streamLen)
+				at += int(streamLen)
+			}
+			checksum, err := readUint32(buffer, at)
+			if err != nil {
+				fmt.Printf("[%08d] Could not read checksum.\n", at)
+			}
+			fmt.Printf("[%08d] Checksum: %x\n", start, checksum)
 		} else if magic == freeMagic {
-			fmt.Printf("[%08x] Free span of length: %d bytes\n", start, length)
+			fmt.Printf("[%08d] Free span of length: %d bytes\n", start, length)
 		}
 
 		at = start + int(length)
