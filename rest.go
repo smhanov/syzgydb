@@ -50,7 +50,10 @@ func (s *Server) collectionNameToFileName(name string) string {
 }
 
 func (s *Server) fileNameToCollectionName(fileName string) string {
-	return strings.TrimSuffix(fileName, ".dat")
+	// Extract the base filename from the full path
+	baseName := filepath.Base(fileName)
+	// Remove the .dat extension
+	return strings.TrimSuffix(baseName, ".dat")
 }
 func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received %s request for %s", r.Method, r.URL.Path)
