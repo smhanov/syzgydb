@@ -48,9 +48,9 @@ class SyzgyDBClient:
 
 def processTweets():
     name = "tweets2"
-    # Create a collection
-    #print("Deleting collection...")
-    #print(client.delete_collection("tweets2"))
+    # Get collection info
+    collection_info = client.get_info(name)
+    document_count = collection_info.get("document_count", 0)
 
 
     #print("Creating collection...")
@@ -64,7 +64,9 @@ def processTweets():
     with open("training.1600000.processed.noemoticon.csv", mode='r', encoding='utf-8') as file:
         csv_reader = csv.reader(file)
         
-        # Iterate over each row in the CSV
+        # Skip rows based on document_count
+        for _ in range(document_count):
+            next(csv_reader, None)
         for row in csv_reader:
             # Extract the tweet from the 6th column (index 5)
             tweet_text = row[5]
