@@ -27,7 +27,7 @@ update: stop build run
 .PHONY: cmd
 
 cmd: 
-	cd cmd && go build -o ../syzgydb
+	cd cmd && go build -o ../syzgy
 
 # Define the version of the package
 VERSION = 1.0.0
