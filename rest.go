@@ -121,6 +121,10 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 			return collectionsInfo[i].DocumentCount > collectionsInfo[j].DocumentCount
 		})
 
+		for i := range collectionsInfo {
+			collectionsInfo[i].Name = s.fileNameToCollectionName(collectionsInfo[i].Name)
+		}
+
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
 		encoder := json.NewEncoder(w)
