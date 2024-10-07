@@ -107,7 +107,7 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": name})
 
 	case http.MethodGet:
-		var collectionsInfo []collectionStatsWithName
+		collectionsInfo := []collectionStatsWithName{}
 
 		s.mutex.Lock()
 		collections := make([]*Collection, 0, len(s.collections))
