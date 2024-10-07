@@ -36,20 +36,46 @@ func DumpIndex(filename string) {
 		start := at
 		magic, err := readUint32(buffer, at)
 		if err != nil {
-			fmt.Printf("[%08x] Reached end of file")
+			fmt.Printf("[%08x] Reached end of file\n", start)
 			break
 		}
 		at += 4
 
-		log.Printf("[%08x] Magic: %08x (%s)", at, magic, magicNumberToString(magic))
+		log.Printf("[%08x] Magic: %08x (%s)", start, magic, magicNumberToString(magic))
 
 		length, err := readUint32(buffer, at)
 		if err != nil {
-			fmt.Printf("[%08x] Could not read length.", at)
+			fmt.Printf("[%08x] Could not read length.\n", at)
+			break
+		}
+		at += 4
+
+		if int(at)+int(length) > len(buffer) {
+			fmt.Printf("[%08x] Span length exceeds buffer size.\n", at)
 			break
 		}
 
-		//TODO: fill in the rest of the code.
+		if magic == activeMagic {
+			spanData := buffer[start : start+int(length)]
+			span, err := parseSpan(spanData)
+			if err != nil {
+				fmt.Printf("[%08x] Error parsing span: %v\n", start, err)
+				at += int(length)
+				continue
+			}
 
+			fmt.Printf("[%08x] Length: %d bytes\n", start, span.Length)
+			fmt.Printf("[%08x] Sequence Number: %d\n", start, span.SequenceNumber)
+			fmt.Printf("[%08x] Record ID: %s\n", start, span.RecordID)
+			fmt.Printf("[%08x] Data Streams:\n", start)
+			for _, ds := range span.DataStreams {
+				fmt.Printf("  Stream ID: %d, Length: %d bytes\n", ds.StreamID, len(ds.Data))
+			}
+			fmt.Printf("[%08x] Checksum: %x\n", start, span.Checksum)
+		} else if magic == freeMagic {
+			fmt.Printf("[%08x] Free span of length: %d bytes\n", start, length)
+		}
+
+		at = start + int(length)
 	}
 }
