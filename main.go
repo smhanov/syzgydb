@@ -45,5 +45,7 @@ func RunServer() {
 		}
 	})))
 
-	http.ListenAndServe(":8080", nil)
+	host := GlobalConfig.SygyHost
+	log.Printf("Starting server on %s", host)
+	http.ListenAndServe(host, nil)
 }

@@ -16,6 +16,7 @@ func init() {
 	pflag.String("image-model", "", "Name of the image embedding model")
 	pflag.String("config", "", "Path to the configuration file")
 	pflag.String("data-folder", "./data", "Path to the data folder")
+	pflag.String("sygy-host", "0.0.0.0:8080", "Host and port for the Syzygy server")
 }
 
 func LoadConfig() error {
@@ -66,6 +67,7 @@ func LoadConfig() error {
 	fmt.Printf("Text Model: %s\n", cfg.TextModel)
 	fmt.Printf("Image Model: %s\n", cfg.ImageModel)
 	fmt.Printf("Data Folder: %s\n", cfg.DataFolder)
+	fmt.Printf("Syzygy Host: %s\n", cfg.SygyHost)
 
 	// Assign the loaded configuration to the global variable
 	syzgydb.Configure(cfg)
