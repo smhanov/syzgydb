@@ -39,16 +39,19 @@ PACKAGE_NAME = syzgy
 deb: cmd
 	fpm -s dir -t deb -n $(PACKAGE_NAME) -v $(VERSION) \
 		--prefix /usr/bin \
-		./syzgy.conf=/etc/syzgy.conf \
+		--config-files /etc/syzgy.conf \
 		./syzgy=/usr/bin/syzgy \
-
+		./syzgy.conf=/etc/syzgy.conf \
+		./syzgy.service=/lib/systemd/system/syzgy.service
 
 # Create a .rpm package
 rpm: cmd
 	fpm -s dir -t rpm -n $(PACKAGE_NAME) -v $(VERSION) \
 		--prefix /usr/bin \
+		--config-files /etc/syzgy.conf \
 		./syzgy=/usr/bin/syzgy \
-		./syzgy.conf=/etc/syzgy.conf
+		./syzgy.conf=/etc/syzgy.conf \
+		./syzgy.service=/lib/systemd/system/syzgy.service
 
 push-hub: update
 	docker tag $(IMAGE_NAME) smhanov/syzgydb:latest

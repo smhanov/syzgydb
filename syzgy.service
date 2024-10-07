@@ -1,0 +1,10 @@
+[Unit]
+Description=Syzygy Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/syzgy --serve
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
