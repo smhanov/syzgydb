@@ -20,7 +20,7 @@ func RunServer() {
 	}
 
 	for _, file := range files {
-		collectionName := strings.TrimSuffix(file, ".dat")
+		collectionName := server.fileNameToCollectionName(file)
 		log.Printf("Loading collection from file: %s", file)
 
 		// Create a collection with empty CollectionOptions
