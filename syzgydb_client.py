@@ -22,6 +22,11 @@ class SyzgyDBClient:
         response = requests.delete(url)
         return response.json()  
 
+    def get_info(self, collection_name):
+        url = f"{self.server_address}/api/v1/collections/{collection_name}"
+        response = requests.get(url)
+        return response.json()
+
     def insert_record(self, collection_name, record_id, text=None, vector=None, metadata=None):
         url = f"{self.server_address}/api/v1/collections/{collection_name}/records"
         data = {
