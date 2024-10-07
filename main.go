@@ -13,7 +13,8 @@ func RunServer() {
 	}
 
 	// Scan for existing .dat files and create collections
-	files, err := filepath.Glob("*.dat")
+	dataFolder := GlobalConfig.DataFolder
+	files, err := filepath.Glob(filepath.Join(dataFolder, "*.dat"))
 	if err != nil {
 		log.Fatalf("Failed to list .dat files: %v", err)
 	}
