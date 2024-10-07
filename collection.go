@@ -50,8 +50,8 @@ type CollectionOptions struct {
 // This method provides a quick way to determine the size of the collection
 // by returning the count of document IDs stored in the memfile.
 func (c *Collection) GetDocumentCount() int {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	// Use spanfile to count records
 	_, numRecords := c.spanfile.GetStats()
@@ -63,8 +63,8 @@ ComputeStats gathers and returns statistics about the collection.
 It returns a CollectionStats object filled with the relevant statistics.
 */
 func (c *Collection) ComputeStats() CollectionStats {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	// Calculate the storage size
 	storageSize, documentCount := c.spanfile.GetStats()
@@ -194,7 +194,7 @@ type Collection struct {
 	spanfile *SpanFile // Change from memfile to spanfile
 	index    searchIndex
 	lshTree  *lshTree
-	mutex    sync.Mutex
+	mutex    sync.RWMutex // Change from sync.Mutex to sync.RWMutex
 	distance func([]float64, []float64) float64
 }
 
@@ -296,8 +296,8 @@ func NewCollection(options CollectionOptions) *Collection {
 GetAllIDs returns a sorted list of all document IDs in the collection.
 */
 func (c *Collection) GetAllIDs() []uint64 {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	var ids []uint64
 	c.spanfile.IterateRecords(func(recordID string, sr *SpanReader) error {
@@ -318,6 +318,9 @@ ComputeAverageDistance calculates the average distance between random pairs of d
 It returns the average distance or 0.0 if there are fewer than two documents or if the sample size is non-positive.
 */
 func (c *Collection) computeAverageDistance(samples int) float64 {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
 	if samples <= 0 {
 		return 0.0
 	}
@@ -430,8 +433,8 @@ GetDocument retrieves a document from the collection by its ID.
 It returns the document or an error if the document is not found.
 */
 func (c *Collection) GetDocument(id uint64) (*Document, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	return c.getDocument(id)
 }
@@ -536,8 +539,8 @@ func (pq *resultPriorityQueue) Pop() interface{} {
 Search returns the search results, including the list of matching documents and the percentage of the database searched.
 */
 func (c *Collection) Search(args SearchArgs) SearchResults {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	// Default precision to "medium" if not set
 	if args.Precision == "" {
 		args.Precision = "medium"

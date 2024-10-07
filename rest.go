@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -70,9 +71,6 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("Creating collection with options: %+v", temp)
 
-		s.mutex.Lock()
-		defer s.mutex.Unlock()
-
 		opts := CollectionOptions{
 			Name:           temp.Name,
 			DimensionCount: temp.DimensionCount,
@@ -92,12 +90,15 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		name := opts.Name
 		opts.Name = s.collectionNameToFileName(name)
 
+		s.mutex.Lock()
 		if _, exists := s.collections[name]; exists {
+			s.mutex.Unlock()
 			writeErrorResponse(w, "Collection already exists", http.StatusBadRequest)
 			return
 		}
-
 		s.collections[name] = NewCollection(opts)
+		s.mutex.Unlock()
+
 		log.Printf("Collection %s created successfully", name)
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": name})
@@ -106,9 +107,13 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		var collectionsInfo []collectionStatsWithName
 
 		s.mutex.Lock()
-		defer s.mutex.Unlock()
-
+		collections := make([]*Collection, 0, len(s.collections))
 		for _, collection := range s.collections {
+			collections = append(collections, collection)
+		}
+		s.mutex.Unlock()
+
+		for _, collection := range collections {
 			collectionsInfo = append(collectionsInfo, s.getCollectionStats(collection))
 		}
 
@@ -181,7 +186,9 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodDelete:
 		log.Printf("Deleting collection %s", collectionName)
+		s.mutex.Lock()
 		delete(s.collections, collectionName)
+		s.mutex.Unlock()
 		collection.Close()
 		os.Remove(s.collectionNameToFileName(collectionName))
 		w.WriteHeader(http.StatusOK)
@@ -396,17 +403,21 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var embeddingTime time.Duration
 	if searchRequest.Text != "" {
+		startEmbed := time.Now()
 		vector, err := embedText([]string{searchRequest.Text})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
 			return
 		}
 		searchArgs.Vector = vector[0]
+		embeddingTime = time.Since(startEmbed)
 	}
 
-	//log.Printf("Using searchArgs: %+v", searchArgs)
+	startSearch := time.Now()
 	results := collection.Search(searchArgs)
+	searchTime := time.Since(startSearch)
 
 	type jsonSearchResult struct {
 		ID       uint64                 `json:"id"`
@@ -431,9 +442,13 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(struct {
 		Results         []jsonSearchResult `json:"results"`
 		PercentSearched float64            `json:"percent_searched"`
+		SearchTime      int64              `json:"search_time"`
+		EmbeddingTime   int64              `json:"embedding_time"`
 	}{
 		Results:         jsonResults,
 		PercentSearched: results.PercentSearched,
+		SearchTime:      searchTime.Milliseconds(),
+		EmbeddingTime:   embeddingTime.Milliseconds(),
 	})
 }
 
