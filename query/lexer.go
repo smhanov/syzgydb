@@ -158,10 +158,6 @@ func lookupIdentifier(ident string) TokenType {
 		return TokenNot
 	case "IN":
 		return TokenIN
-	case "NOT":
-		return TokenNot
-	case "IN":
-		return TokenIN
 	case "DOES NOT EXIST":
 		return TokenDOESNOTEXIST
 	case "CONTAINS":
