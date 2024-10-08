@@ -135,6 +135,8 @@ func (l *Lexer) NextToken() Token {
 			tok.Literal = l.readNumber()
 			tok.Type = TokenNumber
 			return tok
+		} else {
+			tok = Token{Type: TokenEOF, Literal: "", Line: l.line, Column: l.column}
 		}
 	}
 
