@@ -42,6 +42,7 @@ const (
 	TokenLeftBracket  // '['
 	TokenRightBracket // ']'
 	TokenColon        // ':'
+	TokenDot          // '.'
 )
 
 type Token struct {

@@ -129,10 +129,6 @@ func (p *Parser) parseAnd() (Node, error) {
 }
 
 func (p *Parser) parseExpression() (Node, error) {
-	return p.parseLogicalExpression()
-}
-
-func (p *Parser) parseLogicalExpression() (Node, error) {
 	left, err := p.parseNot()
 	if err != nil {
 		return nil, err
@@ -219,8 +215,11 @@ func (p *Parser) parseNotExpression() (Node, error) {
 }
 
 func (p *Parser) parseFunction() (Node, error) {
-	funcName := p.currentToken.Literal
-	p.nextToken() // consume function name
+	var funcName string
+	if p.currentToken.Type == TokenIdentifier {
+		funcName = p.currentToken.Literal
+		p.nextToken() // consume function name
+	}
 
 	if p.currentToken.Type != TokenLeftParen {
 		return nil, fmt.Errorf("expected '(' after %s, got %s", funcName, p.currentToken.Literal)
@@ -306,7 +305,7 @@ func (p *Parser) parseIdentifierOrFunction() (Node, error) {
 	}
 
 	if p.currentToken.Type == TokenLeftParen {
-		return p.parseFunction(identifier)
+		return p.parseFunction()
 	}
 
 	if p.currentToken.Type == TokenEXISTS {
@@ -322,34 +321,6 @@ func (p *Parser) parseIdentifierOrFunction() (Node, error) {
 	return &IdentifierNode{Name: identifier}, nil
 }
 
-func (p *Parser) parseFunction(name string) (Node, error) {
-	p.nextToken() // consume '('
-	args := []Node{}
-
-	if p.currentToken.Type != TokenRightParen {
-		arg, err := p.parseExpression()
-		if err != nil {
-			return nil, err
-		}
-		args = append(args, arg)
-
-		for p.currentToken.Type == TokenComma {
-			p.nextToken() // consume ','
-			arg, err := p.parseExpression()
-			if err != nil {
-				return nil, err
-			}
-			args = append(args, arg)
-		}
-	}
-
-	if p.currentToken.Type != TokenRightParen {
-		return nil, fmt.Errorf("expected ')', got %s", p.currentToken.Literal)
-	}
-	p.nextToken() // consume ')'
-
-	return &FunctionNode{Name: name, Arguments: args}, nil
-}
 
 func (p *Parser) parseNumber() (Node, error) {
 	value, err := strconv.ParseFloat(p.currentToken.Literal, 64)
