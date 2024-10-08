@@ -394,6 +394,71 @@ func TestDeleteRecord(t *testing.T) {
 		t.Errorf("handler returned unexpected body: got %v want %v", actualResponse, expectedResponse)
 	}
 }
+
+func TestSearchRecordsWithFilter(t *testing.T) {
+	ensureTestFolder(t)
+	server := setupTestServer()
+
+	// Create the collection explicitly for this test
+	server.collections["test_collection"] = NewCollection(CollectionOptions{
+		Name:           testFilePath("test_collection.dat"),
+		DistanceMethod: Cosine,
+		DimensionCount: 5,
+		Quantization:   64,
+	})
+
+	// Add documents with different metadata
+	server.collections["test_collection"].AddDocument(1, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"category":"A", "score":80}`))
+	server.collections["test_collection"].AddDocument(2, []float64{0.2, 0.3, 0.4, 0.5, 0.6}, []byte(`{"category":"B", "score":90}`))
+	server.collections["test_collection"].AddDocument(3, []float64{0.3, 0.4, 0.5, 0.6, 0.7}, []byte(`{"category":"A", "score":70}`))
+
+	// Prepare the search request with a filter
+	reqBody := `{
+		"vector": [0.1, 0.2, 0.3, 0.4, 0.5],
+		"k": 3,
+		"filter": "category == \"A\" AND score > 75"
+	}`
+	req, err := http.NewRequest(http.MethodPost, "/api/v1/collections/test_collection/search", strings.NewReader(reqBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(server.handleSearchRecords)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	var response struct {
+		Results []struct {
+			ID       uint64                 `json:"id"`
+			Metadata map[string]interface{} `json:"metadata"`
+			Distance float64                `json:"distance"`
+		} `json:"results"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that we got only one result (ID 1) that matches the filter
+	if len(response.Results) != 1 {
+		t.Errorf("expected 1 search result, got %v", len(response.Results))
+	}
+
+	if len(response.Results) > 0 {
+		if response.Results[0].ID != 1 {
+			t.Errorf("expected result with ID 1, got %v", response.Results[0].ID)
+		}
+		if response.Results[0].Metadata["category"] != "A" {
+			t.Errorf("expected result with category A, got %v", response.Results[0].Metadata["category"])
+		}
+		if score, ok := response.Results[0].Metadata["score"].(float64); !ok || score <= 75 {
+			t.Errorf("expected result with score > 75, got %v", response.Results[0].Metadata["score"])
+		}
+	}
+}
 func TestGetAllCollections(t *testing.T) {
 	ensureTestFolder(t)
 	server := setupTestServer()
