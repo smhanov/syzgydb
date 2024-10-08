@@ -28,7 +28,7 @@ func init() {
 }
 
 func Configure(cfg Config) {
-	cfg.RandGen = rand.New(cfg.RandSource) // Initialize RandGen with the provided RandSource
+	cfg.RandGen = rand.New(rand.NewSource(rand.Int63())) // Initialize RandGen with a new source
 	globalConfig = cfg
 	globalRandGen = cfg.RandGen
 }

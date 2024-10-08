@@ -46,7 +46,7 @@ func (w gzipResponseWriter) Write(b []byte) (int, error) {
 }
 
 func (s *Server) collectionNameToFileName(name string) string {
-	return filepath.Join(GlobalConfig.DataFolder, name+".dat")
+	return filepath.Join(globalConfig.DataFolder, name+".dat")
 }
 
 func (s *Server) fileNameToCollectionName(fileName string) string {

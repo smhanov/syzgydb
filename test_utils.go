@@ -53,10 +53,10 @@ func setupTestDB(t *testing.T) (*SpanFile, func()) {
 // Setup function for Server tests
 func setupTestServer() *Server {
 	ensureTestFolder(nil) // We're not in a test context here, so pass nil
-	if GlobalConfig == nil {
-		GlobalConfig = &Config{}
+	if globalConfig == nil {
+		globalConfig = Config{}
 	}
-	GlobalConfig.DataFolder = "./testfolder" // Set the data folder to the testfolder
+	globalConfig.DataFolder = "./testfolder" // Set the data folder to the testfolder
 	server := &Server{
 		collections: make(map[string]*Collection),
 	}
