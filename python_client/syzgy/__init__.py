@@ -14,7 +14,7 @@ class SyzgyClient:
             raise SyzgyException(f"HTTP {response.status_code}: {response.text}")
         return response.json()
 
-    def create_collection(self, name: str, vector_size: int, quantization: int, distance_function: str) -> 'Collection':
+    def create_collection(self, name: str, vector_size: int, quantization: int, distance_function: str) -> Collection:
         data = {
             "name": name,
             "vector_size": vector_size,
@@ -22,15 +22,15 @@ class SyzgyClient:
             "distance_function": distance_function
         }
         result = self._request("POST", "/api/v1/collections", json=data)
-        return Collection(self, **result)
+        return Collection(self, name, result["document_count"], result["dimension_count"], result["quantization"], result["distance_function"])
 
-    def get_collections(self) -> List['Collection']:
+    def get_collections(self) -> List[Collection]:
         result = self._request("GET", "/api/v1/collections")
-        return [Collection(self, **collection) for collection in result]
+        return [Collection(self, c["collection_name"], c["document_count"], c["dimension_count"], c["quantization"], c["distance_function"]) for c in result]
 
-    def get_collection(self, name: str) -> 'Collection':
+    def get_collection(self, name: str) -> Collection:
         result = self._request("GET", f"/api/v1/collections/{name}")
-        return Collection(self, **result)
+        return Collection(self, name, result["document_count"], result["dimension_count"], result["quantization"], result["distance_function"])
 
     def delete_collection(self, collection_name: str) -> Dict:
         return self._request("DELETE", f"/api/v1/collections/{collection_name}")
