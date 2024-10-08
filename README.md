@@ -4,6 +4,20 @@
 
 ![image](https://github.com/user-attachments/assets/f8cc7b60-1fd0-4319-a607-b8d3269a288d)
 
+## Table of Contents
+
+- [Introduction](#introduction)
+- [Features](#features)
+- [Running with Docker](#running-with-docker)
+- [Configuration](#configuration)
+- [RESTful API](#restful-api)
+  - [Collections API](#collections-api)
+  - [Data API](#data-api)
+- [Usage in a Go Project](#usage-in-a-go-project)
+- [Query Filter Language](#query-filter-language)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Introduction
 
 SyzgyDB is a high-performance, embeddable vector database designed for applications requiring efficient handling of large datasets. Written in Go, it leverages disk-based storage to minimize memory usage, making it ideal for systems with limited resources. SyzgyDB supports a range of distance metrics, including Euclidean and Cosine, and offers multiple quantization levels to optimize storage and search performance.
@@ -186,7 +200,7 @@ A collection is a database, and you can create them and get information about th
   - **`limit`**: Limits the number of records returned in the response. Useful for paginating results.
   - **`offset`**: Skips the specified number of records before starting to return results. Used in conjunction with `limit` for pagination.
   - **`precision`**: Specifies the search precision. Defaults to "medium". Set to "exact" to perform an exhaustive search of all points.
-  - **`filter`**: A string containing a query filter expression. This allows for additional filtering of results based on metadata fields.
+  - **`filter`**: A string containing a query filter expression. This allows for additional filtering of results based on metadata fields. See the [Query Filter Language](#query-filter-language) section for more details.
 
  **Example `curl`**:
   ```bash
@@ -297,7 +311,7 @@ args := syzgydb.SearchArgs{
 results := collection.Search(args)
 ```
 
-The `BuildFilter` method allows you to create a filter function from a query string using the Query Filter Language described in this document. This provides a flexible way to filter search results based on metadata fields without writing custom Go code for each filter.
+The `BuildFilter` method allows you to create a filter function from a query string using the [Query Filter Language](#query-filter-language) described in this document. This provides a flexible way to filter search results based on metadata fields without writing custom Go code for each filter.
 
 ### Updating and Removing Documents
 
@@ -368,9 +382,19 @@ SyzgyDB supports a powerful query filter language that allows you to filter sear
    user.profile.verified == true AND user.friends.length > 5
    ```
 
-5. **Complex Query**:
+5. **Existence Checks**:
    ```
-   (status == "active" AND age >= 18) OR (role == "admin" AND NOT (department == "IT"))
+   phone_number EXISTS AND emergency_contact DOES NOT EXIST
+   ```
+
+6. **Combining Existence with Other Conditions**:
+   ```
+   (status == "active" OR status == "pending") AND profile_picture EXISTS
+   ```
+
+7. **Complex Query**:
+   ```
+   (status == "active" AND age >= 18) OR (role == "admin" AND NOT (department == "IT")) AND last_login EXISTS
    ```
 
 
