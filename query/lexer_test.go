@@ -1,6 +1,7 @@
 package query
 
 import (
+	"log"
 	"testing"
 )
 
@@ -24,6 +25,7 @@ func TestNextToken(t *testing.T) {
 	lexer := NewLexer(input)
 
 	for i, tt := range tests {
+		log.Printf("tests read %v", tt.expectedLiteral)
 		tok := lexer.NextToken()
 
 		if tok.Type != tt.expectedType {

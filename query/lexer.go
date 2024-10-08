@@ -1,6 +1,7 @@
 package query
 
 import (
+	"log"
 	"unicode"
 )
 
@@ -37,7 +38,7 @@ const (
 	TokenLENGTH
 	TokenANY
 	TokenALL
-	TokenEOF TokenType = 0x1e // Hexadecimal value for 30
+	TokenEOF
 )
 
 type Token struct {
@@ -64,7 +65,9 @@ func NewLexer(input string) *Lexer {
 
 func (l *Lexer) readChar() {
 	if l.readPosition >= len(l.input) {
+		log.Printf("End of file")
 		l.ch = 0
+		return
 	} else {
 		l.ch = l.input[l.readPosition]
 	}
@@ -76,11 +79,12 @@ func (l *Lexer) readChar() {
 	} else {
 		l.column++
 	}
+	log.Printf("readChar: %c (%0x), position: %d, readPosition: %d, line: %d, column: %d", l.ch, l.ch, l.position, l.readPosition, l.line, l.column)
 }
 
 func (l *Lexer) NextToken() Token {
 	var tok Token
-
+	log.Printf("NextToken ch=%x", l.ch)
 	l.skipWhitespace()
 
 	if l.ch == 0 {
@@ -214,7 +218,11 @@ func (l *Lexer) readString() string {
 			break
 		}
 	}
-	return l.input[position:l.position]
+	ret := l.input[position:l.position]
+	if l.ch == '"' {
+		l.readChar()
+	}
+	return ret
 }
 
 func isLetter(ch byte) bool {
