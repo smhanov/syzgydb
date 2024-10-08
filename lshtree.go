@@ -279,6 +279,7 @@ func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
 	visited := make(map[uint64]bool)
 	const search_k = 100 // how many points do we search beyond what is required in hopes of finding a better result.
 	k_counter := 0       // number of times we visited a point and it didn't yield any better results.
+	pointAccepted := false
 
 	// Initialize the priority queue
 	pq := &nodePriorityQueue{}
@@ -309,8 +310,11 @@ func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
 					return
 				case PointAccepted:
 					k_counter = 0
+					pointAccepted = true
 				case PointChecked:
-					k_counter++
+					if pointAccepted {
+						k_counter++
+					}
 				case PointIgnored:
 				}
 			}
