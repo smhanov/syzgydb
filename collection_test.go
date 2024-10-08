@@ -59,8 +59,9 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 		t.Fatalf("could not start CPU profile: %v", err)
 	}
 	defer pprof.StopCPUProfile()
+	ensureTestdataDir()
 	options := CollectionOptions{
-		Name:           testFilePath("test_cosine_precision_comparison.dat"),
+		Name:           "testdata/test_cosine_precision_comparison.dat",
 		DistanceMethod: Cosine,
 		DimensionCount: 3,
 		FileMode:       CreateAndOverwrite,

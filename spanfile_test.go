@@ -28,7 +28,8 @@ func setupTestDB(t *testing.T) (*SpanFile, func()) {
 		t.Fatalf("Failed to create testfolder: %v", err)
 	}
 
-	tempFile, err := ioutil.TempFile("./testfolder", "spanfile_test")
+	ensureTestdataDir()
+	tempFile, err := ioutil.TempFile("testdata", "spanfile_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
