@@ -125,11 +125,7 @@ func (l *Lexer) NextToken() Token {
 		tok.Type = TokenString
 		return tok
 	case 0:
-		tok.Literal = ""
-		tok.Type = TokenEOF
-		tok.Literal = l.readString()
-		tok.Type = TokenString
-		return tok
+		tok = Token{Type: TokenEOF, Literal: "", Line: l.line, Column: l.column}
 	default:
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
@@ -139,8 +135,6 @@ func (l *Lexer) NextToken() Token {
 			tok.Literal = l.readNumber()
 			tok.Type = TokenNumber
 			return tok
-		} else {
-			tok = Token{Type: TokenEOF, Literal: "", Line: l.line, Column: l.column}
 		}
 	}
 
