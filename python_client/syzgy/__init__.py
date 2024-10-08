@@ -22,7 +22,8 @@ class SyzgyClient:
             "distance_function": distance_function
         }
         result = self._request("POST", "/api/v1/collections", json=data)
-        return Collection(self, name, result["document_count"], result["dimension_count"], result["quantization"], result["distance_function"])
+        # Use the parameters passed in to construct the Collection object
+        return Collection(self, name, 0, vector_size, quantization, distance_function)
 
     def get_collections(self) -> List[Collection]:
         result = self._request("GET", "/api/v1/collections")
