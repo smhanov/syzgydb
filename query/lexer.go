@@ -120,10 +120,13 @@ func (l *Lexer) NextToken() Token {
 		} else {
 			tok = Token{Type: TokenLess, Literal: string(l.ch), Line: l.line, Column: l.column}
 		}
+	case '"':
+		tok.Literal = l.readString()
+		tok.Type = TokenString
+		return tok
 	case 0:
 		tok.Literal = ""
 		tok.Type = TokenEOF
-	case '"':
 		tok.Literal = l.readString()
 		tok.Type = TokenString
 		return tok
@@ -155,10 +158,10 @@ func lookupIdentifier(ident string) TokenType {
 		return TokenNot
 	case "IN":
 		return TokenIN
-	case "NOT IN":
-		return TokenNOTIN
-	case "EXISTS":
-		return TokenEXISTS
+	case "NOT":
+		return TokenNot
+	case "IN":
+		return TokenIN
 	case "DOES NOT EXIST":
 		return TokenDOESNOTEXIST
 	case "CONTAINS":
