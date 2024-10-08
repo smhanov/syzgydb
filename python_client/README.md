@@ -33,18 +33,30 @@ documents = [
     Document(id=1, vector=[0.1, 0.2, 0.3, ..., 0.5], metadata={"key": "value1"}),
     Document(id=2, text="Example text", metadata={"key": "value2"})
 ]
-client.insert_documents("my_collection", documents)
+collection.insert_documents(documents)
 
 # Search
-results = client.search(
-    collection_name="my_collection",
+results = collection.search(
     vector=[0.1, 0.2, 0.3, ..., 0.5],
     k=5
 )
 
 for result in results:
     print(f"ID: {result.id}, Distance: {result.distance}, Metadata: {result.metadata}")
+
+# Delete the collection
+client.delete_collection("my_collection")
 ```
+
+This example demonstrates:
+
+1. Initializing the SyzgyClient
+2. Creating a collection
+3. Inserting documents into the collection
+4. Performing a search on the collection
+5. Deleting the collection
+
+Note that document insertion, searching, and other collection-specific operations are performed on the Collection object, while collection management (creation, deletion) is done through the SyzgyClient.
 
 ## Features
 
