@@ -15,8 +15,30 @@ const (
     TokenOperator
     TokenParenthesis
     TokenComma
+    TokenLeftParen   // '('
+    TokenRightParen  // ')'
+    TokenComma       // ','
+    TokenEqual           // '=='
+    TokenNotEqual        // '!='
+    TokenGreater         // '>'
+    TokenGreaterEqual    // '>='
+    TokenLess            // '<'
+    TokenLessEqual       // '<='
+    TokenAnd             // 'AND'
+    TokenOr              // 'OR'
+    TokenNot             // 'NOT'
+    TokenIN
+    TokenNOTIN
+    TokenEXISTS
+    TokenDOESNOTEXIST
+    TokenCONTAINS
+    TokenSTARTSWITH
+    TokenENDSWITH
+    TokenMATCHES
+    TokenLENGTH
+    TokenANY
+    TokenALL
     TokenEOF
-    // ... other token types
 )
 
 type Token struct {
@@ -63,16 +85,42 @@ func (l *Lexer) NextToken() Token {
     l.skipWhitespace()
 
     switch l.ch {
+    case '(':
+        tok = Token{Type: TokenLeftParen, Literal: string(l.ch), Line: l.line, Column: l.column}
+    case ')':
+        tok = Token{Type: TokenRightParen, Literal: string(l.ch), Line: l.line, Column: l.column}
+    case ',':
+        tok = Token{Type: TokenComma, Literal: string(l.ch), Line: l.line, Column: l.column}
     case '=':
         if l.peekChar() == '=' {
             ch := l.ch
             l.readChar()
-            tok = Token{Type: TokenOperator, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column}
+            tok = Token{Type: TokenEqual, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column}
         } else {
             tok = Token{Type: TokenOperator, Literal: string(l.ch), Line: l.line, Column: l.column}
         }
-    case '+':
-        tok = Token{Type: TokenOperator, Literal: string(l.ch), Line: l.line, Column: l.column}
+    case '!':
+        if l.peekChar() == '=' {
+            ch := l.ch
+            l.readChar()
+            tok = Token{Type: TokenNotEqual, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column}
+        }
+    case '>':
+        if l.peekChar() == '=' {
+            ch := l.ch
+            l.readChar()
+            tok = Token{Type: TokenGreaterEqual, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column}
+        } else {
+            tok = Token{Type: TokenGreater, Literal: string(l.ch), Line: l.line, Column: l.column}
+        }
+    case '<':
+        if l.peekChar() == '=' {
+            ch := l.ch
+            l.readChar()
+            tok = Token{Type: TokenLessEqual, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column}
+        } else {
+            tok = Token{Type: TokenLess, Literal: string(l.ch), Line: l.line, Column: l.column}
+        }
     case 0:
         tok.Literal = ""
         tok.Type = TokenEOF
@@ -92,6 +140,41 @@ func (l *Lexer) NextToken() Token {
 
     l.readChar()
     return tok
+}
+
+func lookupIdentifier(ident string) TokenType {
+    switch ident {
+    case "AND":
+        return TokenAnd
+    case "OR":
+        return TokenOr
+    case "NOT":
+        return TokenNot
+    case "IN":
+        return TokenIN
+    case "NOT IN":
+        return TokenNOTIN
+    case "EXISTS":
+        return TokenEXISTS
+    case "DOES NOT EXIST":
+        return TokenDOESNOTEXIST
+    case "CONTAINS":
+        return TokenCONTAINS
+    case "STARTS_WITH":
+        return TokenSTARTSWITH
+    case "ENDS_WITH":
+        return TokenENDSWITH
+    case "MATCHES":
+        return TokenMATCHES
+    case "LENGTH":
+        return TokenLENGTH
+    case "ANY":
+        return TokenANY
+    case "ALL":
+        return TokenALL
+    default:
+        return TokenIdentifier
+    }
 }
 
 func (l *Lexer) skipWhitespace() {
