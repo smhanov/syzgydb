@@ -23,21 +23,21 @@ client = SyzgyClient("http://localhost:8080")
 # Create a collection
 collection = client.create_collection(
     name="my_collection",
-    vector_size=128,
+    vector_size=5,
     quantization=64,
     distance_function="cosine"
 )
 
 # Insert documents
 documents = [
-    Document(id=1, vector=[0.1, 0.2, 0.3, ..., 0.5], metadata={"key": "value1"}),
-    Document(id=2, text="Example text", metadata={"key": "value2"})
+    Document(id=1, vector=[0.1, 0.2, 0.3, 0.4, 0.5], metadata={"key": "value1"}),
+    Document(id=2, vector=[1, 2, 3, 4, 5], metadata={"key": "value2"})
 ]
 collection.insert_documents(documents)
 
 # Search
 results = collection.search(
-    vector=[0.1, 0.2, 0.3, ..., 0.5],
+    vector=[0,0,0,0,0.1],
     k=5
 )
 

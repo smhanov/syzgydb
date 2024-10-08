@@ -1,0 +1,2 @@
+class SyzgyException(Exception):
+    pass
