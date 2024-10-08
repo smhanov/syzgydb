@@ -89,7 +89,28 @@ func (p *Parser) Parse() (Node, error) {
 }
 
 func (p *Parser) parseExpression() (Node, error) {
-	return p.parseOr()
+	return p.parseLogicalExpression()
+}
+
+func (p *Parser) parseLogicalExpression() (Node, error) {
+	left, err := p.parseOr()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.currentToken.Type == TokenAnd || p.currentToken.Type == TokenOr {
+		operator := p.currentToken.Literal
+		p.nextToken()
+
+		right, err := p.parseOr()
+		if err != nil {
+			return nil, err
+		}
+
+		left = &ExpressionNode{Left: left, Operator: operator, Right: right}
+	}
+
+	return left, nil
 }
 
 func (p *Parser) parseOr() (Node, error) {
@@ -190,6 +211,22 @@ func (p *Parser) parsePrimary() (Node, error) {
 	case TokenColon:
 		return p.parseParameter()
 	case TokenNot:
+		return p.parseNotExpression()
+	case TokenEXISTS, TokenDOESNOTEXIST, TokenANY, TokenALL, TokenLENGTH:
+		return p.parseFunction()
+	default:
+		return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Literal)
+	}
+}
+
+func (p *Parser) parseNotExpression() (Node, error) {
+	p.nextToken() // consume NOT
+	expr, err := p.parsePrimary()
+	if err != nil {
+		return nil, err
+	}
+	return &ExpressionNode{Left: nil, Operator: "NOT", Right: expr}, nil
+}
 		return p.parseNotExpression()
 	case TokenEXISTS, TokenDOESNOTEXIST, TokenANY, TokenALL, TokenLENGTH:
 		return p.parseFunction()
