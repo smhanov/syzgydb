@@ -1,4 +1,4 @@
-# SyzgyDB Python Client
+# Syzgy Python Client
 
 This is the official Python client for interacting with the SyzgyDB vector database REST API. SyzgyDB is a high-performance, embeddable vector database designed for efficient handling of large datasets.
 
@@ -7,7 +7,7 @@ This is the official Python client for interacting with the SyzgyDB vector datab
 You can install the SyzgyDB Python client using pip:
 
 ```bash
-pip install syzgydb
+pip install syzgy
 ```
 
 ## Quick Start
@@ -15,10 +15,10 @@ pip install syzgydb
 Here's a quick example of how to use the SyzgyDB Python client:
 
 ```python
-from syzgydb import SyzgyDBClient, Document
+from syzgy import SyzgyClient, Document
 
 # Initialize the client
-client = SyzgyDBClient("http://localhost:8080")
+client = SyzgyClient("http://localhost:8080")
 
 # Create a collection
 collection = client.create_collection(
@@ -57,13 +57,13 @@ for result in results:
 
 ## API Reference
 
-### SyzgyDBClient
+### SyzgyClient
 
 The main class for interacting with SyzgyDB.
 
 #### `__init__(base_url: str)`
 
-Initialize the client with the base URL of your SyzgyDB instance.
+Initialize the client with the base URL of your Syzgy instance.
 
 #### `create_collection(name: str, vector_size: int, quantization: int, distance_function: str) -> Collection`
 
