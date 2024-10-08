@@ -49,3 +49,52 @@ func RunServer() {
 	log.Printf("Starting server on %s", host)
 	http.ListenAndServe(host, nil)
 }
+package main
+
+import (
+    "fmt"
+    "query"
+)
+
+func main() {
+    queryString := `age >= :minAge AND status == :status`
+    params := query.Parameters{
+        "minAge": 18,
+        "status": "active",
+    }
+
+    if cachedFilter, ok := query.getCachedFilter(queryString); ok {
+        filterFunc := cachedFilter
+    } else {
+        lexer := query.NewLexer(queryString)
+        parser := query.NewParser(lexer)
+        ast, err := parser.Parse()
+        if err != nil {
+            fmt.Println("Parse error:", err)
+            return
+        }
+
+        ast, err = query.substituteParameters(ast, params)
+        if err != nil {
+            fmt.Println("Parameter substitution error:", err)
+            return
+        }
+
+        compiledExpr := query.compileExpression(ast)
+        query.cacheFilter(queryString, compiledExpr)
+
+        filterFunc := func(record []byte) (bool, error) {
+            return query.filter(record, compiledExpr)
+        }
+
+        record := []byte(`{"age": 25, "status": "active"}`)
+        match, err := filterFunc(record)
+        if err != nil {
+            fmt.Println("Filter error:", err)
+        } else if match {
+            fmt.Println("Record matches the query")
+        } else {
+            fmt.Println("Record does not match")
+        }
+    }
+}
