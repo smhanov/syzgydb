@@ -45,7 +45,7 @@ func RunServer() {
 		}
 	})))
 
-	host := GlobalConfig.SyzgyHost
+	host := globalConfig.SyzgyHost
 	log.Printf("Starting server on %s", host)
 	http.ListenAndServe(host, nil)
 }

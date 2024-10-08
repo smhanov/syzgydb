@@ -44,13 +44,13 @@ func EmbedText(texts []string) ([][]float64, error) {
 	if allCached {
 		return cachedEmbeddings, nil
 	}
-	if GlobalConfig == nil {
+	if globalConfig == nil {
 		return nil, fmt.Errorf("global configuration is not set")
 	}
 
 	// Prepare the request payload
 	payload := map[string]interface{}{
-		"model": GlobalConfig.TextModel,
+		"model": globalConfig.TextModel,
 		"input": texts,
 	}
 	payloadBytes, err := json.Marshal(payload)
@@ -59,7 +59,7 @@ func EmbedText(texts []string) ([][]float64, error) {
 	}
 
 	// Construct the request URL
-	url := GlobalConfig.OllamaServer
+	url := globalConfig.OllamaServer
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "http://" + url
 	}
