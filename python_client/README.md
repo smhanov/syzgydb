@@ -81,25 +81,37 @@ Get details of a specific collection.
 
 Delete a collection.
 
-#### `insert_documents(collection_name: str, documents: List[Document]) -> Dict`
+### Collection
 
-Insert documents into a collection.
+Represents a collection in SyzgyDB.
 
-#### `update_document_metadata(collection_name: str, document_id: int, metadata: Dict) -> Dict`
+#### `insert_documents(documents: List[Document]) -> Dict`
+
+Insert documents into the collection.
+
+#### `update_document_metadata(document_id: int, metadata: Dict) -> Dict`
 
 Update the metadata of a document.
 
-#### `delete_document(collection_name: str, document_id: int) -> Dict`
+#### `delete_document(document_id: int) -> Dict`
 
-Delete a document from a collection.
+Delete a document from the collection.
 
-#### `search(collection_name: str, **kwargs) -> List[SearchResult]`
+#### `search(**kwargs) -> List[SearchResult]`
 
-Perform a search in a collection. Supports various search parameters.
+Perform a search in the collection. Supports various search parameters:
+- `vector`: Optional[List[float]]
+- `text`: Optional[str]
+- `k`: Optional[int]
+- `radius`: Optional[float]
+- `limit`: Optional[int]
+- `offset`: Optional[int]
+- `precision`: Optional[str]
+- `filter`: Optional[str]
 
-#### `get_document_ids(collection_name: str) -> List[int]`
+#### `get_document_ids() -> List[int]`
 
-Get all document IDs in a collection.
+Get all document IDs in the collection.
 
 ## Contributing
 
