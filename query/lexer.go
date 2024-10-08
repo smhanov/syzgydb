@@ -219,6 +219,8 @@ func (l *Lexer) readString() string {
 	}
 	return l.input[position:l.position]
 }
+
+func isLetter(ch byte) bool {
 	return unicode.IsLetter(rune(ch)) || ch == '_'
 }
 
