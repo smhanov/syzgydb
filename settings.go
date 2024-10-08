@@ -7,6 +7,10 @@ type Config struct {
 	ImageModel   string `mapstructure:"image_model"`
 	DataFolder   string `mapstructure:"data_folder"`
 	SyzgyHost    string `mapstructure:"syzgy_host"`
+	RandSource   rand.Source // Source for random number generation
+	RandGen      *rand.Rand  // Random number generator
+	RandSource:   rand.NewSource(rand.Int63()), // Default random source
+	RandGen:      rand.New(rand.NewSource(rand.Int63())), // Default random generator
 }
 
 import "math/rand"
@@ -25,5 +29,6 @@ func init() {
 }
 
 func Configure(cfg Config) {
+	cfg.RandGen = rand.New(cfg.RandSource) // Initialize RandGen with the provided RandSource
 	GlobalConfig = cfg
 }

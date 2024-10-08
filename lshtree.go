@@ -39,8 +39,7 @@ func vectorLength(vector []float64) float64 {
 func randomNormalizedVector(dim int) []float64 {
 	vector := make([]float64, dim)
 	for i := range vector {
-		r := rand.New(GlobalConfig.RandSource)
-		vector[i] = r.NormFloat64()
+		vector[i] = GlobalConfig.RandGen.NormFloat64()
 	}
 	return normalizeVector(vector)
 }
@@ -165,11 +164,10 @@ func aboutEqual(vector1, vector2 []float64) bool {
 }
 
 func (tree *lshTree) split(node *lshNode) *lshNode {
-	r := rand.New(GlobalConfig.RandSource)
-	randomIndex1 := r.Intn(len(node.ids))
+	randomIndex1 := GlobalConfig.RandGen.Intn(len(node.ids))
 	var randomIndex2 int
 	for {
-		randomIndex2 = r.Intn(len(node.ids))
+		randomIndex2 = GlobalConfig.RandGen.Intn(len(node.ids))
 		if randomIndex2 != randomIndex1 {
 			break
 		}
