@@ -78,6 +78,32 @@ func (n *ArrayNode) String() string {
 	return fmt.Sprintf("[%s]", strings.Join(elements, ", "))
 }
 
+type AnyNode struct {
+	Array     Node
+	Condition Node
+}
+
+func (n *AnyNode) String() string {
+	return fmt.Sprintf("ANY(%s %s)", n.Array.String(), n.Condition.String())
+}
+
+type AllNode struct {
+	Array     Node
+	Condition Node
+}
+
+func (n *AllNode) String() string {
+	return fmt.Sprintf("ALL(%s %s)", n.Array.String(), n.Condition.String())
+}
+
+type ArrayStarNode struct {
+	Array Node
+}
+
+func (n *ArrayStarNode) String() string {
+	return fmt.Sprintf("%s[*]", n.Array.String())
+}
+
 type Parser struct {
 	lexer        *Lexer
 	currentToken Token
@@ -232,6 +258,11 @@ func (p *Parser) parseFunction(funcName string) (Node, error) {
 	}
 	p.nextToken() // consume '('
 
+	switch funcName {
+	case "ANY", "ALL":
+		return p.parseAnyAllFunction(funcName)
+	}
+
 	args := []Node{}
 	if p.currentToken.Type != TokenRightParen {
 		arg, err := p.parseExpression()
@@ -256,6 +287,57 @@ func (p *Parser) parseFunction(funcName string) (Node, error) {
 	p.nextToken() // consume ')'
 
 	return &FunctionNode{Name: funcName, Arguments: args}, nil
+}
+
+func (p *Parser) parseAnyAllFunction(funcName string) (Node, error) {
+	arrayExpr, err := p.parseArrayExpression()
+	if err != nil {
+		return nil, err
+	}
+
+	if p.currentToken.Type != TokenRightParen {
+		condition, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+
+		if p.currentToken.Type != TokenRightParen {
+			return nil, fmt.Errorf("expected ')' after condition in %s function, got %s", funcName, p.currentToken.Literal)
+		}
+		p.nextToken() // consume ')'
+
+		if funcName == "ANY" {
+			return &AnyNode{Array: arrayExpr, Condition: condition}, nil
+		} else {
+			return &AllNode{Array: arrayExpr, Condition: condition}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("expected condition after array in %s function", funcName)
+}
+
+func (p *Parser) parseArrayExpression() (Node, error) {
+	identifier, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+
+	if p.currentToken.Type != TokenLeftBracket {
+		return nil, fmt.Errorf("expected '[' after identifier in array expression, got %s", p.currentToken.Literal)
+	}
+	p.nextToken() // consume '['
+
+	if p.currentToken.Type != TokenArrayStar {
+		return nil, fmt.Errorf("expected '[*]' in array expression, got %s", p.currentToken.Literal)
+	}
+	p.nextToken() // consume '[*]'
+
+	if p.currentToken.Type != TokenRightBracket {
+		return nil, fmt.Errorf("expected ']' after '[*]' in array expression, got %s", p.currentToken.Literal)
+	}
+	p.nextToken() // consume ']'
+
+	return &ArrayStarNode{Array: identifier}, nil
 }
 
 func (p *Parser) parseIn(identifier string) (Node, error) {
