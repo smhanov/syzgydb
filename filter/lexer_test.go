@@ -35,3 +35,45 @@ func TestNextToken(t *testing.T) {
 		}
 	}
 }
+
+func TestLexerAdditionalCases(t *testing.T) {
+	input := `name != "John" AND (age < 30 OR status IN ("active", "pending"))`
+
+	tests := []struct {
+		expectedType    TokenType
+		expectedLiteral string
+	}{
+		{TokenIdentifier, "name"},
+		{TokenNotEqual, "!="},
+		{TokenString, "John"},
+		{TokenAnd, "AND"},
+		{TokenLeftParen, "("},
+		{TokenIdentifier, "age"},
+		{TokenLess, "<"},
+		{TokenNumber, "30"},
+		{TokenOr, "OR"},
+		{TokenIdentifier, "status"},
+		{TokenIN, "IN"},
+		{TokenLeftParen, "("},
+		{TokenString, "active"},
+		{TokenComma, ","},
+		{TokenString, "pending"},
+		{TokenRightParen, ")"},
+		{TokenRightParen, ")"},
+		{TokenEOF, ""},
+	}
+
+	lexer := NewLexer(input)
+
+	for i, tt := range tests {
+		tok := lexer.NextToken()
+
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - token type wrong. expected=%q, got=%q", i, tt.expectedType, tok.Type)
+		}
+
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q", i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
