@@ -1,37 +1,13 @@
 package syzgydb
 
 import (
-	"os"
-)
-
-func ensureTestdataDir() {
-	if _, err := os.Stat("testdata"); os.IsNotExist(err) {
-		os.Mkdir("testdata", os.ModePerm)
-	}
-}
-
-import (
 	"fmt"
 	"math"
 	"math/rand"
 	"os"
-	"path/filepath"
 	"runtime/pprof"
 	"testing"
 )
-
-// Helper function to create a test file path
-func testFilePath(fileName string) string {
-	return filepath.Join("./testfolder", fileName)
-}
-
-// Helper function to ensure testfolder exists
-func ensureTestFolder(t *testing.T) {
-	err := os.MkdirAll("./testfolder", 0755)
-	if err != nil {
-		t.Fatalf("Failed to create testfolder: %v", err)
-	}
-}
 
 func TestEuclideanDistance(t *testing.T) {
 	vec1 := []float64{1.0, 2.0, 3.0}
