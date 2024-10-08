@@ -380,6 +380,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		Radius    float64   `json:"radius,omitempty"`
 		K         int       `json:"k,omitempty"`
 		Precision string    `json:"precision,omitempty"`
+		Filter    string    `json:"filter,omitempty"`
 	}
 
 	if r.Method == http.MethodGet {
@@ -391,6 +392,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		searchArgs.K, _ = strconv.Atoi(query.Get("k"))
 		searchRequest.Text = query.Get("text")
 		searchArgs.Precision = query.Get("precision")
+		searchRequest.Filter = query.Get("filter")
 	} else if r.Method == http.MethodPost {
 		if err := json.NewDecoder(r.Body).Decode(&searchRequest); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -408,6 +410,15 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
+	}
+
+	if searchRequest.Filter != "" {
+		filterFn, err := CreateFilterFunction(searchRequest.Filter)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Invalid filter query: %v", err), http.StatusBadRequest)
+			return
+		}
+		searchArgs.Filter = filterFn
 	}
 
 	var embeddingTime time.Duration

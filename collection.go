@@ -208,7 +208,11 @@ func CreateFilterFunction(queryIn string) (FilterFn, error) {
 	}
 
 	return func(id uint64, metadata []byte) bool {
-		pass, _ := fn(metadata)
+		pass, err := fn(metadata)
+		if err != nil {
+			log.Printf("Error applying filter to document %d: %v", id, err)
+			return false
+		}
 		return pass
 	}, nil
 }
