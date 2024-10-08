@@ -37,7 +37,7 @@ const (
 	TokenLENGTH
 	TokenANY
 	TokenALL
-	TokenEOF
+	TokenEOF TokenType = 0x1e // Hexadecimal value for 30
 )
 
 type Token struct {
@@ -147,7 +147,7 @@ func (l *Lexer) NextToken() Token {
 func lookupIdentifier(ident string) TokenType {
 	switch ident {
 	case "AND":
-		return TokenAnd
+		return TokenType(0x10) // Hexadecimal value for 16
 	case "OR":
 		return TokenOr
 	case "NOT":
