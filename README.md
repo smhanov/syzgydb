@@ -33,6 +33,7 @@ With built-in integration for the Ollama server, SyzgyDB can automatically gener
 * **Distance Metrics**: Supports Euclidean and Cosine distance calculations for vector similarity.
 * **Scalable**: Efficiently handles large datasets with support for adding, updating, and removing documents.
 * **Search Capabilities**: Provides nearest neighbor and radius-based search functionalities.
+* **Python Client**: A Python client is available for easy integration with Python projects.
 
 
 ## Running with Docker
@@ -332,6 +333,22 @@ To dump the collection for inspection or backup, use the `DumpIndex` function:
 ```go
 syzgydb.DumpIndex("example.dat")
 ```
+
+## Python Client
+
+A Python client for SyzgyDB is available, making it easy to integrate SyzgyDB with your Python projects.
+
+### Installation
+
+You can install the Python client using pip:
+
+```bash
+pip install syzgy
+```
+
+The Python client package is available on PyPI at https://pypi.org/project/syzgy/0.1.0/
+
+For usage instructions and more details, please refer to the Python client documentation.
 
 ## Query Filter Language
 
