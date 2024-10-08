@@ -17,6 +17,9 @@ type ExpressionNode struct {
 }
 
 func (n *ExpressionNode) String() string {
+	if n.Left == nil {
+		return fmt.Sprintf("%s(%s)", n.Operator, n.Right.String())
+	}
 	return fmt.Sprintf("%s(%s, %s)", n.Operator, n.Left.String(), n.Right.String())
 }
 
@@ -174,9 +177,57 @@ func (p *Parser) parsePrimary() (Node, error) {
 		return p.parseArrayLiteral()
 	case TokenColon:
 		return p.parseParameter()
+	case TokenNot:
+		return p.parseNotExpression()
+	case TokenEXISTS, TokenDOESNOTEXIST, TokenANY, TokenALL, TokenLENGTH:
+		return p.parseFunction()
 	default:
 		return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Literal)
 	}
+}
+
+func (p *Parser) parseNotExpression() (Node, error) {
+	p.nextToken() // consume NOT
+	expr, err := p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
+	return &ExpressionNode{Operator: "NOT", Right: expr}, nil
+}
+
+func (p *Parser) parseFunction() (Node, error) {
+	funcName := p.currentToken.Literal
+	p.nextToken() // consume function name
+
+	if p.currentToken.Type != TokenLeftParen {
+		return nil, fmt.Errorf("expected '(' after %s, got %s", funcName, p.currentToken.Literal)
+	}
+	p.nextToken() // consume '('
+
+	args := []Node{}
+	if p.currentToken.Type != TokenRightParen {
+		arg, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, arg)
+
+		for p.currentToken.Type == TokenComma {
+			p.nextToken() // consume ','
+			arg, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, arg)
+		}
+	}
+
+	if p.currentToken.Type != TokenRightParen {
+		return nil, fmt.Errorf("expected ')' after function arguments, got %s", p.currentToken.Literal)
+	}
+	p.nextToken() // consume ')'
+
+	return &FunctionNode{Name: funcName, Arguments: args}, nil
 }
 
 func (p *Parser) parseArrayLiteral() (Node, error) {
@@ -219,24 +270,33 @@ func (p *Parser) parseParameter() (Node, error) {
 }
 
 func (p *Parser) parseIdentifierOrFunction() (Node, error) {
-	identifier := &IdentifierNode{Name: p.currentToken.Literal}
+	identifier := p.currentToken.Literal
 	p.nextToken()
 
+	for p.currentToken.Type == TokenDot {
+		p.nextToken() // consume '.'
+		if p.currentToken.Type != TokenIdentifier {
+			return nil, fmt.Errorf("expected identifier after '.', got %s", p.currentToken.Literal)
+		}
+		identifier += "." + p.currentToken.Literal
+		p.nextToken()
+	}
+
 	if p.currentToken.Type == TokenLeftParen {
-		return p.parseFunction(identifier.Name)
+		return p.parseFunction(identifier)
 	}
 
 	if p.currentToken.Type == TokenEXISTS {
 		p.nextToken()
-		return &FunctionNode{Name: "EXISTS", Arguments: []Node{identifier}}, nil
+		return &FunctionNode{Name: "EXISTS", Arguments: []Node{&IdentifierNode{Name: identifier}}}, nil
 	}
 
 	if p.currentToken.Type == TokenDOESNOTEXIST {
 		p.nextToken()
-		return &FunctionNode{Name: "DOES_NOT_EXIST", Arguments: []Node{identifier}}, nil
+		return &FunctionNode{Name: "DOES_NOT_EXIST", Arguments: []Node{&IdentifierNode{Name: identifier}}}, nil
 	}
 
-	return identifier, nil
+	return &IdentifierNode{Name: identifier}, nil
 }
 
 func (p *Parser) parseFunction(name string) (Node, error) {
@@ -305,5 +365,6 @@ func (p *Parser) isComparisonOperator(tokenType TokenType) bool {
 		tokenType == TokenLess || tokenType == TokenLessEqual ||
 		tokenType == TokenIN || tokenType == TokenNOTIN ||
 		tokenType == TokenCONTAINS || tokenType == TokenSTARTSWITH ||
-		tokenType == TokenENDSWITH || tokenType == TokenMATCHES
+		tokenType == TokenENDSWITH || tokenType == TokenMATCHES ||
+		tokenType == TokenEXISTS || tokenType == TokenDOESNOTEXIST
 }
