@@ -1,6 +1,16 @@
 package syzgydb
 
 import (
+	"os"
+)
+
+func ensureTestdataDir() {
+	if _, err := os.Stat("testdata"); os.IsNotExist(err) {
+		os.Mkdir("testdata", os.ModePerm)
+	}
+}
+
+import (
 	"fmt"
 	"math"
 	"math/rand"

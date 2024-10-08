@@ -1,6 +1,16 @@
 package syzgydb
 
 import (
+	"os"
+)
+
+func ensureTestdataDir() {
+	if _, err := os.Stat("testdata"); os.IsNotExist(err) {
+		os.Mkdir("testdata", os.ModePerm)
+	}
+}
+
+import (
 	"bytes"
 	"encoding/json"
 	"net/http"
@@ -14,7 +24,8 @@ func setupTestServer() *Server {
 	if GlobalConfig == nil {
 		GlobalConfig = &Config{}
 	}
-	GlobalConfig.DataFolder = "." // Set the data folder to the current directory
+	ensureTestdataDir()
+	GlobalConfig.DataFolder = "testdata" // Set the data folder to the testdata directory
 	server := &Server{
 		collections: make(map[string]*Collection),
 	}
@@ -29,7 +40,7 @@ func TestGetCollectionIDs(t *testing.T) {
 
 	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection.dat",
+		Name:           "testdata/test_collection.dat",
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
