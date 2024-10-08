@@ -11,8 +11,17 @@ class SyzgyClient:
         url = f"{self.base_url}{endpoint}"
         response = requests.request(method, url, **kwargs)
         if response.status_code >= 400:
-            raise SyzgyException(f"HTTP {response.status_code}: {response.text}")
-        return response.json()
+            error_message = f"HTTP {response.status_code}: {response.reason}"
+            try:
+                error_body = response.json()
+                error_message += f"\nResponse body: {error_body}"
+            except ValueError:
+                error_message += f"\nResponse body: {response.text}"
+            raise SyzgyException(error_message)
+        try:
+            return response.json()
+        except ValueError:
+            raise SyzgyException(f"Invalid JSON response: {response.text}")
 
     def create_collection(self, name: str, vector_size: int, quantization: int, distance_function: str) -> Collection:
         data = {
