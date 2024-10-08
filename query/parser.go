@@ -231,14 +231,25 @@ func (p *Parser) parsePrimary() (Node, error) {
 	}
 }
 
-func (p *Parser) parseNotExpression() (Node, error) {
-	p.nextToken() // consume NOT
-	expr, err := p.parsePrimary()
-	if err != nil {
-		return nil, err
-	}
-	return &ExpressionNode{Left: nil, Operator: "NOT", Right: expr}, nil
-}
+func (p *Parser) parsePrimary() (Node, error) {
+	switch p.currentToken.Type {
+	case TokenIdentifier:
+		return p.parseIdentifierOrFunction()
+	case TokenNumber:
+		return p.parseNumber()
+	case TokenString:
+		return &ValueNode{Value: p.currentToken.Literal}, nil
+	case TokenBoolean:
+		return p.parseBoolean()
+	case TokenNull:
+		return &ValueNode{Value: nil}, nil
+	case TokenLeftParen:
+		return p.parseGroupedExpression()
+	case TokenLeftBracket:
+		return p.parseArrayLiteral()
+	case TokenColon:
+		return p.parseParameter()
+	case TokenNot:
 		return p.parseNotExpression()
 	case TokenEXISTS, TokenDOESNOTEXIST, TokenANY, TokenALL, TokenLENGTH:
 		return p.parseFunction()
