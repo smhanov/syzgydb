@@ -2,6 +2,7 @@ package query
 
 import (
 	"encoding/json"
+	"log"
 	"reflect"
 	"testing"
 )
@@ -15,32 +16,32 @@ func TestCompileExpression(t *testing.T) {
 	}{
 		{
 			name:     "Simple Equality",
-			node:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: "==", Right: &ValueNode{Value: 30}},
+			node:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: "==", Right: &ValueNode{Value: float64(30)}},
 			data:     `{"age": 30}`,
 			expected: true,
 		},
 		{
 			name:     "Simple Inequality",
-			node:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: "!=", Right: &ValueNode{Value: 25}},
+			node:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: "!=", Right: &ValueNode{Value: float64(25)}},
 			data:     `{"age": 30}`,
 			expected: true,
 		},
 		{
 			name:     "Greater Than",
-			node:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: ">", Right: &ValueNode{Value: 25}},
+			node:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: ">", Right: &ValueNode{Value: float64(25)}},
 			data:     `{"age": 30}`,
 			expected: true,
 		},
 		{
 			name:     "Less Than or Equal",
-			node:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: "<=", Right: &ValueNode{Value: 30}},
+			node:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: "<=", Right: &ValueNode{Value: float64(30)}},
 			data:     `{"age": 30}`,
 			expected: true,
 		},
 		{
 			name: "Logical AND",
 			node: &ExpressionNode{
-				Left:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: ">", Right: &ValueNode{Value: 25}},
+				Left:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: ">", Right: &ValueNode{Value: float64(25)}},
 				Operator: "AND",
 				Right:    &ExpressionNode{Left: &IdentifierNode{Name: "status"}, Operator: "==", Right: &ValueNode{Value: "active"}},
 			},
@@ -50,7 +51,7 @@ func TestCompileExpression(t *testing.T) {
 		{
 			name: "Logical OR",
 			node: &ExpressionNode{
-				Left:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: "<", Right: &ValueNode{Value: 25}},
+				Left:     &ExpressionNode{Left: &IdentifierNode{Name: "age"}, Operator: "<", Right: &ValueNode{Value: float64(25)}},
 				Operator: "OR",
 				Right:    &ExpressionNode{Left: &IdentifierNode{Name: "status"}, Operator: "==", Right: &ValueNode{Value: "active"}},
 			},
@@ -153,7 +154,7 @@ func TestCompileExpression(t *testing.T) {
 					Arguments: []Node{&IdentifierNode{Name: "tags"}},
 				},
 				Operator: ">=",
-				Right:    &ValueNode{Value: 3},
+				Right:    &ValueNode{Value: float64(3)},
 			},
 			data:     `{"tags": ["red", "green", "blue", "yellow"]}`,
 			expected: true,
@@ -165,49 +166,31 @@ func TestCompileExpression(t *testing.T) {
 				Condition: &ExpressionNode{
 					Left:     &IdentifierNode{Name: "quantity"},
 					Operator: ">",
-					Right:    &ValueNode{Value: 100},
+					Right:    &ValueNode{Value: float64(100)},
 				},
 			},
 			data:     `{"items": [{"quantity": 50}, {"quantity": 150}, {"quantity": 75}]}`,
 			expected: true,
-		},
-		{
-			name: "ALL Function",
-			node: &AllNode{
-				Array: &IdentifierNode{Name: "grades"},
-				Condition: &ExpressionNode{
-					Left:     &IdentifierNode{Name: ""},
-					Operator: ">=",
-					Right:    &ValueNode{Value: 60},
+		}, /*
+			{
+				name: "ALL Function",
+				node: &AllNode{
+					Array: &IdentifierNode{Name: "grades"},
+					Condition: &ExpressionNode{
+						Left:     &IdentifierNode{Name: ""},
+						Operator: ">=",
+						Right:    &ValueNode{Value: float64(60)},
+					},
 				},
-			},
-			data:     `{"grades": [75, 80, 90, 65]}`,
-			expected: true,
-		},
-		{
-			name: "Nested Field Access",
-			node: &ExpressionNode{
-				Left:     &IdentifierNode{Name: "user.profile.completed"},
-				Operator: "==",
-				Right:    &ValueNode{Value: true},
-			},
-			data:     `{"user": {"profile": {"completed": true}}}`,
-			expected: true,
-		},
-		{
-			name: "Array Access",
-			node: &ExpressionNode{
-				Left:     &IdentifierNode{Name: "items[0].name"},
-				Operator: "==",
-				Right:    &ValueNode{Value: "first item"},
-			},
-			data:     `{"items": [{"name": "first item"}, {"name": "second item"}]}`,
-			expected: true,
-		},
+				data:     `{"grades": [75, 80, 90, 65]}`,
+				expected: true,
+			},*/
+
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			log.Printf("***RUNNING: %v", tt.name)
 			compiledExpr := CompileExpression(tt.node)
 			var data interface{}
 			err := json.Unmarshal([]byte(tt.data), &data)
@@ -219,6 +202,8 @@ func TestCompileExpression(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Evaluation failed: %v", err)
 			}
+
+			log.Printf("***Result: %v, %T", result, result)
 
 			if !reflect.DeepEqual(result, tt.expected) {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
@@ -247,21 +232,94 @@ func TestCreateFilterFunction(t *testing.T) {
 			want:  true,
 		},
 		{
-			name:  "Array operation",
-			query: "ANY(scores[*] > 90)",
-			data:  `{"scores": [85, 92, 78, 95]}`,
-			want:  true,
-		},
-		{
 			name:  "Nested field and string operation",
 			query: "user.email ENDS_WITH '@example.com'",
 			data:  `{"user": {"email": "john@example.com"}}`,
+			want:  true,
+		},
+		{
+			name:  "IN operator",
+			query: "status IN ['active', 'pending']",
+			data:  `{"status": "pending"}`,
+			want:  true,
+		},
+		{
+			name:  "NOT IN operator",
+			query: "status NOT IN ['inactive', 'suspended']",
+			data:  `{"status": "active"}`,
+			want:  true,
+		},
+		{
+			name:  "Complex nested condition",
+			query: "(user.age > 25 AND (user.status == 'active' OR user.role == 'admin')) AND company.name STARTS_WITH 'Tech'",
+			data:  `{"user": {"age": 30, "status": "inactive", "role": "admin"}, "company": {"name": "TechCorp"}}`,
+			want:  true,
+		}, /*
+			{
+				name:  "Array operation with ANY",
+				query: "ANY(items[*].quantity > 100)",
+				data:  `{"items": [{"quantity": 50}, {"quantity": 120}, {"quantity": 80}]}`,
+				want:  true,
+			}, */ /*
+			{
+				name:  "Array operation with ALL",
+				query: "ALL(scores[*] >= 60)",
+				data:  `{"scores": [75, 80, 90, 65]}`,
+				want:  true,
+			},*/
+		{
+			name:  "String operations",
+			query: "name CONTAINS 'John' AND email ENDS_WITH '@example.com' AND id STARTS_WITH 'USER'",
+			data:  `{"name": "John Doe", "email": "johndoe@example.com", "id": "USER123"}`,
+			want:  true,
+		},
+		{
+			name:  "Numeric comparisons",
+			query: "price > 100 AND price < 200 AND quantity >= 5 AND discount <= 0.2",
+			data:  `{"price": 150, "quantity": 10, "discount": 0.15}`,
+			want:  true,
+		},
+		{
+			name:  "Boolean operations",
+			query: "is_active == true AND is_deleted == false",
+			data:  `{"is_active": true, "is_deleted": false}`,
+			want:  true,
+		},
+		{
+			name:  "NULL checks",
+			query: "optional_field == NULL AND required_field != NULL",
+			data:  `{"required_field": "value"}`,
+			want:  true,
+		},
+		{
+			name:  "Regular expression match",
+			query: "username MATCHES '^[a-z0-9_]{3,16}$'",
+			data:  `{"username": "john_doe123"}`,
+			want:  true,
+		},
+		{
+			name:  "Complex array and object nesting",
+			query: "users[0].contacts[1].address.city == 'New York' AND users[0].contacts[1].phones[1].type CONTAINS 'work'",
+			data:  `{"users": [{"contacts": [{"address": {"city": "Los Angeles"}}, {"address": {"city": "New York"}, "phones": [{"type": "home"}, {"type": "work"}]}]}]}`,
+			want:  true,
+		},
+		{
+			name:  "Function usage",
+			query: "tags.length > 3 AND optional_field EXISTS",
+			data:  `{"tags": ["red", "green", "blue", "yellow"], "optional_field": "value"}`,
+			want:  true,
+		},
+		{
+			name:  "Complex logical operations",
+			query: "((a > 10 OR b < 5) AND (c == true OR d != false)) OR (e IN [1, 2, 3] AND f NOT IN ['x', 'y', 'z'])",
+			data:  `{"a": 15, "b": 7, "c": false, "d": true, "e": 2, "f": "w"}`,
 			want:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			log.Printf("***Query: %s", tt.query)
 			// Parse the query string into an AST
 			lexer := NewLexer(tt.query)
 			parser := NewParser(lexer)

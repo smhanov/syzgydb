@@ -1,9 +1,5 @@
 package query
 
-import (
-	"unicode"
-)
-
 type TokenType int
 
 const (
@@ -43,6 +39,7 @@ const (
 	TokenRightBracket // ']'
 	TokenColon        // ':'
 	TokenDot          // '.'
+	TokenArrayStar    // '[*]'
 )
 
 type Token struct {
@@ -70,7 +67,7 @@ func NewLexer(input string) *Lexer {
 func (l *Lexer) readChar() {
 	if l.readPosition >= len(l.input) {
 		l.ch = 0
-		return
+
 	} else {
 		l.ch = l.input[l.readPosition]
 	}
@@ -130,11 +127,19 @@ func (l *Lexer) NextToken() Token {
 			tok = Token{Type: TokenLess, Literal: string(l.ch), Line: l.line, Column: l.column}
 		}
 	case '[':
-		tok = Token{Type: TokenLeftBracket, Literal: string(l.ch), Line: l.line, Column: l.column}
+		if l.peekChar() == '*' && l.peekNextChar() == ']' {
+			tok = Token{Type: TokenArrayStar, Literal: "[*]", Line: l.line, Column: l.column}
+			l.readChar() // consume '*'
+			l.readChar() // consume ']'
+		} else {
+			tok = Token{Type: TokenLeftBracket, Literal: string(l.ch), Line: l.line, Column: l.column}
+		}
 	case ']':
 		tok = Token{Type: TokenRightBracket, Literal: string(l.ch), Line: l.line, Column: l.column}
 	case ':':
 		tok = Token{Type: TokenColon, Literal: string(l.ch), Line: l.line, Column: l.column}
+	case '.':
+		tok = Token{Type: TokenDot, Literal: string(l.ch), Line: l.line, Column: l.column}
 	case '"':
 		fallthrough
 	case '\'':
@@ -143,8 +148,10 @@ func (l *Lexer) NextToken() Token {
 		return tok
 	default:
 		if isLetter(l.ch) {
-			tok.Literal = l.readIdentifier()
+			tok.Literal = l.readIdentifierOrKeyword()
 			tok.Type = lookupIdentifier(tok.Literal)
+			tok.Line = l.line
+			tok.Column = l.column
 			return tok
 		} else if isDigit(l.ch) {
 			tok.Literal = l.readNumber()
@@ -159,6 +166,48 @@ func (l *Lexer) NextToken() Token {
 	return tok
 }
 
+func (l *Lexer) readIdentifierOrKeyword() string {
+	position := l.position
+	l.readIdentifier()
+
+	// Check if it's the start of "DOES NOT EXIST"
+	if l.input[position:l.position] == "DOES" && l.ch == ' ' {
+		l.readChar() // consume the space
+		if l.ch == 'N' {
+			restOfKeyword := l.readWord()
+			if restOfKeyword == "NOT" {
+				l.readChar() // consume the space
+				if l.readWord() == "EXIST" {
+					return "DOES NOT EXIST"
+				}
+			}
+		}
+		// If it's not "DOES NOT EXIST", reset the position
+		l.position = position
+		l.readPosition = position + 1
+		l.ch = l.input[position]
+	}
+
+	// Read the rest of the identifier
+	l.readIdentifier()
+
+	return l.input[position:l.position]
+}
+
+func (l *Lexer) readIdentifier() {
+	for isLetter(l.ch) || isDigit(l.ch) {
+		l.readChar()
+	}
+}
+
+func (l *Lexer) readWord() string {
+	position := l.position
+	for isLetter(l.ch) {
+		l.readChar()
+	}
+	return l.input[position:l.position]
+}
+
 func lookupIdentifier(ident string) TokenType {
 	switch ident {
 	case "AND":
@@ -171,6 +220,8 @@ func lookupIdentifier(ident string) TokenType {
 		return TokenIN
 	case "DOES NOT EXIST":
 		return TokenDOESNOTEXIST
+	case "EXISTS":
+		return TokenEXISTS
 	case "CONTAINS":
 		return TokenCONTAINS
 	case "STARTS_WITH":
@@ -200,20 +251,50 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-func (l *Lexer) readIdentifier() string {
+func (l *Lexer) readNumber() string {
 	position := l.position
-	for isLetter(l.ch) {
+	isHex := false
+	isFloat := false
+
+	// Check for hexadecimal prefix
+	if l.ch == '0' && (l.peekChar() == 'x' || l.peekChar() == 'X') {
+		isHex = true
+		l.readChar() // consume '0'
+		l.readChar() // consume 'x' or 'X'
+	}
+
+	for {
+		if isHex {
+			if !isHexDigit(l.ch) {
+				break
+			}
+		} else if isDigit(l.ch) || (l.ch == '.' && !isFloat) {
+			if l.ch == '.' {
+				isFloat = true
+			}
+		} else {
+			break
+		}
 		l.readChar()
 	}
+
+	// Handle exponent for floating-point numbers
+	if !isHex && (l.ch == 'e' || l.ch == 'E') {
+		l.readChar() // consume 'e' or 'E'
+		if l.ch == '+' || l.ch == '-' {
+			l.readChar() // consume '+' or '-'
+		}
+		for isDigit(l.ch) {
+			l.readChar()
+		}
+	}
+
 	return l.input[position:l.position]
 }
 
-func (l *Lexer) readNumber() string {
-	position := l.position
-	for isDigit(l.ch) {
-		l.readChar()
-	}
-	return l.input[position:l.position]
+// Add this helper function
+func isHexDigit(ch byte) bool {
+	return isDigit(ch) || ('a' <= ch && ch <= 'f') || ('A' <= ch && ch <= 'F')
 }
 
 func (l *Lexer) peekChar() byte {
@@ -221,6 +302,13 @@ func (l *Lexer) peekChar() byte {
 		return 0
 	}
 	return l.input[l.readPosition]
+}
+
+func (l *Lexer) peekNextChar() byte {
+	if l.readPosition+1 >= len(l.input) {
+		return 0
+	}
+	return l.input[l.readPosition+1]
 }
 
 func (l *Lexer) readString(quotechar byte) string {
@@ -259,7 +347,7 @@ func (l *Lexer) readString(quotechar byte) string {
 }
 
 func isLetter(ch byte) bool {
-	return unicode.IsLetter(rune(ch)) || ch == '_'
+	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_'
 }
 
 func isDigit(ch byte) bool {

@@ -2,7 +2,6 @@ package query
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 )
@@ -119,7 +118,6 @@ func NewParser(lexer *Lexer) *Parser {
 
 func (p *Parser) nextToken() {
 	p.currentToken = p.peekToken
-	log.Printf("Current token is %+v", p.currentToken)
 	p.peekToken = p.lexer.NextToken()
 }
 
@@ -213,54 +211,42 @@ func (p *Parser) parsePrimary() (Node, error) {
 //
 //	Identifier EXISTS | Identifier DOES_NOT_EXIST
 func (p *Parser) parseIdentifierOrFunction() (Node, error) {
-	identifier := p.currentToken.Literal
-	p.nextToken()
-
-	for p.currentToken.Type == TokenDot {
-		p.nextToken() // consume '.'
-		if p.currentToken.Type != TokenIdentifier {
-			return nil, fmt.Errorf("expected identifier after '.', got %s", p.currentToken.Literal)
-		}
-		identifier += "." + p.currentToken.Literal
-		p.nextToken()
+	expr, err := p.parseArrayAccessOrIdentifier()
+	if err != nil {
+		return nil, err
 	}
 
 	if p.currentToken.Type == TokenIN || p.currentToken.Type == TokenNot {
-		return p.parseIn(identifier)
+		return p.parseIn(expr)
 	}
 
 	if p.currentToken.Type == TokenLeftParen {
-		return p.parseFunction(identifier)
+		return p.parseFunction(expr)
 	}
 
 	if p.currentToken.Type == TokenEXISTS {
 		p.nextToken()
-		return &FunctionNode{Name: "EXISTS", Arguments: []Node{&IdentifierNode{Name: identifier}}}, nil
+		return &FunctionNode{Name: "EXISTS", Arguments: []Node{expr}}, nil
 	}
 
 	if p.currentToken.Type == TokenDOESNOTEXIST {
 		p.nextToken()
-		return &FunctionNode{Name: "DOES_NOT_EXIST", Arguments: []Node{&IdentifierNode{Name: identifier}}}, nil
+		return &FunctionNode{Name: "DOES_NOT_EXIST", Arguments: []Node{expr}}, nil
 	}
 
-	return &IdentifierNode{Name: identifier}, nil
+	return expr, nil
 }
 
 // FunctionCall := Identifier LEFT_PAREN FunctionCallArguments? RIGHT_PAREN
-func (p *Parser) parseFunction(funcName string) (Node, error) {
-	if p.currentToken.Type == TokenIdentifier {
-		funcName = p.currentToken.Literal
-		p.nextToken() // consume function name
-	}
-
+func (p *Parser) parseFunction(expr Node) (Node, error) {
 	if p.currentToken.Type != TokenLeftParen {
-		return nil, fmt.Errorf("expected '(' after %s, got %s", funcName, p.currentToken.Literal)
+		return nil, fmt.Errorf("expected '(' after function name, got %s", p.currentToken.Literal)
 	}
 	p.nextToken() // consume '('
 
-	switch funcName {
-	case "ANY", "ALL":
-		return p.parseAnyAllFunction(funcName)
+	funcName, ok := expr.(*IdentifierNode)
+	if !ok {
+		return nil, fmt.Errorf("expected function name, got %T", expr)
 	}
 
 	args := []Node{}
@@ -286,61 +272,101 @@ func (p *Parser) parseFunction(funcName string) (Node, error) {
 	}
 	p.nextToken() // consume ')'
 
-	return &FunctionNode{Name: funcName, Arguments: args}, nil
+	return &FunctionNode{Name: funcName.Name, Arguments: args}, nil
 }
 
-func (p *Parser) parseAnyAllFunction(funcName string) (Node, error) {
-	arrayExpr, err := p.parseArrayExpression()
-	if err != nil {
-		return nil, err
-	}
+/*
+	func (p *Parser) parseAnyAllFunction() (Node, error) {
+		funcName := p.currentToken.Literal
+		p.nextToken() // consume 'ANY' or 'ALL'
 
-	if p.currentToken.Type != TokenRightParen {
-		condition, err := p.parseExpression()
+		if p.currentToken.Type != TokenLeftParen {
+			return nil, fmt.Errorf("expected '(' after %s, got %s", funcName, p.currentToken.Literal)
+		}
+		p.nextToken() // consume '('
+
+		arrayExpr, err := p.parseArrayExpression()
 		if err != nil {
 			return nil, err
 		}
 
 		if p.currentToken.Type != TokenRightParen {
-			return nil, fmt.Errorf("expected ')' after condition in %s function, got %s", funcName, p.currentToken.Literal)
-		}
-		p.nextToken() // consume ')'
+			condition, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
 
-		if funcName == "ANY" {
-			return &AnyNode{Array: arrayExpr, Condition: condition}, nil
-		} else {
-			return &AllNode{Array: arrayExpr, Condition: condition}, nil
+			if p.currentToken.Type != TokenRightParen {
+				return nil, fmt.Errorf("expected ')' after condition in %s function, got %s", funcName, p.currentToken.Literal)
+			}
+			p.nextToken() // consume ')'
+
+			if funcName == "ANY" {
+				return &AnyNode{Array: arrayExpr, Condition: condition}, nil
+			} else {
+				return &AllNode{Array: arrayExpr, Condition: condition}, nil
+			}
 		}
+
+		return nil, fmt.Errorf("expected condition after array in %s function", funcName)
 	}
 
-	return nil, fmt.Errorf("expected condition after array in %s function", funcName)
-}
-
 func (p *Parser) parseArrayExpression() (Node, error) {
-	identifier, err := p.parseIdentifier()
+	expr, err := p.parseArrayAccessOrIdentifier()
 	if err != nil {
 		return nil, err
 	}
 
-	if p.currentToken.Type != TokenLeftBracket {
-		return nil, fmt.Errorf("expected '[' after identifier in array expression, got %s", p.currentToken.Literal)
+	if p.currentToken.Type == TokenArrayStar {
+		p.nextToken() // consume '[*]'
+		return &ArrayStarNode{Array: expr}, nil
 	}
-	p.nextToken() // consume '['
 
-	if p.currentToken.Type != TokenArrayStar {
-		return nil, fmt.Errorf("expected '[*]' in array expression, got %s", p.currentToken.Literal)
+	return expr, nil
+}*/
+
+func (p *Parser) parseArrayAccessOrIdentifier() (Node, error) {
+	expr, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
 	}
-	p.nextToken() // consume '[*]'
 
-	if p.currentToken.Type != TokenRightBracket {
-		return nil, fmt.Errorf("expected ']' after '[*]' in array expression, got %s", p.currentToken.Literal)
+	for p.currentToken.Type == TokenLeftBracket || p.currentToken.Type == TokenDot {
+		if p.currentToken.Type == TokenLeftBracket {
+			p.nextToken() // consume '['
+			index, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			if p.currentToken.Type != TokenRightBracket {
+				return nil, fmt.Errorf("expected ']', got %s", p.currentToken.Literal)
+			}
+			p.nextToken() // consume ']'
+			expr = &ExpressionNode{Left: expr, Operator: "[]", Right: index}
+		} else if p.currentToken.Type == TokenDot {
+			p.nextToken() // consume '.'
+			if p.currentToken.Type != TokenIdentifier {
+				return nil, fmt.Errorf("expected identifier after '.', got %s", p.currentToken.Literal)
+			}
+			fieldName := p.currentToken.Literal
+			p.nextToken()
+			expr = &ExpressionNode{Left: expr, Operator: ".", Right: &IdentifierNode{Name: fieldName}}
+		}
 	}
-	p.nextToken() // consume ']'
 
-	return &ArrayStarNode{Array: identifier}, nil
+	return expr, nil
 }
 
-func (p *Parser) parseIn(identifier string) (Node, error) {
+func (p *Parser) parseIdentifier() (Node, error) {
+	if p.currentToken.Type != TokenIdentifier {
+		return nil, fmt.Errorf("expected identifier, got %s", p.currentToken.Literal)
+	}
+	identifier := &IdentifierNode{Name: p.currentToken.Literal}
+	p.nextToken()
+	return identifier, nil
+}
+
+func (p *Parser) parseIn(expr Node) (Node, error) {
 	operator := p.currentToken.Type
 	p.nextToken() // consume 'IN' or 'NOT IN'
 
@@ -359,14 +385,13 @@ func (p *Parser) parseIn(identifier string) (Node, error) {
 		return nil, err
 	}
 
-	left := &IdentifierNode{Name: identifier}
 	operatorStr := "IN"
 	if operator == TokenNOTIN {
 		operatorStr = "NOT_IN"
 	}
 
 	return &ExpressionNode{
-		Left:     left,
+		Left:     expr,
 		Operator: operatorStr,
 		Right:    arrayNode,
 	}, nil
