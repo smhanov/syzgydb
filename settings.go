@@ -1,16 +1,16 @@
 package syzgydb
 
+import "math/rand"
+
 // Config holds the configuration settings for the service.
 type Config struct {
-	OllamaServer string `mapstructure:"ollama_server"`
-	TextModel    string `mapstructure:"text_model"`
-	ImageModel   string `mapstructure:"image_model"`
-	DataFolder   string `mapstructure:"data_folder"`
-	SyzgyHost    string `mapstructure:"syzgy_host"`
-	RandGen    *rand.Rand  // Random number generator
+	OllamaServer string     `mapstructure:"ollama_server"`
+	TextModel    string     `mapstructure:"text_model"`
+	ImageModel   string     `mapstructure:"image_model"`
+	DataFolder   string     `mapstructure:"data_folder"`
+	SyzgyHost    string     `mapstructure:"syzgy_host"`
+	RandGen      *rand.Rand // Random number generator
 }
-
-import "math/rand"
 
 var globalRandGen *rand.Rand
 
