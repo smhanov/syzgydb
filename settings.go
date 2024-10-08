@@ -12,12 +12,12 @@ type Config struct {
 
 import "math/rand"
 
-var GlobalRandGen *rand.Rand
+var globalRandGen *rand.Rand
 
-var GlobalConfig Config
+var globalConfig Config
 
 func init() {
-	GlobalConfig = Config{
+	globalConfig = Config{
 		OllamaServer: "default_ollama_server",
 		TextModel:    "default_text_model",
 		ImageModel:   "default_image_model",
@@ -29,6 +29,6 @@ func init() {
 
 func Configure(cfg Config) {
 	cfg.RandGen = rand.New(cfg.RandSource) // Initialize RandGen with the provided RandSource
-	GlobalConfig = cfg
-	GlobalRandGen = cfg.RandGen
+	globalConfig = cfg
+	globalRandGen = cfg.RandGen
 }
