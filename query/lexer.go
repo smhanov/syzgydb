@@ -123,10 +123,14 @@ func (l *Lexer) NextToken() Token {
 	case 0:
 		tok.Literal = ""
 		tok.Type = TokenEOF
+	case '"':
+		tok.Literal = l.readString()
+		tok.Type = TokenString
+		return tok
 	default:
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
-			tok.Type = TokenIdentifier
+			tok.Type = lookupIdentifier(tok.Literal)
 			return tok
 		} else if isDigit(l.ch) {
 			tok.Literal = l.readNumber()
@@ -205,7 +209,16 @@ func (l *Lexer) peekChar() byte {
 	return l.input[l.readPosition]
 }
 
-func isLetter(ch byte) bool {
+func (l *Lexer) readString() string {
+	position := l.position + 1
+	for {
+		l.readChar()
+		if l.ch == '"' || l.ch == 0 {
+			break
+		}
+	}
+	return l.input[position:l.position]
+}
 	return unicode.IsLetter(rune(ch)) || ch == '_'
 }
 
