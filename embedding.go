@@ -44,9 +44,6 @@ func EmbedText(texts []string) ([][]float64, error) {
 	if allCached {
 		return cachedEmbeddings, nil
 	}
-	if globalConfig == nil {
-		return nil, fmt.Errorf("global configuration is not set")
-	}
 
 	// Prepare the request payload
 	payload := map[string]interface{}{

@@ -9,14 +9,14 @@ import (
 
 // Helper function to create a test file path
 func testFilePath(fileName string) string {
-	return filepath.Join("./testfolder", fileName)
+	return filepath.Join("./testdata", fileName)
 }
 
-// Helper function to ensure testfolder exists
+// Helper function to ensure testdata exists
 func ensureTestFolder(t *testing.T) {
-	err := os.MkdirAll("./testfolder", 0755)
+	err := os.MkdirAll("./testdata", 0755)
 	if err != nil {
-		t.Fatalf("Failed to create testfolder: %v", err)
+		t.Fatalf("Failed to create testdata: %v", err)
 	}
 }
 
@@ -53,10 +53,8 @@ func setupTestDB(t *testing.T) (*SpanFile, func()) {
 // Setup function for Server tests
 func setupTestServer() *Server {
 	ensureTestFolder(nil) // We're not in a test context here, so pass nil
-	if globalConfig == nil {
-		globalConfig = Config{}
-	}
-	globalConfig.DataFolder = "./testfolder" // Set the data folder to the testfolder
+
+	globalConfig.DataFolder = "./testdata" // Set the data folder to the testfolder
 	server := &Server{
 		collections: make(map[string]*Collection),
 	}

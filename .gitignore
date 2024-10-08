@@ -1,1 +1,9 @@
 .aider*
+testdata
+data
+*.txt
+syzgy
+*.deb
+todo.txt
+*.csv
+*.prof

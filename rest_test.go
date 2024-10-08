@@ -1,18 +1,10 @@
 package syzgydb
 
 import (
-	"os"
-)
-
-func ensureTestdataDir() {
-	if _, err := os.Stat("testdata"); os.IsNotExist(err) {
-		os.Mkdir("testdata", os.ModePerm)
-	}
-}
-
-import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,27 +12,29 @@ import (
 	"testing"
 )
 
-func setupTestServer() *Server {
-	if GlobalConfig == nil {
-		GlobalConfig = &Config{}
-	}
-	ensureTestdataDir()
-	GlobalConfig.DataFolder = "testdata" // Set the data folder to the testdata directory
-	server := &Server{
-		collections: make(map[string]*Collection),
+func TestMain(m *testing.M) {
+	verbose := false
+	for _, arg := range os.Args {
+		if arg == "-test.v" {
+			verbose = true
+			break
+		}
 	}
 
-	os.Remove("test_collection.dat")
+	if !verbose {
+		log.SetOutput(ioutil.Discard)
+	}
 
-	return server
+	os.Exit(m.Run())
 }
 
 func TestGetCollectionIDs(t *testing.T) {
+	ensureTestFolder(t)
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "testdata/test_collection.dat",
+		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
@@ -85,6 +79,7 @@ func equalUint64Slices(a, b []uint64) bool {
 }
 
 func TestDeleteCollection(t *testing.T) {
+	ensureTestFolder(t)
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
@@ -118,11 +113,12 @@ func TestDeleteCollection(t *testing.T) {
 }
 
 func TestSearchRecords(t *testing.T) {
+	ensureTestFolder(t)
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection.dat",
+		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
@@ -163,6 +159,7 @@ func TestSearchRecords(t *testing.T) {
 }
 
 func TestCreateCollection(t *testing.T) {
+	ensureTestFolder(t)
 	server := setupTestServer()
 
 	// Define the request body for creating a collection
@@ -204,11 +201,12 @@ func TestCreateCollection(t *testing.T) {
 }
 
 func TestGetCollectionInfo(t *testing.T) {
+	ensureTestFolder(t)
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection.dat",
+		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
@@ -250,11 +248,12 @@ func mockEmbedText(texts []string) ([][]float64, error) {
 func TestInsertRecords(t *testing.T) {
 	// Set up the mock embedding function
 	embedText = mockEmbedText
+	ensureTestFolder(t)
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection.dat",
+		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
@@ -305,9 +304,10 @@ func TestInsertRecords(t *testing.T) {
 }
 
 func TestUpdateRecordMetadata(t *testing.T) {
+	ensureTestFolder(t)
 	server := setupTestServer()
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection.dat",
+		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
@@ -349,10 +349,11 @@ func TestUpdateRecordMetadata(t *testing.T) {
 }
 
 func TestDeleteRecord(t *testing.T) {
+	ensureTestFolder(t)
 	server := setupTestServer()
 
 	server.collections["test_collection"] = NewCollection(CollectionOptions{
-		Name:           "test_collection.dat",
+		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
@@ -394,18 +395,19 @@ func TestDeleteRecord(t *testing.T) {
 	}
 }
 func TestGetAllCollections(t *testing.T) {
+	ensureTestFolder(t)
 	server := setupTestServer()
 
 	// Create some collections for testing
 	server.collections["collection1"] = NewCollection(CollectionOptions{
-		Name:           "collection1.dat",
+		Name:           testFilePath("collection1.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
 		FileMode:       CreateAndOverwrite,
 	})
 	server.collections["collection2"] = NewCollection(CollectionOptions{
-		Name:           "collection2.dat",
+		Name:           testFilePath("collection2.dat"),
 		DistanceMethod: Euclidean,
 		DimensionCount: 64,
 		Quantization:   32,

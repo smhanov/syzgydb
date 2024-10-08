@@ -54,7 +54,7 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 	for i := range vectors {
 		vectors[i] = make([]float64, options.DimensionCount)
 		for d := range vectors[i] {
-			vectors[i][d] = rand.Float64()
+			vectors[i][d] = globalRandGen.Float64()
 		}
 		collection.AddDocument(uint64(i), vectors[i], []byte(fmt.Sprintf("metadata_%d", i)))
 	}
@@ -119,7 +119,7 @@ func TestComputeAverageDistance(t *testing.T) {
 	// Add documents to the collection
 	numDocuments := 100
 	for i := 0; i < numDocuments; i++ {
-		vector := []float64{rand.Float64() * 100, rand.Float64() * 100, rand.Float64() * 100}
+		vector := []float64{globalRandGen.Float64() * 100, globalRandGen.Float64() * 100, globalRandGen.Float64() * 100}
 		collection.AddDocument(uint64(i), vector, []byte("metadata"))
 	}
 
@@ -362,6 +362,9 @@ func TestCollectionSearch(t *testing.T) {
 
 func TestCollectionPersistence(t *testing.T) {
 	ensureTestFolder(t)
+	// Seed the global random source
+	globalRandGen.Seed(42)
+
 	// Define collection options
 	collectionName := testFilePath("persistent_test_collection.dat")
 	options := CollectionOptions{
@@ -588,7 +591,7 @@ func TestVectorSearchWith4BitQuantization(t *testing.T) {
 	for i := 0; i < numDocuments; i++ {
 		vector := make([]float64, options.DimensionCount)
 		for d := 0; d < options.DimensionCount; d++ {
-			vector[d] = rand.Float64() // Random float values
+			vector[d] = globalRandGen.Float64() // Random float values
 		}
 		collection.AddDocument(uint64(i), vector, []byte("metadata"))
 	}
@@ -596,7 +599,7 @@ func TestVectorSearchWith4BitQuantization(t *testing.T) {
 	// Define a search vector
 	searchVector := make([]float64, options.DimensionCount)
 	for d := 0; d < options.DimensionCount; d++ {
-		searchVector[d] = rand.Float64()
+		searchVector[d] = globalRandGen.Float64()
 	}
 
 	// Define search arguments

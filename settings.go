@@ -25,6 +25,7 @@ func init() {
 		SyzgyHost:    "default_syzgy_host",
 		RandGen:      rand.New(rand.NewSource(rand.Int63())), // Default random generator
 	}
+	globalRandGen = globalConfig.RandGen
 }
 
 func Configure(cfg Config) {

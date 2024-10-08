@@ -1,16 +1,6 @@
 package syzgydb
 
 import (
-	"os"
-)
-
-func ensureTestdataDir() {
-	if _, err := os.Stat("testdata"); os.IsNotExist(err) {
-		os.Mkdir("testdata", os.ModePerm)
-	}
-}
-
-import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
@@ -21,40 +11,14 @@ import (
 	"testing"
 )
 
-func setupTestDB(t *testing.T) (*SpanFile, func()) {
-	// Create testfolder if it doesn't exist
-	err := os.MkdirAll("./testfolder", 0755)
-	if err != nil {
-		t.Fatalf("Failed to create testfolder: %v", err)
-	}
-
-	ensureTestdataDir()
-	tempFile, err := ioutil.TempFile("testdata", "spanfile_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-
-	db, err := OpenFile(tempFile.Name(), CreateIfNotExists)
-	if err != nil {
-		t.Fatalf("Failed to open database: %v", err)
-	}
-
-	cleanup := func() {
-		db.Close() // Use the new Close method
-		os.Remove(tempFile.Name())
-	}
-
-	return db, cleanup
-}
-
 func TestOpenFileWithInvalidMagicNumber(t *testing.T) {
-	// Create testfolder if it doesn't exist
-	err := os.MkdirAll("./testfolder", 0755)
+	// Create testdata if it doesn't exist
+	err := os.MkdirAll("./testdata", 0755)
 	if err != nil {
-		t.Fatalf("Failed to create testfolder: %v", err)
+		t.Fatalf("Failed to create testdata: %v", err)
 	}
 
-	tempFile, err := ioutil.TempFile("./testfolder", "invalid_magic_test")
+	tempFile, err := ioutil.TempFile("./testdata", "invalid_magic_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}

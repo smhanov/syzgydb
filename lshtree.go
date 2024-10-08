@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"log"
 	"math"
-	"math/rand"
 	"sync"
 )
 

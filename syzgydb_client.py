@@ -61,7 +61,7 @@ def processTweets():
 
     batch_size = 100
     records = []
-    with open("training.1600000.processed.noemoticon.csv", mode='r', encoding='utf-8') as file:
+    with open("training.1600000.processed.noemoticon.csv", mode='r', encoding='latin1') as file:
         csv_reader = csv.reader(file)
 
         print("Skipping {} rows".format(document_count))
