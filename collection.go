@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+
+	"github.com/smhanov/syzgydb/query"
 )
 
 const (
@@ -196,6 +198,19 @@ type Collection struct {
 	lshTree  *lshTree
 	mutex    sync.RWMutex // Change from sync.Mutex to sync.RWMutex
 	distance func([]float64, []float64) float64
+}
+
+// CreateFilterFunction compiles the query into a filter function that can be used with SearchArgs.
+func CreateFilterFunction(queryIn string) (FilterFn, error) {
+	fn, err := query.FilterFunctionFromQuery(queryIn)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(id uint64, metadata []byte) bool {
+		pass, _ := fn(metadata)
+		return pass
+	}, nil
 }
 
 /*
