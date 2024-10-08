@@ -1,7 +1,6 @@
 package query
 
 import (
-	"log"
 	"unicode"
 )
 
@@ -39,6 +38,10 @@ const (
 	TokenANY
 	TokenALL
 	TokenEOF
+	// New token types
+	TokenLeftBracket  // '['
+	TokenRightBracket // ']'
+	TokenColon        // ':'
 )
 
 type Token struct {
@@ -65,7 +68,6 @@ func NewLexer(input string) *Lexer {
 
 func (l *Lexer) readChar() {
 	if l.readPosition >= len(l.input) {
-		log.Printf("End of file")
 		l.ch = 0
 		return
 	} else {
@@ -79,12 +81,10 @@ func (l *Lexer) readChar() {
 	} else {
 		l.column++
 	}
-	log.Printf("readChar: %c (%0x), position: %d, readPosition: %d, line: %d, column: %d", l.ch, l.ch, l.position, l.readPosition, l.line, l.column)
 }
 
 func (l *Lexer) NextToken() Token {
 	var tok Token
-	log.Printf("NextToken ch=%x", l.ch)
 	l.skipWhitespace()
 
 	if l.ch == 0 {
@@ -128,8 +128,16 @@ func (l *Lexer) NextToken() Token {
 		} else {
 			tok = Token{Type: TokenLess, Literal: string(l.ch), Line: l.line, Column: l.column}
 		}
+	case '[':
+		tok = Token{Type: TokenLeftBracket, Literal: string(l.ch), Line: l.line, Column: l.column}
+	case ']':
+		tok = Token{Type: TokenRightBracket, Literal: string(l.ch), Line: l.line, Column: l.column}
+	case ':':
+		tok = Token{Type: TokenColon, Literal: string(l.ch), Line: l.line, Column: l.column}
 	case '"':
-		tok.Literal = l.readString()
+		fallthrough
+	case '\'':
+		tok.Literal = l.readString(l.ch)
 		tok.Type = TokenString
 		return tok
 	default:
@@ -176,6 +184,10 @@ func lookupIdentifier(ident string) TokenType {
 		return TokenANY
 	case "ALL":
 		return TokenALL
+	case "null":
+		return TokenNull
+	case "true", "false":
+		return TokenBoolean
 	default:
 		return TokenIdentifier
 	}
@@ -210,19 +222,39 @@ func (l *Lexer) peekChar() byte {
 	return l.input[l.readPosition]
 }
 
-func (l *Lexer) readString() string {
-	position := l.position + 1
+func (l *Lexer) readString(quotechar byte) string {
+	var result []byte
 	for {
 		l.readChar()
-		if l.ch == '"' || l.ch == 0 {
+		if l.ch == quotechar || l.ch == 0 {
 			break
 		}
+		if l.ch == '\\' {
+			l.readChar()
+			switch l.ch {
+			case 'n':
+				result = append(result, '\n')
+			case 't':
+				result = append(result, '\t')
+			case 'r':
+				result = append(result, '\r')
+			case '\\':
+				result = append(result, '\\')
+			case '"':
+				result = append(result, '"')
+			case 0:
+				// syntax error; unterminated string
+			default:
+				result = append(result, '\\', l.ch)
+			}
+		} else {
+			result = append(result, l.ch)
+		}
 	}
-	ret := l.input[position:l.position]
-	if l.ch == '"' {
+	if l.ch == quotechar {
 		l.readChar()
 	}
-	return ret
+	return string(result)
 }
 
 func isLetter(ch byte) bool {
