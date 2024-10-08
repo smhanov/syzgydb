@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"log"
 	"math"
+	"math/rand"
 	"sync"
 )
 
@@ -35,10 +36,10 @@ func vectorLength(vector []float64) float64 {
 	return math.Sqrt(sum)
 }
 
-func randomNormalizedVector(dim int) []float64 {
+func randomNormalizedVector(rand *myRandomType, dim int) []float64 {
 	vector := make([]float64, dim)
 	for i := range vector {
-		vector[i] = globalRandGen.NormFloat64()
+		vector[i] = rand.NormFloat64()
 	}
 	return normalizeVector(vector)
 }
@@ -77,6 +78,9 @@ type lshTree struct {
 	roots     []*lshNode // Change from a single root to a slice of roots
 	threshold int
 	c         *Collection
+
+	// random source
+	rand *myRandomType
 }
 
 func newLSHTree(c *Collection, threshold int, numTrees int) *lshTree {
@@ -88,6 +92,7 @@ func newLSHTree(c *Collection, threshold int, numTrees int) *lshTree {
 		roots:     roots,
 		threshold: threshold,
 		c:         c,
+		rand:      myRandom.ThreadsafeNew(),
 	}
 }
 
@@ -163,10 +168,10 @@ func aboutEqual(vector1, vector2 []float64) bool {
 }
 
 func (tree *lshTree) split(node *lshNode) *lshNode {
-	randomIndex1 := globalRandGen.Intn(len(node.ids))
+	randomIndex1 := rand.Intn(len(node.ids))
 	var randomIndex2 int
 	for {
-		randomIndex2 = globalRandGen.Intn(len(node.ids))
+		randomIndex2 = rand.Intn(len(node.ids))
 		if randomIndex2 != randomIndex1 {
 			break
 		}
@@ -196,11 +201,11 @@ func (tree *lshTree) split(node *lshNode) *lshNode {
 	var b float64
 
 	if tree.c.DistanceMethod == Euclidean {
-		normal = randomNormalizedVector(len(pointChosen))
+		normal = randomNormalizedVector(tree.rand, len(pointChosen))
 		b = math.Sqrt(dotProduct(pointChosen, pointChosen))
 	} else {
 		//normal = normalizeVector(pointChosen)
-		normal = randomNormalizedVector(len(pointChosen))
+		normal = randomNormalizedVector(tree.rand, len(pointChosen))
 	}
 
 	leftIDs := []uint64{}
@@ -276,7 +281,7 @@ func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64, lengt
 func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
 	length := vectorLength(vector)
 	visited := make(map[uint64]bool)
-	const search_k = 100 // how many points do we search beyond what is required in hopes of finding a better result.
+	const search_k = 200 // how many points do we search beyond what is required in hopes of finding a better result.
 	k_counter := 0       // number of times we visited a point and it didn't yield any better results.
 	pointAccepted := false
 

@@ -21,7 +21,7 @@ func TestEuclideanDistance(t *testing.T) {
 }
 
 func TestCosineDistancePrecisionComparison(t *testing.T) {
-	globalRandGen.Seed(0)
+	myRandom.Seed(0)
 	ensureTestFolder(t)
 
 	// Create a file to store the CPU profile
@@ -54,7 +54,7 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 	for i := range vectors {
 		vectors[i] = make([]float64, options.DimensionCount)
 		for d := range vectors[i] {
-			vectors[i][d] = globalRandGen.Float64()
+			vectors[i][d] = myRandom.Float64()
 		}
 		collection.AddDocument(uint64(i), vectors[i], []byte(fmt.Sprintf("metadata_%d", i)))
 	}
@@ -119,7 +119,7 @@ func TestComputeAverageDistance(t *testing.T) {
 	// Add documents to the collection
 	numDocuments := 100
 	for i := 0; i < numDocuments; i++ {
-		vector := []float64{globalRandGen.Float64() * 100, globalRandGen.Float64() * 100, globalRandGen.Float64() * 100}
+		vector := []float64{myRandom.Float64() * 100, myRandom.Float64() * 100, myRandom.Float64() * 100}
 		collection.AddDocument(uint64(i), vector, []byte("metadata"))
 	}
 
@@ -363,7 +363,7 @@ func TestCollectionSearch(t *testing.T) {
 func TestCollectionPersistence(t *testing.T) {
 	ensureTestFolder(t)
 	// Seed the global random source
-	globalRandGen.Seed(42)
+	myRandom.Seed(1)
 
 	// Define collection options
 	collectionName := testFilePath("persistent_test_collection.dat")
@@ -591,7 +591,7 @@ func TestVectorSearchWith4BitQuantization(t *testing.T) {
 	for i := 0; i < numDocuments; i++ {
 		vector := make([]float64, options.DimensionCount)
 		for d := 0; d < options.DimensionCount; d++ {
-			vector[d] = globalRandGen.Float64() // Random float values
+			vector[d] = myRandom.Float64() // Random float values
 		}
 		collection.AddDocument(uint64(i), vector, []byte("metadata"))
 	}
@@ -599,7 +599,7 @@ func TestVectorSearchWith4BitQuantization(t *testing.T) {
 	// Define a search vector
 	searchVector := make([]float64, options.DimensionCount)
 	for d := 0; d < options.DimensionCount; d++ {
-		searchVector[d] = globalRandGen.Float64()
+		searchVector[d] = myRandom.Float64()
 	}
 
 	// Define search arguments

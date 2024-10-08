@@ -570,7 +570,11 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
 				Priority:     distance,
 			})
-			return PointAccepted
+			// heuristic: we want the index to stop looking only if we don't get any better ones
+			// for a while.
+			if (*resultsPQ)[0].Priority >= distance {
+				return PointAccepted
+			}
 		} else if args.K > 0 {
 			if resultsPQ.Len() <= args.K {
 				if resultsPQ.Len() < args.K || (*resultsPQ)[0].Priority > distance {
