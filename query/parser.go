@@ -128,6 +128,29 @@ func (p *Parser) parseAnd() (Node, error) {
 	return left, nil
 }
 
+func (p *Parser) parseExpression() (Node, error) {
+	return p.parseLogicalExpression()
+}
+
+func (p *Parser) parseLogicalExpression() (Node, error) {
+	left, err := p.parseNot()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.currentToken.Type == TokenAnd || p.currentToken.Type == TokenOr {
+		operator := p.currentToken.Literal
+		p.nextToken()
+		right, err := p.parseNot()
+		if err != nil {
+			return nil, err
+		}
+		left = &ExpressionNode{Left: left, Operator: operator, Right: right}
+	}
+
+	return left, nil
+}
+
 func (p *Parser) parseNot() (Node, error) {
 	if p.currentToken.Type == TokenNot {
 		p.nextToken()
@@ -135,7 +158,7 @@ func (p *Parser) parseNot() (Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &ExpressionNode{Left: expr, Operator: "NOT", Right: nil}, nil
+		return &ExpressionNode{Left: nil, Operator: "NOT", Right: expr}, nil
 	}
 	return p.parseComparison()
 }
@@ -146,14 +169,14 @@ func (p *Parser) parseComparison() (Node, error) {
 		return nil, err
 	}
 
-	for p.isComparisonOperator(p.currentToken.Type) {
+	if p.isComparisonOperator(p.currentToken.Type) {
 		operator := p.currentToken.Literal
 		p.nextToken()
 		right, err := p.parsePrimary()
 		if err != nil {
 			return nil, err
 		}
-		left = &ExpressionNode{Left: left, Operator: operator, Right: right}
+		return &ExpressionNode{Left: left, Operator: operator, Right: right}, nil
 	}
 
 	return left, nil
