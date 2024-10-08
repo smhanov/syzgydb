@@ -141,7 +141,7 @@ func (p *Parser) parseNot() (Node, error) {
 }
 
 func (p *Parser) parseComparison() (Node, error) {
-	left, err := p.parsePrimary()
+	left, err := p.parseNot()
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (p *Parser) parseComparison() (Node, error) {
 	if p.isComparisonOperator(p.currentToken.Type) {
 		operator := p.currentToken.Literal
 		p.nextToken()
-		right, err := p.parsePrimary()
+		right, err := p.parseNot()
 		if err != nil {
 			return nil, err
 		}
@@ -157,6 +157,18 @@ func (p *Parser) parseComparison() (Node, error) {
 	}
 
 	return left, nil
+}
+
+func (p *Parser) parseNot() (Node, error) {
+	if p.currentToken.Type == TokenNot {
+		p.nextToken()
+		expr, err := p.parsePrimary()
+		if err != nil {
+			return nil, err
+		}
+		return &ExpressionNode{Left: nil, Operator: "NOT", Right: expr}, nil
+	}
+	return p.parsePrimary()
 }
 
 func (p *Parser) parsePrimary() (Node, error) {
