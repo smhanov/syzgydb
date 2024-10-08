@@ -128,25 +128,6 @@ func (p *Parser) parseAnd() (Node, error) {
 	return left, nil
 }
 
-func (p *Parser) parseExpression() (Node, error) {
-	left, err := p.parseNot()
-	if err != nil {
-		return nil, err
-	}
-
-	for p.currentToken.Type == TokenAnd || p.currentToken.Type == TokenOr {
-		operator := p.currentToken.Literal
-		p.nextToken()
-		right, err := p.parseNot()
-		if err != nil {
-			return nil, err
-		}
-		left = &ExpressionNode{Left: left, Operator: operator, Right: right}
-	}
-
-	return left, nil
-}
-
 func (p *Parser) parseNot() (Node, error) {
 	if p.currentToken.Type == TokenNot {
 		p.nextToken()
@@ -320,7 +301,6 @@ func (p *Parser) parseIdentifierOrFunction() (Node, error) {
 
 	return &IdentifierNode{Name: identifier}, nil
 }
-
 
 func (p *Parser) parseNumber() (Node, error) {
 	value, err := strconv.ParseFloat(p.currentToken.Literal, 64)
