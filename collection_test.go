@@ -21,6 +21,7 @@ func TestEuclideanDistance(t *testing.T) {
 }
 
 func TestCosineDistancePrecisionComparison(t *testing.T) {
+	globalRandGen.Seed(0)
 	ensureTestFolder(t)
 
 	// Create a file to store the CPU profile
