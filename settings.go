@@ -9,14 +9,21 @@ type Config struct {
 	SyzgyHost    string `mapstructure:"syzgy_host"`
 }
 
-var GlobalConfig *Config
+import "math/rand"
 
-/*
-Configure sets the global configuration for the syzgydb package.
+var GlobalConfig Config
 
-Parameters:
-- cfg: The configuration struct to set as the global configuration.
-*/
+func init() {
+	GlobalConfig = Config{
+		OllamaServer: "default_ollama_server",
+		TextModel:    "default_text_model",
+		ImageModel:   "default_image_model",
+		DataFolder:   "default_data_folder",
+		SyzgyHost:    "default_syzgy_host",
+		RandSource:   rand.NewSource(rand.Int63()), // Default random source
+	}
+}
+
 func Configure(cfg Config) {
-	GlobalConfig = &cfg
+	GlobalConfig = cfg
 }
