@@ -32,6 +32,9 @@ class SyzgyClient:
         result = self._request("GET", f"/api/v1/collections/{name}")
         return Collection(self, **result)
 
+    def delete_collection(self, collection_name: str) -> Dict:
+        return self._request("DELETE", f"/api/v1/collections/{collection_name}")
+
 class Collection:
     def __init__(self, client: SyzgyClient, collection_name: str, document_count: int, dimension_count: int, quantization: int, distance_function: str):
         self.client = client
@@ -40,9 +43,6 @@ class Collection:
         self.dimension_count = dimension_count
         self.quantization = quantization
         self.distance_function = distance_function
-
-    def delete(self) -> Dict:
-        return self.client._request("DELETE", f"/api/v1/collections/{self.collection_name}")
 
     def insert_documents(self, documents: List[Document]) -> Dict:
         data = [doc.to_dict() for doc in documents]
