@@ -12,7 +12,13 @@ import (
 )
 
 func setupTestDB(t *testing.T) (*SpanFile, func()) {
-	tempFile, err := ioutil.TempFile("", "spanfile_test")
+	// Create testfolder if it doesn't exist
+	err := os.MkdirAll("./testfolder", 0755)
+	if err != nil {
+		t.Fatalf("Failed to create testfolder: %v", err)
+	}
+
+	tempFile, err := ioutil.TempFile("./testfolder", "spanfile_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
@@ -31,7 +37,13 @@ func setupTestDB(t *testing.T) (*SpanFile, func()) {
 }
 
 func TestOpenFileWithInvalidMagicNumber(t *testing.T) {
-	tempFile, err := ioutil.TempFile("", "invalid_magic_test")
+	// Create testfolder if it doesn't exist
+	err := os.MkdirAll("./testfolder", 0755)
+	if err != nil {
+		t.Fatalf("Failed to create testfolder: %v", err)
+	}
+
+	tempFile, err := ioutil.TempFile("./testfolder", "invalid_magic_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}

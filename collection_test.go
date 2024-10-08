@@ -5,9 +5,23 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"testing"
 )
+
+// Helper function to create a test file path
+func testFilePath(fileName string) string {
+	return filepath.Join("./testfolder", fileName)
+}
+
+// Helper function to ensure testfolder exists
+func ensureTestFolder(t *testing.T) {
+	err := os.MkdirAll("./testfolder", 0755)
+	if err != nil {
+		t.Fatalf("Failed to create testfolder: %v", err)
+	}
+}
 
 func TestEuclideanDistance(t *testing.T) {
 	vec1 := []float64{1.0, 2.0, 3.0}
@@ -21,8 +35,10 @@ func TestEuclideanDistance(t *testing.T) {
 }
 
 func TestCosineDistancePrecisionComparison(t *testing.T) {
+	ensureTestFolder(t)
+
 	// Create a file to store the CPU profile
-	f, err := os.Create("cosine_distance_precision_comparison.prof")
+	f, err := os.Create(testFilePath("cosine_distance_precision_comparison.prof"))
 	if err != nil {
 		t.Fatalf("could not create CPU profile: %v", err)
 	}
@@ -34,7 +50,7 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 	}
 	defer pprof.StopCPUProfile()
 	options := CollectionOptions{
-		Name:           "test_cosine_precision_comparison.dat",
+		Name:           testFilePath("test_cosine_precision_comparison.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 3,
 		FileMode:       CreateAndOverwrite,
@@ -96,9 +112,10 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 }
 
 func TestComputeAverageDistance(t *testing.T) {
+	ensureTestFolder(t)
 	// Define collection options
 	options := CollectionOptions{
-		Name:           "test_collection_avg_distance.dat",
+		Name:           testFilePath("test_collection_avg_distance.dat"),
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
 		FileMode:       CreateAndOverwrite,
@@ -132,8 +149,9 @@ func TestComputeAverageDistance(t *testing.T) {
 }
 
 func TestRemoveDocumentRealWorld(t *testing.T) {
+	ensureTestFolder(t)
 	// Create a collection with some documents
-	collectionName := "test_collection.dat"
+	collectionName := testFilePath("test_collection.dat")
 	options := CollectionOptions{
 		Name:           collectionName,
 		DistanceMethod: Euclidean,
@@ -179,9 +197,10 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 }
 
 func TestUpdateDocument(t *testing.T) {
+	ensureTestFolder(t)
 	// Create a collection with some documents
 	options := CollectionOptions{
-		Name:           "test_collection",
+		Name:           testFilePath("test_collection"),
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
 		FileMode:       CreateAndOverwrite,
@@ -210,9 +229,10 @@ func TestUpdateDocument(t *testing.T) {
 }
 
 func TestRemoveDocument(t *testing.T) {
+	ensureTestFolder(t)
 	// Create a new collection with appropriate options
 	options := CollectionOptions{
-		Name:           "test_collection",
+		Name:           testFilePath("test_collection"),
 		DistanceMethod: Euclidean,
 		DimensionCount: 10,
 		Quantization:   64,
@@ -258,9 +278,10 @@ func TestRemoveDocument(t *testing.T) {
 }
 
 func TestCollectionSearch(t *testing.T) {
+	ensureTestFolder(t)
 	// Create a collection with some documents
 	options := CollectionOptions{
-		Name:           "test_collection.dat",
+		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Euclidean,
 		DimensionCount: 2,
 	}
@@ -352,8 +373,9 @@ func TestCollectionSearch(t *testing.T) {
 }
 
 func TestCollectionPersistence(t *testing.T) {
+	ensureTestFolder(t)
 	// Define collection options
-	collectionName := "persistent_test_collection.dat"
+	collectionName := testFilePath("persistent_test_collection.dat")
 	options := CollectionOptions{
 		Name:           collectionName,
 		DistanceMethod: Cosine,
@@ -417,8 +439,9 @@ func TestCollectionPersistence(t *testing.T) {
 }
 
 func TestCollectionAddDeleteAndRetrieve(t *testing.T) {
+	ensureTestFolder(t)
 	// Define collection options
-	collectionName := "test_collection_add_delete_retrieve.dat"
+	collectionName := testFilePath("test_collection_add_delete_retrieve.dat")
 	options := CollectionOptions{
 		Name:           collectionName,
 		DistanceMethod: Euclidean,
@@ -497,9 +520,10 @@ func equalVectors(vec1, vec2 []float64) bool {
 }
 
 func TestExhaustiveSearch(t *testing.T) {
+	ensureTestFolder(t)
 	// Define collection options
 	options := CollectionOptions{
-		Name:           "test_exhaustive_search.dat",
+		Name:           testFilePath("test_exhaustive_search.dat"),
 		DistanceMethod: Euclidean,
 		DimensionCount: 3,
 		FileMode:       CreateAndOverwrite,
@@ -558,8 +582,9 @@ func TestExhaustiveSearch(t *testing.T) {
 }
 
 func TestVectorSearchWith4BitQuantization(t *testing.T) {
+	ensureTestFolder(t)
 	// Define collection options with 4-bit quantization
-	collectionName := "test_collection_4bit.dat"
+	collectionName := testFilePath("test_collection_4bit.dat")
 	options := CollectionOptions{
 		Name:           collectionName,
 		DistanceMethod: Euclidean,
