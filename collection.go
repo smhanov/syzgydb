@@ -200,8 +200,8 @@ type Collection struct {
 	distance func([]float64, []float64) float64
 }
 
-// CreateFilterFunction compiles the query into a filter function that can be used with SearchArgs.
-func CreateFilterFunction(queryIn string) (FilterFn, error) {
+// BuildFilter compiles the query into a filter function that can be used with SearchArgs.
+func BuildFilter(queryIn string) (FilterFn, error) {
 	fn, err := query.FilterFunctionFromQuery(queryIn)
 	if err != nil {
 		return nil, err

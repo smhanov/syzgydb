@@ -413,7 +413,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if searchRequest.Filter != "" {
-		filterFn, err := CreateFilterFunction(searchRequest.Filter)
+		filterFn, err := BuildFilter(searchRequest.Filter)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Invalid filter query: %v", err), http.StatusBadRequest)
 			return

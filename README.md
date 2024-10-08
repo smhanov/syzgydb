@@ -173,7 +173,8 @@ A collection is a database, and you can create them and get information about th
     "radius": 0,                       // Optional: Radius for range search
     "limit": 0,                         // Optional: Maximum number of records to return
     "offset": 0,                         // Optional: Number of records to skip for pagination
-    "precision": ""                 // Optional: Set to "exact" for exhaustive search
+    "precision": "",                 // Optional: Set to "exact" for exhaustive search
+    "filter": "age >= 18 AND status == 'active'" // Optional: Query filter expression
   }
   ```
 
@@ -185,10 +186,11 @@ A collection is a database, and you can create them and get information about th
   - **`limit`**: Limits the number of records returned in the response. Useful for paginating results.
   - **`offset`**: Skips the specified number of records before starting to return results. Used in conjunction with `limit` for pagination.
   - **`precision`**: Specifies the search precision. Defaults to "medium". Set to "exact" to perform an exhaustive search of all points.
+  - **`filter`**: A string containing a query filter expression. This allows for additional filtering of results based on metadata fields.
 
  **Example `curl`**:
   ```bash
-  curl -X POST http://localhost:8080/api/v1/collections/collection_name/search -H "Content-Type: application/json" -d '{"vector":[0.1,0.2,0.3,0.4,0.5],"k":5,"limit":10,"offset":0}'
+  curl -X POST http://localhost:8080/api/v1/collections/collection_name/search -H "Content-Type: application/json" -d '{"vector":[0.1,0.2,0.3,0.4,0.5],"k":5,"limit":10,"offset":0,"filter":"age >= 18 AND status == \"active\""}'
   ```
 
  **Usage Scenarios**:
@@ -197,6 +199,7 @@ A collection is a database, and you can create them and get information about th
   - **Vector-Based Search**: Use the `vector` parameter for direct vector similarity searches.
   - **Range Query**: Specify a `radius` to perform a range query, returning all records within the specified distance.
   - **K-Nearest Neighbors**: Use the `k` parameter to find the top `k` nearest records to the query vector.
+  - **Filtered Search**: Use the `filter` parameter to apply additional constraints based on metadata fields.
 
 ## Usage in a Go Project
 
@@ -258,17 +261,15 @@ results = collection.Search(args)
 
 #### Using a Filter Function
 
-You can also apply a filter function during the search to include only documents that meet certain criteria. The filter function takes a document's ID and metadata as arguments and returns a boolean indicating whether the document should be included in the search results.
+You can apply a filter function during the search to include only documents that meet certain criteria. There are two ways to create a filter function:
+
+1. Using a custom function:
 
 ```go
-searchVector := []float64{0.1, 0.2, 0.3, ..., 0.128} // Example search vector
-
-// Define a filter function to exclude documents with odd IDs
 filterFn := func(id uint64, metadata []byte) bool {
     return id%2 == 0 // Include only documents with even IDs
 }
 
-// Search with a filter function
 args := syzgydb.SearchArgs{
     Vector:   searchVector,
     K: 5, // Return top 5 results
@@ -278,6 +279,25 @@ args := syzgydb.SearchArgs{
 results := collection.Search(args)
 ```
 
+2. Using the `BuildFilter` method with a query string:
+
+```go
+queryString := `age >= 18 AND status == \"active\"`
+filterFn, err := syzgydb.BuildFilter(queryString)
+if err != nil {
+    log.Fatalf("Error building filter: %v", err)
+}
+
+args := syzgydb.SearchArgs{
+    Vector:   searchVector,
+    K: 5, // Return top 5 results
+    Filter:   filterFn,
+}
+
+results := collection.Search(args)
+```
+
+The `BuildFilter` method allows you to create a filter function from a query string using the Query Filter Language described in this document. This provides a flexible way to filter search results based on metadata fields without writing custom Go code for each filter.
 
 ### Updating and Removing Documents
 
@@ -298,6 +318,61 @@ To dump the collection for inspection or backup, use the `DumpIndex` function:
 ```go
 syzgydb.DumpIndex("example.dat")
 ```
+
+## Query Filter Language
+
+SyzgyDB supports a powerful query filter language that allows you to filter search results based on metadata fields. This language can be used in the `filter` parameter of the search API.
+
+### Basic Syntax
+
+- **Field Comparison**: `field_name operator value`
+  - Example: `age >= 18`
+
+- **Logical Operations**: Combine conditions using `AND`, `OR`, `NOT`
+  - Example: `(age >= 18 AND status == "active") OR role == "admin"`
+
+- **Parentheses**: Use to group conditions and control evaluation order
+  - Example: `(status == "active" AND age >= 18) OR role == "admin"`
+
+### Supported Operators
+
+- **Comparison**: `==`, `!=`, `>`, `<`, `>=`, `<=`
+- **String Operations**: `CONTAINS`, `STARTS_WITH`, `ENDS_WITH`, `MATCHES` (regex)
+- **Existence**: `EXISTS`, `DOES NOT EXIST`
+- **Array Operations**: `IN`, `NOT IN`
+
+### Functions
+
+- `field.length`: Returns the length of a string or array
+
+
+### Examples
+
+1. **Basic Comparison**:
+   ```
+   age >= 18 AND status == "active"
+   ```
+
+2. **String Operations**:
+   ```
+   name STARTS_WITH "John" AND email ENDS_WITH "@example.com"
+   ```
+
+3. **Array Operations**:
+   ```
+   status IN ["important", "urgent"] 
+   ```
+
+4. **Nested Fields**:
+   ```
+   user.profile.verified == true AND user.friends.length > 5
+   ```
+
+5. **Complex Query**:
+   ```
+   (status == "active" AND age >= 18) OR (role == "admin" AND NOT (department == "IT"))
+   ```
+
 
 ## Contributing
 
