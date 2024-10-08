@@ -83,6 +83,10 @@ func (l *Lexer) NextToken() Token {
 
 	l.skipWhitespace()
 
+	if l.ch == 0 {
+		return Token{Type: TokenEOF, Literal: "", Line: l.line, Column: l.column}
+	}
+
 	switch l.ch {
 	case '(':
 		tok = Token{Type: TokenLeftParen, Literal: string(l.ch), Line: l.line, Column: l.column}
@@ -124,8 +128,6 @@ func (l *Lexer) NextToken() Token {
 		tok.Literal = l.readString()
 		tok.Type = TokenString
 		return tok
-	case 0:
-		tok = Token{Type: TokenEOF, Literal: "", Line: l.line, Column: l.column}
 	default:
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
@@ -136,7 +138,7 @@ func (l *Lexer) NextToken() Token {
 			tok.Type = TokenNumber
 			return tok
 		} else {
-			tok = Token{Type: TokenEOF, Literal: "", Line: l.line, Column: l.column}
+			tok = Token{Type: TokenOperator, Literal: string(l.ch), Line: l.line, Column: l.column}
 		}
 	}
 
@@ -147,7 +149,7 @@ func (l *Lexer) NextToken() Token {
 func lookupIdentifier(ident string) TokenType {
 	switch ident {
 	case "AND":
-		return TokenType(0x10) // Hexadecimal value for 16
+		return TokenAnd
 	case "OR":
 		return TokenOr
 	case "NOT":
