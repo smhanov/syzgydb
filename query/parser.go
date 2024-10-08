@@ -1,308 +1,309 @@
 package query
 
 import (
-    "fmt"
-    "strconv"
+	"fmt"
+	"strconv"
+	"strings"
 )
 
 type Node interface {
-    String() string
+	String() string
 }
 
 type ExpressionNode struct {
-    Left     Node
-    Operator string
-    Right    Node
+	Left     Node
+	Operator string
+	Right    Node
 }
 
 func (n *ExpressionNode) String() string {
-    return fmt.Sprintf("%s(%s, %s)", n.Operator, n.Left.String(), n.Right.String())
+	return fmt.Sprintf("%s(%s, %s)", n.Operator, n.Left.String(), n.Right.String())
 }
 
 type IdentifierNode struct {
-    Name string
+	Name string
 }
 
 func (n *IdentifierNode) String() string {
-    return n.Name
+	return n.Name
 }
 
 type ValueNode struct {
-    Value interface{}
+	Value interface{}
 }
 
 func (n *ValueNode) String() string {
-    switch v := n.Value.(type) {
-    case string:
-        return fmt.Sprintf("'%s'", v)
-    default:
-        return fmt.Sprintf("%v", v)
-    }
+	switch v := n.Value.(type) {
+	case string:
+		return fmt.Sprintf("'%s'", v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 type FunctionNode struct {
-    Name      string
-    Arguments []Node
+	Name      string
+	Arguments []Node
 }
 
 func (n *FunctionNode) String() string {
-    args := make([]string, len(n.Arguments))
-    for i, arg := range n.Arguments {
-        args[i] = arg.String()
-    }
-    return fmt.Sprintf("%s(%s)", n.Name, strings.Join(args, ", "))
+	args := make([]string, len(n.Arguments))
+	for i, arg := range n.Arguments {
+		args[i] = arg.String()
+	}
+	return fmt.Sprintf("%s(%s)", n.Name, strings.Join(args, ", "))
 }
 
 type ParameterNode struct {
-    Name string
+	Name string
 }
 
 func (n *ParameterNode) String() string {
-    return ":" + n.Name
+	return ":" + n.Name
 }
 
 type Parser struct {
-    lexer        *Lexer
-    currentToken Token
-    peekToken    Token
-    errors       []string
+	lexer        *Lexer
+	currentToken Token
+	peekToken    Token
+	errors       []string
 }
 
 func NewParser(lexer *Lexer) *Parser {
-    p := &Parser{lexer: lexer}
-    p.nextToken()
-    p.nextToken()
-    return p
+	p := &Parser{lexer: lexer}
+	p.nextToken()
+	p.nextToken()
+	return p
 }
 
 func (p *Parser) nextToken() {
-    p.currentToken = p.peekToken
-    p.peekToken = p.lexer.NextToken()
+	p.currentToken = p.peekToken
+	p.peekToken = p.lexer.NextToken()
 }
 
 func (p *Parser) Parse() (Node, error) {
-    return p.parseExpression()
+	return p.parseExpression()
 }
 
 func (p *Parser) parseExpression() (Node, error) {
-    return p.parseOr()
+	return p.parseOr()
 }
 
 func (p *Parser) parseOr() (Node, error) {
-    left, err := p.parseAnd()
-    if err != nil {
-        return nil, err
-    }
+	left, err := p.parseAnd()
+	if err != nil {
+		return nil, err
+	}
 
-    for p.currentToken.Type == TokenOr {
-        p.nextToken()
-        right, err := p.parseAnd()
-        if err != nil {
-            return nil, err
-        }
-        left = &ExpressionNode{Left: left, Operator: "OR", Right: right}
-    }
+	for p.currentToken.Type == TokenOr {
+		p.nextToken()
+		right, err := p.parseAnd()
+		if err != nil {
+			return nil, err
+		}
+		left = &ExpressionNode{Left: left, Operator: "OR", Right: right}
+	}
 
-    return left, nil
+	return left, nil
 }
 
 func (p *Parser) parseAnd() (Node, error) {
-    left, err := p.parseNot()
-    if err != nil {
-        return nil, err
-    }
+	left, err := p.parseNot()
+	if err != nil {
+		return nil, err
+	}
 
-    for p.currentToken.Type == TokenAnd {
-        p.nextToken()
-        right, err := p.parseNot()
-        if err != nil {
-            return nil, err
-        }
-        left = &ExpressionNode{Left: left, Operator: "AND", Right: right}
-    }
+	for p.currentToken.Type == TokenAnd {
+		p.nextToken()
+		right, err := p.parseNot()
+		if err != nil {
+			return nil, err
+		}
+		left = &ExpressionNode{Left: left, Operator: "AND", Right: right}
+	}
 
-    return left, nil
+	return left, nil
 }
 
 func (p *Parser) parseNot() (Node, error) {
-    if p.currentToken.Type == TokenNot {
-        p.nextToken()
-        expr, err := p.parseComparison()
-        if err != nil {
-            return nil, err
-        }
-        return &ExpressionNode{Left: expr, Operator: "NOT", Right: nil}, nil
-    }
-    return p.parseComparison()
+	if p.currentToken.Type == TokenNot {
+		p.nextToken()
+		expr, err := p.parseComparison()
+		if err != nil {
+			return nil, err
+		}
+		return &ExpressionNode{Left: expr, Operator: "NOT", Right: nil}, nil
+	}
+	return p.parseComparison()
 }
 
 func (p *Parser) parseComparison() (Node, error) {
-    left, err := p.parsePrimary()
-    if err != nil {
-        return nil, err
-    }
+	left, err := p.parsePrimary()
+	if err != nil {
+		return nil, err
+	}
 
-    for p.isComparisonOperator(p.currentToken.Type) {
-        operator := p.currentToken.Literal
-        p.nextToken()
-        right, err := p.parsePrimary()
-        if err != nil {
-            return nil, err
-        }
-        left = &ExpressionNode{Left: left, Operator: operator, Right: right}
-    }
+	for p.isComparisonOperator(p.currentToken.Type) {
+		operator := p.currentToken.Literal
+		p.nextToken()
+		right, err := p.parsePrimary()
+		if err != nil {
+			return nil, err
+		}
+		left = &ExpressionNode{Left: left, Operator: operator, Right: right}
+	}
 
-    return left, nil
+	return left, nil
 }
 
 func (p *Parser) parsePrimary() (Node, error) {
-    switch p.currentToken.Type {
-    case TokenIdentifier:
-        return p.parseIdentifierOrFunction()
-    case TokenNumber:
-        return p.parseNumber()
-    case TokenString:
-        return &ValueNode{Value: p.currentToken.Literal}, nil
-    case TokenBoolean:
-        return p.parseBoolean()
-    case TokenNull:
-        return &ValueNode{Value: nil}, nil
-    case TokenLeftParen:
-        return p.parseGroupedExpression()
-    case TokenLeftBracket:
-        return p.parseArrayLiteral()
-    case TokenColon:
-        return p.parseParameter()
-    default:
-        return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Literal)
-    }
+	switch p.currentToken.Type {
+	case TokenIdentifier:
+		return p.parseIdentifierOrFunction()
+	case TokenNumber:
+		return p.parseNumber()
+	case TokenString:
+		return &ValueNode{Value: p.currentToken.Literal}, nil
+	case TokenBoolean:
+		return p.parseBoolean()
+	case TokenNull:
+		return &ValueNode{Value: nil}, nil
+	case TokenLeftParen:
+		return p.parseGroupedExpression()
+	case TokenLeftBracket:
+		return p.parseArrayLiteral()
+	case TokenColon:
+		return p.parseParameter()
+	default:
+		return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Literal)
+	}
 }
 
 func (p *Parser) parseArrayLiteral() (Node, error) {
-    p.nextToken() // consume '['
-    elements := []Node{}
+	p.nextToken() // consume '['
+	elements := []Node{}
 
-    if p.currentToken.Type != TokenRightBracket {
-        element, err := p.parseExpression()
-        if err != nil {
-            return nil, err
-        }
-        elements = append(elements, element)
+	if p.currentToken.Type != TokenRightBracket {
+		element, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		elements = append(elements, element)
 
-        for p.currentToken.Type == TokenComma {
-            p.nextToken() // consume ','
-            element, err := p.parseExpression()
-            if err != nil {
-                return nil, err
-            }
-            elements = append(elements, element)
-        }
-    }
+		for p.currentToken.Type == TokenComma {
+			p.nextToken() // consume ','
+			element, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			elements = append(elements, element)
+		}
+	}
 
-    if p.currentToken.Type != TokenRightBracket {
-        return nil, fmt.Errorf("expected ']', got %s", p.currentToken.Literal)
-    }
-    p.nextToken() // consume ']'
+	if p.currentToken.Type != TokenRightBracket {
+		return nil, fmt.Errorf("expected ']', got %s", p.currentToken.Literal)
+	}
+	p.nextToken() // consume ']'
 
-    return &FunctionNode{Name: "ARRAY", Arguments: elements}, nil
+	return &FunctionNode{Name: "ARRAY", Arguments: elements}, nil
 }
 
 func (p *Parser) parseParameter() (Node, error) {
-    p.nextToken() // consume ':'
-    if p.currentToken.Type != TokenIdentifier {
-        return nil, fmt.Errorf("expected identifier after ':', got %s", p.currentToken.Literal)
-    }
-    param := &ParameterNode{Name: p.currentToken.Literal}
-    p.nextToken()
-    return param, nil
+	p.nextToken() // consume ':'
+	if p.currentToken.Type != TokenIdentifier {
+		return nil, fmt.Errorf("expected identifier after ':', got %s", p.currentToken.Literal)
+	}
+	param := &ParameterNode{Name: p.currentToken.Literal}
+	p.nextToken()
+	return param, nil
 }
 
 func (p *Parser) parseIdentifierOrFunction() (Node, error) {
-    identifier := &IdentifierNode{Name: p.currentToken.Literal}
-    p.nextToken()
+	identifier := &IdentifierNode{Name: p.currentToken.Literal}
+	p.nextToken()
 
-    if p.currentToken.Type == TokenLeftParen {
-        return p.parseFunction(identifier.Name)
-    }
+	if p.currentToken.Type == TokenLeftParen {
+		return p.parseFunction(identifier.Name)
+	}
 
-    if p.currentToken.Type == TokenEXISTS {
-        p.nextToken()
-        return &FunctionNode{Name: "EXISTS", Arguments: []Node{identifier}}, nil
-    }
+	if p.currentToken.Type == TokenEXISTS {
+		p.nextToken()
+		return &FunctionNode{Name: "EXISTS", Arguments: []Node{identifier}}, nil
+	}
 
-    if p.currentToken.Type == TokenDOESNOTEXIST {
-        p.nextToken()
-        return &FunctionNode{Name: "DOES_NOT_EXIST", Arguments: []Node{identifier}}, nil
-    }
+	if p.currentToken.Type == TokenDOESNOTEXIST {
+		p.nextToken()
+		return &FunctionNode{Name: "DOES_NOT_EXIST", Arguments: []Node{identifier}}, nil
+	}
 
-    return identifier, nil
+	return identifier, nil
 }
 
 func (p *Parser) parseFunction(name string) (Node, error) {
-    p.nextToken() // consume '('
-    args := []Node{}
+	p.nextToken() // consume '('
+	args := []Node{}
 
-    if p.currentToken.Type != TokenRightParen {
-        arg, err := p.parseExpression()
-        if err != nil {
-            return nil, err
-        }
-        args = append(args, arg)
+	if p.currentToken.Type != TokenRightParen {
+		arg, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, arg)
 
-        for p.currentToken.Type == TokenComma {
-            p.nextToken() // consume ','
-            arg, err := p.parseExpression()
-            if err != nil {
-                return nil, err
-            }
-            args = append(args, arg)
-        }
-    }
+		for p.currentToken.Type == TokenComma {
+			p.nextToken() // consume ','
+			arg, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, arg)
+		}
+	}
 
-    if p.currentToken.Type != TokenRightParen {
-        return nil, fmt.Errorf("expected ')', got %s", p.currentToken.Literal)
-    }
-    p.nextToken() // consume ')'
+	if p.currentToken.Type != TokenRightParen {
+		return nil, fmt.Errorf("expected ')', got %s", p.currentToken.Literal)
+	}
+	p.nextToken() // consume ')'
 
-    return &FunctionNode{Name: name, Arguments: args}, nil
+	return &FunctionNode{Name: name, Arguments: args}, nil
 }
 
 func (p *Parser) parseNumber() (Node, error) {
-    value, err := strconv.ParseFloat(p.currentToken.Literal, 64)
-    if err != nil {
-        return nil, fmt.Errorf("could not parse number: %s", p.currentToken.Literal)
-    }
-    return &ValueNode{Value: value}, nil
+	value, err := strconv.ParseFloat(p.currentToken.Literal, 64)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse number: %s", p.currentToken.Literal)
+	}
+	return &ValueNode{Value: value}, nil
 }
 
 func (p *Parser) parseBoolean() (Node, error) {
-    value, err := strconv.ParseBool(p.currentToken.Literal)
-    if err != nil {
-        return nil, fmt.Errorf("could not parse boolean: %s", p.currentToken.Literal)
-    }
-    return &ValueNode{Value: value}, nil
+	value, err := strconv.ParseBool(p.currentToken.Literal)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse boolean: %s", p.currentToken.Literal)
+	}
+	return &ValueNode{Value: value}, nil
 }
 
 func (p *Parser) parseGroupedExpression() (Node, error) {
-    p.nextToken() // consume '('
-    expr, err := p.parseExpression()
-    if err != nil {
-        return nil, err
-    }
+	p.nextToken() // consume '('
+	expr, err := p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
 
-    if p.currentToken.Type != TokenRightParen {
-        return nil, fmt.Errorf("expected ')', got %s", p.currentToken.Literal)
-    }
-    p.nextToken() // consume ')'
+	if p.currentToken.Type != TokenRightParen {
+		return nil, fmt.Errorf("expected ')', got %s", p.currentToken.Literal)
+	}
+	p.nextToken() // consume ')'
 
-    return expr, nil
+	return expr, nil
 }
 
 func (p *Parser) isComparisonOperator(tokenType TokenType) bool {
-    return tokenType == TokenEqual || tokenType == TokenNotEqual ||
-        tokenType == TokenGreater || tokenType == TokenGreaterEqual ||
-        tokenType == TokenLess || tokenType == TokenLessEqual ||
-        tokenType == TokenIN || tokenType == TokenNOTIN ||
-        tokenType == TokenCONTAINS || tokenType == TokenSTARTSWITH ||
-        tokenType == TokenENDSWITH || tokenType == TokenMATCHES
+	return tokenType == TokenEqual || tokenType == TokenNotEqual ||
+		tokenType == TokenGreater || tokenType == TokenGreaterEqual ||
+		tokenType == TokenLess || tokenType == TokenLessEqual ||
+		tokenType == TokenIN || tokenType == TokenNOTIN ||
+		tokenType == TokenCONTAINS || tokenType == TokenSTARTSWITH ||
+		tokenType == TokenENDSWITH || tokenType == TokenMATCHES
 }
