@@ -1,7 +1,7 @@
 import requests
 from typing import List, Dict, Union, Optional
 from .exceptions import SyzgyException
-from .models import Document, SearchResult
+from .models import Document, SearchResult, Collection
 
 class SyzgyClient:
     def __init__(self, base_url: str):
