@@ -65,6 +65,18 @@ func (n *ParameterNode) String() string {
 	return ":" + n.Name
 }
 
+type ArrayNode struct {
+	Elements []Node
+}
+
+func (n *ArrayNode) String() string {
+	elements := make([]string, len(n.Elements))
+	for i, elem := range n.Elements {
+		elements[i] = elem.String()
+	}
+	return fmt.Sprintf("[%s]", strings.Join(elements, ", "))
+}
+
 type Parser struct {
 	lexer        *Lexer
 	currentToken Token
