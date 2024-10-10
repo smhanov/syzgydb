@@ -250,7 +250,7 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 
 	// Call embedText once for all texts
 	if len(textsToEmbed) > 0 {
-		vectors, err := embedText(textsToEmbed)
+		vectors, err := embedText(textsToEmbed, true) // Use cache for inserts
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
 			return
@@ -430,7 +430,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 	var embeddingTime time.Duration
 	if searchRequest.Text != "" {
 		startEmbed := time.Now()
-		vector, err := embedText([]string{searchRequest.Text})
+		vector, err := embedText([]string{searchRequest.Text}, true) // Use cache for searches
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
 			return

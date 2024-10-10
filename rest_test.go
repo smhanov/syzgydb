@@ -252,7 +252,7 @@ func TestGetCollectionInfo(t *testing.T) {
 	}
 }
 
-func mockEmbedText(texts []string) ([][]float64, error) {
+func mockEmbedText(texts []string, useCache bool) ([][]float64, error) {
 	// Return a fixed vector for each input text
 	mockVector := []float64{0.1, 0.2, 0.3, 0.4, 0.5}
 	vectors := make([][]float64, len(texts))
