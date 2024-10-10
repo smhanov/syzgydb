@@ -250,7 +250,7 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 
 	// Call embedText once for all texts
 	if len(textsToEmbed) > 0 {
-		vectors, err := embedText(textsToEmbed, true) // Use cache for inserts
+		vectors, err := embedText(textsToEmbed, false) // Don't cache for inserts
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to convert text to vector: %v", err), http.StatusInternalServerError)
 			return
