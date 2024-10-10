@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"log"
 	"math"
-	"math/rand"
 	"sync"
 )
 
@@ -168,10 +167,10 @@ func aboutEqual(vector1, vector2 []float64) bool {
 }
 
 func (tree *lshTree) split(node *lshNode) *lshNode {
-	randomIndex1 := rand.Intn(len(node.ids))
+	randomIndex1 := tree.rand.Intn(len(node.ids))
 	var randomIndex2 int
 	for {
-		randomIndex2 = rand.Intn(len(node.ids))
+		randomIndex2 = tree.rand.Intn(len(node.ids))
 		if randomIndex2 != randomIndex1 {
 			break
 		}

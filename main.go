@@ -25,7 +25,11 @@ func RunServer() {
 
 		// Create a collection with empty CollectionOptions
 		opts := CollectionOptions{Name: file}
-		server.collections[collectionName] = NewCollection(opts)
+		collection, err := NewCollection(opts)
+		if err != nil {
+			log.Fatalf("Failed to create collection %s: %v", collectionName, err)
+		}
+		server.collections[collectionName] = collection
 		log.Printf("Collection %s loaded successfully", collectionName)
 	}
 

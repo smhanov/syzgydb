@@ -1,11 +1,220 @@
 package syzgydb
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"os"
 )
+
+// indentWriter is a custom writer that adds an indent to the start of each line
+type indentWriter struct {
+	w          io.Writer
+	prefix     string
+	needIndent bool
+}
+
+func (iw *indentWriter) Write(p []byte) (n int, err error) {
+	var written int
+	lines := bytes.Split(p, []byte("\n"))
+	for i, line := range lines {
+		if len(line) > 0 {
+			if iw.needIndent {
+				_, err = iw.w.Write([]byte(iw.prefix))
+				if err != nil {
+					return written, err
+				}
+			}
+			n, err = iw.w.Write(line)
+			written += n
+			if err != nil {
+				return written, err
+			}
+		}
+		if i < len(lines)-1 {
+			n, err = iw.w.Write([]byte("\n"))
+			written += n
+			if err != nil {
+				return written, err
+			}
+			iw.needIndent = true
+		}
+	}
+	return written, nil
+}
+
+func ExportJSON(c *Collection, w io.Writer) error {
+	// Write the opening brace
+	fmt.Fprintln(w, "{")
+
+	// Write the collection options
+	fmt.Fprint(w, "  \"collection\": ")
+	options := c.GetOptions()
+	optionsJSON, err := json.MarshalIndent(options, "  ", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to encode collection options: %v", err)
+	}
+	optionsJSON = bytes.TrimRightFunc(optionsJSON, func(r rune) bool {
+		return r == '\n' || r == ' ' || r == '\t'
+	})
+	w.Write(optionsJSON)
+
+	// Write the records array
+	fmt.Fprint(w, ",\n  \"records\": [")
+
+	ids := c.GetAllIDs()
+	for i, id := range ids {
+		doc, err := c.GetDocument(id)
+		if err != nil {
+			return fmt.Errorf("failed to get document with id %v: %v", id, err)
+		}
+
+		if i > 0 {
+			fmt.Fprint(w, "  }, {\n")
+		} else {
+			fmt.Fprint(w, "{\n")
+		}
+
+		// Write the record ID
+		fmt.Fprintf(w, "    \"id\": %d,\n", id)
+
+		// Write the vector all on one line
+		fmt.Fprintf(w, "    \"vector\": [")
+		vector := doc.Vector
+		for j, v := range vector {
+			if j > 0 {
+				fmt.Fprint(w, ", ")
+			}
+			fmt.Fprintf(w, "%f", v)
+		}
+		fmt.Fprint(w, "],\n    \"metadata\": ")
+
+		// Write the metadata
+		var decodedMetadata interface{}
+		if err := json.Unmarshal(doc.Metadata, &decodedMetadata); err != nil {
+			return fmt.Errorf("failed to decode metadata for document with id %v: %v", id, err)
+		}
+
+		// Create a buffer to hold the JSON for this document
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(decodedMetadata); err != nil {
+			return fmt.Errorf("failed to encode document with id %v: %v", id, err)
+		}
+
+		// Trim the leading newline
+		metadataJSON := buf.Bytes() /*bytes.TrimLeftFunc(buf.Bytes(), func(r rune) bool {
+			return r == '\n' || r == ' ' || r == '\t'
+		})*/
+
+		// Write the first line without extra indentation
+		firstNewline := bytes.Index(metadataJSON, []byte("\n"))
+		if firstNewline != -1 {
+			fmt.Fprint(w, string(metadataJSON[:firstNewline+1]))
+			// Use the custom indenting writer for the rest
+			iw := &indentWriter{w: w, prefix: "    ", needIndent: true}
+			if _, err := iw.Write(metadataJSON[firstNewline+1:]); err != nil {
+				return fmt.Errorf("failed to write document with id %v: %v", id, err)
+			}
+		} else {
+			// If there's only one line, write it directly
+			fmt.Fprint(w, string(metadataJSON))
+		}
+	}
+
+	// Write the closing brackets
+	if len(ids) > 0 {
+		fmt.Fprint(w, "  }")
+	}
+	fmt.Fprintln(w, "]\n}")
+
+	return nil
+}
+
+func ImportJSON(collectionName string, r io.Reader) error {
+	// Create a decoder to read the JSON input
+	decoder := json.NewDecoder(r)
+
+	// Read the opening brace
+	if _, err := decoder.Token(); err != nil {
+		return fmt.Errorf("failed to read opening brace: %v", err)
+	}
+
+	var options CollectionOptions
+	var collection *Collection
+
+	// Read the JSON object key by key
+	for decoder.More() {
+		key, err := decoder.Token()
+		if err != nil {
+			return fmt.Errorf("failed to read object key: %v", err)
+		}
+
+		switch key {
+		case "collection":
+			// Read the collection options
+			if err := decoder.Decode(&options); err != nil {
+				return fmt.Errorf("failed to decode collection options: %v", err)
+			}
+			options.Name = collectionName
+
+			// Create the collection
+			collection, err = NewCollection(options)
+			if err != nil {
+				return fmt.Errorf("failed to create collection: %v", err)
+			}
+
+		case "records":
+			if collection == nil {
+				return fmt.Errorf("collection must be defined before records")
+			}
+
+			// Read the opening bracket of the records array
+			if _, err := decoder.Token(); err != nil {
+				return fmt.Errorf("failed to read opening bracket of records array: %v", err)
+			}
+
+			// Read and import each record
+			for decoder.More() {
+				var doc struct {
+					ID       uint64          `json:"id"`
+					Vector   []float64       `json:"vector"`
+					Metadata json.RawMessage `json:"metadata"`
+				}
+
+				if err := decoder.Decode(&doc); err != nil {
+					return fmt.Errorf("failed to decode document: %v", err)
+				}
+
+				// Add the document to the collection
+				collection.AddDocument(doc.ID, doc.Vector, doc.Metadata)
+			}
+
+			// Read the closing bracket of the records array
+			if _, err := decoder.Token(); err != nil {
+				return fmt.Errorf("failed to read closing bracket of records array: %v", err)
+			}
+
+		default:
+			return fmt.Errorf("unexpected key in JSON: %v", key)
+		}
+	}
+
+	// Read the closing brace
+	if _, err := decoder.Token(); err != nil {
+		return fmt.Errorf("failed to read closing brace: %v", err)
+	}
+
+	if collection == nil {
+		return fmt.Errorf("no collection was created")
+	}
+
+	return nil
+}
 
 // DumpIndex reads the specified file and displays its contents in a human-readable format.
 func DumpIndex(filename string) {

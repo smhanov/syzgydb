@@ -30,7 +30,7 @@ CollectionOptions defines the configuration options for creating a Collection.
 */
 type CollectionOptions struct {
 	// Name is the identifier for the collection.
-	Name string
+	Name string `json:"name"`
 
 	// DistanceMethod specifies the method used to calculate distances between vectors.
 	// It can be either Euclidean or Cosine.
@@ -41,10 +41,10 @@ type CollectionOptions struct {
 
 	// Quantization specifies the bit-level quantization for storing vectors.
 	// Supported values are 4, 8, 16, 32, and 64, with 64 as the default.
-	Quantization int
+	Quantization int `json:"quantization"`
 
 	// FileMode specifies the mode for opening the memfile.
-	FileMode FileMode
+	FileMode FileMode `json:"-"`
 }
 
 // GetDocumentCount returns the total number of documents in the collection.
@@ -221,35 +221,34 @@ func BuildFilter(queryIn string) (FilterFn, error) {
 NewCollection creates a new Collection with the specified options.
 It initializes the collection's memory file and pivots manager.
 */
-func NewCollection(options CollectionOptions) *Collection {
-
+func NewCollection(options CollectionOptions) (*Collection, error) {
 	// Check if the file exists
 	fileExists := false
 	if options.FileMode != CreateAndOverwrite {
-		if _, err := os.Stat(options.Name); err == nil {
-			fileExists = true
+		if fileInfo, err := os.Stat(options.Name); err == nil {
+			if fileInfo.Size() > 0 {
+				fileExists = true
+			}
 		}
 	}
 
 	// Open or create the memory-mapped file with the specified mode
-	var err error
-	var spanFile *SpanFile
-	spanFile, err = OpenFile(options.Name, options.FileMode)
+	spanFile, err := OpenFile(options.Name, options.FileMode)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to open file: %v", err)
 	}
 
 	if fileExists {
 		// Read the header to get the collection options
 		header, err := spanFile.ReadRecord("")
 		if err != nil {
-			panic(err)
+			return nil, fmt.Errorf("failed to read header: %v", err)
 		}
 
 		// Decode the collection options from the header
 		err = json.Unmarshal(header.DataStreams[0].Data, &options)
 		if err != nil {
-			panic(err)
+			return nil, fmt.Errorf("failed to unmarshal options: %v", err)
 		}
 	} else {
 		if options.Quantization == 0 {
@@ -260,7 +259,7 @@ func NewCollection(options CollectionOptions) *Collection {
 		// as datastream 0
 		optionsData, err := json.Marshal(options)
 		if err != nil {
-			panic(err)
+			return nil, fmt.Errorf("failed to marshal options: %v", err)
 		}
 
 		dataStreams := []DataStream{
@@ -268,7 +267,7 @@ func NewCollection(options CollectionOptions) *Collection {
 		}
 		err = spanFile.WriteRecord("", dataStreams)
 		if err != nil {
-			panic(err)
+			return nil, fmt.Errorf("failed to write options: %v", err)
 		}
 	}
 
@@ -280,7 +279,7 @@ func NewCollection(options CollectionOptions) *Collection {
 	case Cosine:
 		distanceFunc = angularDistance
 	default:
-		panic("Unsupported distance method")
+		return nil, fmt.Errorf("unsupported distance method")
 	}
 
 	c := &Collection{
@@ -297,7 +296,7 @@ func NewCollection(options CollectionOptions) *Collection {
 
 	// If the file exists, iterate through all existing documents and add them to the LSH table
 	if fileExists {
-		c.spanfile.IterateRecords(func(recordID string, sr *SpanReader) error {
+		err := c.spanfile.IterateRecords(func(recordID string, sr *SpanReader) error {
 			id, err := strconv.ParseUint(recordID, 10, 64)
 			if err != nil {
 				return nil
@@ -306,9 +305,19 @@ func NewCollection(options CollectionOptions) *Collection {
 			c.lshTree.addPoint(id, doc.Vector)
 			return nil
 		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate records: %v", err)
+		}
 	}
 
-	return c
+	return c, nil
+}
+
+// GetOptions returns the collection options used to create the collection.
+func (c *Collection) GetOptions() CollectionOptions {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	return c.CollectionOptions
 }
 
 /*

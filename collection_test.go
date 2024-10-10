@@ -45,7 +45,10 @@ func TestCosineDistancePrecisionComparison(t *testing.T) {
 	}
 
 	// Create a new collection
-	collection := NewCollection(options)
+	collection, err := NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to create collection: %v", err)
+	}
 	defer collection.Close()
 
 	// Add 200 random vectors to the collection
@@ -113,7 +116,10 @@ func TestComputeAverageDistance(t *testing.T) {
 	os.Remove(options.Name)
 
 	// Create a new collection
-	collection := NewCollection(options)
+	collection, err := NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to create collection: %v", err)
+	}
 	defer collection.Close()
 
 	// Add documents to the collection
@@ -148,7 +154,10 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 	}
 
 	// Create a new collection
-	collection := NewCollection(options)
+	collection, err := NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to create collection: %v", err)
+	}
 	t.Logf("Adding 1000 documents")
 	// Add 1000 documents to the collection
 	for i := 0; i < 1000; i++ {
@@ -160,7 +169,7 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 	// Remove every 10th document
 	t.Logf(("Removing every 10th document"))
 	for i := 0; i < 1000; i += 10 {
-		err := collection.removeDocument(uint64(i))
+		err = collection.removeDocument(uint64(i))
 		if err != nil {
 			t.Errorf("Failed to remove document with ID %d: %v", i, err)
 		}
@@ -193,13 +202,16 @@ func TestUpdateDocument(t *testing.T) {
 		DimensionCount: 3,
 		FileMode:       CreateAndOverwrite,
 	}
-	collection := NewCollection(options)
+	collection, err := NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to create collection: %v", err)
+	}
 
 	// Add a document to the collection
 	collection.AddDocument(1, []float64{1.0, 2.0, 3.0}, []byte("original"))
 
 	// Update the document's metadata
-	err := collection.UpdateDocument(1, []byte("updated"))
+	err = collection.UpdateDocument(1, []byte("updated"))
 	if err != nil {
 		t.Errorf("Failed to update document: %v", err)
 	}
@@ -226,7 +238,10 @@ func TestRemoveDocument(t *testing.T) {
 		Quantization:   64,
 		FileMode:       CreateAndOverwrite,
 	}
-	collection := NewCollection(options)
+	collection, err := NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to create collection: %v", err)
+	}
 	defer collection.Close()
 
 	// Add 200 documents
@@ -242,7 +257,7 @@ func TestRemoveDocument(t *testing.T) {
 	docToRemove := uint64(100)
 
 	// Remove the chosen document
-	err := collection.removeDocument(docToRemove)
+	err = collection.removeDocument(docToRemove)
 	if err != nil {
 		t.Fatalf("Failed to remove document: %v", err)
 	}
@@ -277,7 +292,10 @@ func TestCollectionSearch(t *testing.T) {
 
 	// Search with Empty Collection
 	t.Run("Empty Collection", func(t *testing.T) {
-		emptyCollection := NewCollection(options)
+		emptyCollection, err := NewCollection(options)
+		if err != nil {
+			t.Fatalf("Failed to create empty collection: %v", err)
+		}
 		defer emptyCollection.Close()
 		searchVector := []float64{50, 50}
 		args := SearchArgs{
@@ -292,7 +310,10 @@ func TestCollectionSearch(t *testing.T) {
 
 	os.Remove(options.Name)
 
-	collection := NewCollection(options)
+	collection, err := NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to create collection: %v", err)
+	}
 
 	// Add documents to the collection
 	for i := 0; i < 10; i++ {
@@ -363,7 +384,7 @@ func TestCollectionSearch(t *testing.T) {
 func TestCollectionPersistence(t *testing.T) {
 	ensureTestFolder(t)
 	// Seed the global random source
-	myRandom.Seed(1)
+	myRandom.Seed(2)
 
 	// Define collection options
 	collectionName := testFilePath("persistent_test_collection.dat")
@@ -376,7 +397,10 @@ func TestCollectionPersistence(t *testing.T) {
 	os.Remove(collectionName)
 
 	// Create a new collection
-	collection := NewCollection(options)
+	collection, err := NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to create initial collection: %v", err)
+	}
 
 	// Add some records to the collection
 	numRecords := 1000 // Ensure enough records to trigger pivot creation
@@ -390,7 +414,10 @@ func TestCollectionPersistence(t *testing.T) {
 	collection.Close()
 
 	// Reopen the collection (assuming there's a method to open it)
-	collection = NewCollection(options)
+	collection, err = NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to reopen collection: %v", err)
+	}
 
 	// Verify that the records are still available
 	for i := 0; i < numRecords; i++ {
@@ -442,7 +469,10 @@ func TestCollectionAddDeleteAndRetrieve(t *testing.T) {
 	os.Remove(collectionName)
 
 	// Create a new collection
-	collection := NewCollection(options)
+	collection, err := NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to create initial collection: %v", err)
+	}
 
 	// Add some records to the collection
 	numRecords := 10
@@ -464,7 +494,10 @@ func TestCollectionAddDeleteAndRetrieve(t *testing.T) {
 	collection.Close()
 
 	// Reopen the collection
-	collection = NewCollection(options)
+	collection, err = NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to reopen collection: %v", err)
+	}
 
 	// Add a single record with slightly larger metadata
 	vector := []float64{1.0, 2.0, 3.0}
@@ -475,7 +508,10 @@ func TestCollectionAddDeleteAndRetrieve(t *testing.T) {
 	collection.Close()
 
 	// Reopen the collection
-	collection = NewCollection(options)
+	collection, err = NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to reopen collection again: %v", err)
+	}
 
 	// Retrieve the record
 	doc, err := collection.GetDocument(1)
@@ -524,7 +560,10 @@ func TestExhaustiveSearch(t *testing.T) {
 	os.Remove(options.Name)
 
 	// Create a new collection
-	collection := NewCollection(options)
+	collection, err := NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to create collection: %v", err)
+	}
 	defer collection.Close()
 
 	// Add documents to the collection
@@ -584,7 +623,10 @@ func TestVectorSearchWith4BitQuantization(t *testing.T) {
 	}
 
 	os.Remove(collectionName)
-	collection := NewCollection(options)
+	collection, err := NewCollection(options)
+	if err != nil {
+		t.Fatalf("Failed to create collection: %v", err)
+	}
 
 	// Add documents to the collection
 	numDocuments := 10

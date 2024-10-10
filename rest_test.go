@@ -3,6 +3,7 @@ package syzgydb
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -33,12 +34,16 @@ func TestGetCollectionIDs(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	server.collections["test_collection"] = NewCollection(CollectionOptions{
+	collection, err := NewCollection(CollectionOptions{
 		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
 	})
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create test collection: %v", err))
+	}
+	server.collections["test_collection"] = collection
 	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 	server.collections["test_collection"].AddDocument(1234567891, []float64{0.5, 0.4, 0.3, 0.2, 0.1}, []byte(`{"key2":"value2"}`))
 
@@ -85,12 +90,16 @@ func TestDeleteCollection(t *testing.T) {
 	// Create the collection explicitly for this test
 	collectionName := "test_collection"
 	fileName := server.collectionNameToFileName(collectionName)
-	server.collections[collectionName] = NewCollection(CollectionOptions{
+	collection, err := NewCollection(CollectionOptions{
 		Name:           fileName,
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
 	})
+	if err != nil {
+		t.Fatalf("Failed to create test collection: %v", err)
+	}
+	server.collections[collectionName] = collection
 
 	req, err := http.NewRequest(http.MethodDelete, "/api/v1/collections/test_collection", nil)
 	if err != nil {
@@ -117,12 +126,16 @@ func TestSearchRecords(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	server.collections["test_collection"] = NewCollection(CollectionOptions{
+	collection, err := NewCollection(CollectionOptions{
 		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
 	})
+	if err != nil {
+		t.Fatalf("Failed to create test collection: %v", err)
+	}
+	server.collections["test_collection"] = collection
 	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 
 	reqBody := `{"vector": [0.1, 0.2, 0.3, 0.4, 0.5], "k": 1}`
@@ -205,12 +218,16 @@ func TestGetCollectionInfo(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	server.collections["test_collection"] = NewCollection(CollectionOptions{
+	collection, err := NewCollection(CollectionOptions{
 		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
 	})
+	if err != nil {
+		t.Fatalf("Failed to create test collection: %v", err)
+	}
+	server.collections["test_collection"] = collection
 
 	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections/test_collection", nil)
 	if err != nil {
@@ -252,12 +269,16 @@ func TestInsertRecords(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	server.collections["test_collection"] = NewCollection(CollectionOptions{
+	collection, err := NewCollection(CollectionOptions{
 		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
 	})
+	if err != nil {
+		t.Fatalf("Failed to create test collection: %v", err)
+	}
+	server.collections["test_collection"] = collection
 
 	reqBody := `[
 		{
@@ -306,12 +327,16 @@ func TestInsertRecords(t *testing.T) {
 func TestUpdateRecordMetadata(t *testing.T) {
 	ensureTestFolder(t)
 	server := setupTestServer()
-	server.collections["test_collection"] = NewCollection(CollectionOptions{
+	collection, err := NewCollection(CollectionOptions{
 		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
 	})
+	if err != nil {
+		t.Fatalf("Failed to create test collection: %v", err)
+	}
+	server.collections["test_collection"] = collection
 	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 
 	reqBody := `{
@@ -352,12 +377,16 @@ func TestDeleteRecord(t *testing.T) {
 	ensureTestFolder(t)
 	server := setupTestServer()
 
-	server.collections["test_collection"] = NewCollection(CollectionOptions{
+	collection, err := NewCollection(CollectionOptions{
 		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
 	})
+	if err != nil {
+		t.Fatalf("Failed to create test collection: %v", err)
+	}
+	server.collections["test_collection"] = collection
 	metadata, err := json.Marshal(map[string]string{"key1": "value1"})
 	if err != nil {
 		t.Fatal(err)
@@ -400,12 +429,16 @@ func TestSearchRecordsWithFilter(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	server.collections["test_collection"] = NewCollection(CollectionOptions{
+	collection, err := NewCollection(CollectionOptions{
 		Name:           testFilePath("test_collection.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
 	})
+	if err != nil {
+		t.Fatalf("Failed to create test collection: %v", err)
+	}
+	server.collections["test_collection"] = collection
 
 	// Add documents with different metadata
 	server.collections["test_collection"].AddDocument(1, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"category":"A", "score":80}`))
@@ -464,20 +497,29 @@ func TestGetAllCollections(t *testing.T) {
 	server := setupTestServer()
 
 	// Create some collections for testing
-	server.collections["collection1"] = NewCollection(CollectionOptions{
+	collection1, err := NewCollection(CollectionOptions{
 		Name:           testFilePath("collection1.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
 		FileMode:       CreateAndOverwrite,
 	})
-	server.collections["collection2"] = NewCollection(CollectionOptions{
+	if err != nil {
+		t.Fatalf("Failed to create collection1: %v", err)
+	}
+	server.collections["collection1"] = collection1
+
+	collection2, err := NewCollection(CollectionOptions{
 		Name:           testFilePath("collection2.dat"),
 		DistanceMethod: Euclidean,
 		DimensionCount: 64,
 		Quantization:   32,
 		FileMode:       CreateAndOverwrite,
 	})
+	if err != nil {
+		t.Fatalf("Failed to create collection2: %v", err)
+	}
+	server.collections["collection2"] = collection2
 
 	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections", nil)
 	if err != nil {

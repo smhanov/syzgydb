@@ -29,6 +29,7 @@ import (
 	"hash/crc32"
 	"log"
 	"os"
+	"sort"
 	"sync"
 
 	"github.com/edsrzf/mmap-go"
@@ -182,6 +183,7 @@ const (
 
 func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 	flags := os.O_RDWR
+	mmapFlag := mmap.RDWR
 	switch mode {
 	case CreateIfNotExists:
 		flags |= os.O_CREATE
@@ -189,6 +191,7 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 		// No additional flags needed
 	case ReadOnly:
 		flags = os.O_RDONLY
+		mmapFlag = mmap.RDONLY
 	case CreateAndOverwrite:
 		flags |= os.O_CREATE | os.O_TRUNC
 	default:
@@ -209,7 +212,7 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 	}
 
 	// If the file is zero bytes, initialize it with a minimal valid span header
-	if fileInfo.Size() == 0 {
+	if fileInfo.Size() == 0 && mode != ReadOnly {
 		// Create a minimal valid span
 		span := &Span{
 			MagicNumber: activeMagic,
@@ -251,7 +254,7 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 			return nil, fmt.Errorf("invalid magic number: %x", magic)
 		}
 	}
-	mmapData, err := mmap.MapRegion(file, -1, mmap.RDWR, 0, 0)
+	mmapData, err := mmap.MapRegion(file, -1, mmapFlag, 0, 0)
 	if err != nil {
 		log.Printf("Error mapping file: %v", err)
 		file.Close()
@@ -516,17 +519,39 @@ func (db *SpanFile) ReadRecord(recordID string) (*Span, error) {
 }
 
 func (db *SpanFile) IterateRecords(callback func(recordID string, sr *SpanReader) error) error {
-	for recordID, offset := range db.index {
-		if recordID == "" {
-			continue
+	if myRandom.rand == nil {
+		// Fast path: iterate directly over the map when not in testing mode
+		for recordID, offset := range db.index {
+			if recordID == "" {
+				continue
+			}
+			spanData := db.mmapData[offset:]
+			sr := &SpanReader{data: spanData}
+
+			err := callback(recordID, sr)
+			if err != nil {
+				return err
+			}
 		}
+	} else {
+		// Testing mode: use a sorted slice for predictable order
+		recordIDs := make([]string, 0, len(db.index))
+		for recordID := range db.index {
+			if recordID != "" {
+				recordIDs = append(recordIDs, recordID)
+			}
+		}
+		sort.Strings(recordIDs)
 
-		spanData := db.mmapData[offset:]
-		sr := &SpanReader{data: spanData}
+		for _, recordID := range recordIDs {
+			offset := db.index[recordID]
+			spanData := db.mmapData[offset:]
+			sr := &SpanReader{data: spanData}
 
-		err := callback(recordID, sr)
-		if err != nil {
-			return err
+			err := callback(recordID, sr)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

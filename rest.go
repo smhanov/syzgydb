@@ -99,7 +99,13 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 			writeErrorResponse(w, "Collection already exists", http.StatusBadRequest)
 			return
 		}
-		s.collections[name] = NewCollection(opts)
+		collection, err := NewCollection(opts)
+		if err != nil {
+			s.mutex.Unlock()
+			writeErrorResponse(w, fmt.Sprintf("Failed to create collection: %v", err), http.StatusInternalServerError)
+			return
+		}
+		s.collections[name] = collection
 		s.mutex.Unlock()
 
 		log.Printf("Collection %s created successfully", name)
