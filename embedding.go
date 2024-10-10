@@ -18,31 +18,33 @@ var (
 	cacheMutex     sync.RWMutex
 )
 
-type EmbedTextFunc func(text []string) ([][]float64, error)
+type EmbedTextFunc func(text []string, useCache bool) ([][]float64, error)
 
 // Default implementation of the embedding function
 var embedText EmbedTextFunc = EmbedText
 
 // EmbedText connects to the configured Ollama server and runs the configured text model
 // to generate an embedding for the given text.
-func EmbedText(texts []string) ([][]float64, error) {
-	// Check the cache first
-	cachedEmbeddings := make([][]float64, len(texts))
-	allCached := true
+func EmbedText(texts []string, useCache bool) ([][]float64, error) {
+	// Check the cache first if useCache is true
+	if useCache {
+		cachedEmbeddings := make([][]float64, len(texts))
+		allCached := true
 
-	cacheMutex.RLock()
-	for i, text := range texts {
-		if embedding, found := embeddingCache.get(text); found {
-			cachedEmbeddings[i] = embedding
-		} else {
-			allCached = false
-			break
+		cacheMutex.RLock()
+		for i, text := range texts {
+			if embedding, found := embeddingCache.get(text); found {
+				cachedEmbeddings[i] = embedding
+			} else {
+				allCached = false
+				break
+			}
 		}
-	}
-	cacheMutex.RUnlock()
+		cacheMutex.RUnlock()
 
-	if allCached {
-		return cachedEmbeddings, nil
+		if allCached {
+			return cachedEmbeddings, nil
+		}
 	}
 
 	// Prepare the request payload
@@ -89,12 +91,14 @@ func EmbedText(texts []string) ([][]float64, error) {
 		return nil, fmt.Errorf("no embeddings found in response")
 	}
 
-	// Store the new embeddings in the cache
-	cacheMutex.Lock()
-	for i, text := range texts {
-		embeddingCache.put(text, response.Embeddings[i])
+	// Store the new embeddings in the cache if useCache is true
+	if useCache {
+		cacheMutex.Lock()
+		for i, text := range texts {
+			embeddingCache.put(text, response.Embeddings[i])
+		}
+		cacheMutex.Unlock()
 	}
-	cacheMutex.Unlock()
 
 	return response.Embeddings, nil
 }
