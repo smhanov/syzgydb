@@ -170,8 +170,10 @@ func (p *Peer) SendGossipMessage(msg *pb.GossipMessage) error {
 		return errors.New("not connected")
 	}
 	message := &pb.Message{
-		Type:          pb.Message_GOSSIP,
-		GossipMessage: msg,
+		Type: pb.Message_GOSSIP,
+		Content: &pb.Message_GossipMessage{
+			GossipMessage: msg,
+		},
 	}
 	data, err := proto.Marshal(message)
 	if err != nil {
@@ -187,8 +189,10 @@ func (p *Peer) SendUpdate(update Update) error {
 		return errors.New("not connected")
 	}
 	message := &pb.Message{
-		Type:   pb.Message_UPDATE,
-		Update: update.toProto(),
+		Type: pb.Message_UPDATE,
+		Content: &pb.Message_Update{
+			Update: update.toProto(),
+		},
 	}
 	data, err := proto.Marshal(message)
 	if err != nil {
@@ -207,8 +211,10 @@ func (p *Peer) RequestUpdates(since Timestamp) error {
 		Since: since.toProto(),
 	}
 	message := &pb.Message{
-		Type:          pb.Message_UPDATE_REQUEST,
-		UpdateRequest: request,
+		Type: pb.Message_UPDATE_REQUEST,
+		Content: &pb.Message_UpdateRequest{
+			UpdateRequest: request,
+		},
 	}
 	data, err := proto.Marshal(message)
 	if err != nil {
@@ -224,8 +230,10 @@ func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUp
 		return
 	}
 	message := &pb.Message{
-		Type:        pb.Message_BATCH_UPDATE,
-		BatchUpdate: batchUpdate,
+		Type: pb.Message_BATCH_UPDATE,
+		Content: &pb.Message_BatchUpdate{
+			BatchUpdate: batchUpdate,
+		},
 	}
 	data, err := proto.Marshal(message)
 	if err != nil {
