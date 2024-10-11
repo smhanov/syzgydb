@@ -158,7 +158,7 @@ func TestUpdateRecord(t *testing.T) {
 	updatedStreams := []DataStream{
 		{StreamID: 1, Data: []byte("Updated")},
 	}
-	err := db.WriteRecord("record1", updatedStreams)
+	err := db.WriteRecord("record1", updatedStreams, db.NextTimestamp())
 	if err != nil {
 		t.Fatalf("Failed to update record: %v", err)
 	}
