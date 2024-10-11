@@ -418,11 +418,9 @@ func (db *SpanFile) RemoveRecord(recordID string) error {
 	return nil
 }
 
-func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error {
+func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, timestamp replication.Timestamp) error {
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
-
-	timestamp := db.NextTimestamp()
 
 	span := &Span{
 		MagicNumber: activeMagic,

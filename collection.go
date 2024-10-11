@@ -442,12 +442,15 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
 	// Encode the document
 	encodedVector := encodeDocument(doc, c.Quantization)
 
+	// Get the next timestamp
+	timestamp := c.spanfile.NextTimestamp()
+
 	// Write to spanfile
 	dataStreams := []DataStream{
 		{StreamID: 0, Data: metadata},
 		{StreamID: 1, Data: encodedVector},
 	}
-	err := c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams)
+	err := c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, timestamp)
 	if err != nil {
 		log.Panicf("Failed to write record: %v", err)
 	}
@@ -496,11 +499,14 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 		return err
 	}
 
+	// Get the next timestamp
+	timestamp := c.spanfile.NextTimestamp()
+
 	dataStreams := []DataStream{
 		{StreamID: 0, Data: newMetadata},
 		{StreamID: 1, Data: span.DataStreams[1].Data},
 	}
-	err = c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams)
+	err = c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, timestamp)
 	if err != nil {
 		return err
 	}
