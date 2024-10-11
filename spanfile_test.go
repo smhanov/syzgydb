@@ -70,7 +70,7 @@ func TestChecksumVerification(t *testing.T) {
 	dataStreams := []DataStream{
 		{StreamID: 1, Data: []byte("Hello")},
 	}
-	db.WriteRecord("record1", dataStreams)
+	db.WriteRecord("record1", dataStreams, db.NextTimestamp())
 
 	// Log the length of the file
 	fileLength := len(db.mmapData)
