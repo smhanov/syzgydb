@@ -409,37 +409,49 @@ func TestBatchOperations(t *testing.T) {
 	}
 }
 func TestDeleteRecord(t *testing.T) {
-	db, cleanup := setupTestDB(t)
-	defer cleanup()
+    db, cleanup := setupTestDB(t)
+    defer cleanup()
 
-	dataStreams := []DataStream{
-		{StreamID: 1, Data: []byte("Hello")},
-	}
-	err := db.WriteRecord("record1", dataStreams, db.NextTimestamp())
-	if err != nil {
-		t.Fatalf("Failed to write record: %v", err)
-	}
+    dataStreams := []DataStream{
+        {StreamID: 1, Data: []byte("Hello")},
+    }
+    err := db.WriteRecord("record1", dataStreams, db.NextTimestamp())
+    if err != nil {
+        t.Fatalf("Failed to write record: %v", err)
+    }
 
-	// Delete the record
-	err = db.RemoveRecord("record1")
-	if err != nil {
-		t.Fatalf("Failed to delete record: %v", err)
-	}
+    // Delete the record
+    err = db.RemoveRecord("record1")
+    if err != nil {
+        t.Fatalf("Failed to delete record: %v", err)
+    }
 
-	// Try to read the deleted record
-	_, err = db.ReadRecord("record1")
-	if err == nil {
-		t.Fatal("Expected error when reading deleted record, got nil")
-	}
+    // Try to read the deleted record
+    _, err = db.ReadRecord("record1")
+    if err == nil {
+        t.Fatal("Expected error when reading deleted record, got nil")
+    }
 
-	// Verify the span is marked as deleted
-	offset, exists := db.index["record1"]
-	if exists {
-		t.Fatal("Expected record to be removed from index")
-	}
+    // Verify the span is marked as deleted
+    offset, exists := db.index["record1"]
+    if !exists {
+        t.Fatal("Expected record to be removed from index")
+    }
 
-	magicNumber := binary.BigEndian.Uint32(db.mmapData[offset : offset+4])
-	if magicNumber != deletedMagic {
-		t.Errorf("Expected deleted magic number, got: %v", magicNumberToString(magicNumber))
-	}
+    deletedSpan, err := parseSpanAtOffset(db.mmapData, offset)
+    if err != nil {
+        t.Fatalf("Failed to parse deleted span: %v", err)
+    }
+
+    if deletedSpan.MagicNumber != deletedMagic {
+        t.Errorf("Expected deleted magic number, got: %v", magicNumberToString(deletedSpan.MagicNumber))
+    }
+
+    if len(deletedSpan.DataStreams) != 0 {
+        t.Errorf("Expected zero data streams in deleted span, got: %d", len(deletedSpan.DataStreams))
+    }
+
+    if deletedSpan.RecordID != "record1" {
+        t.Errorf("Expected RecordID to be preserved, got: %s", deletedSpan.RecordID)
+    }
 }
