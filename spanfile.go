@@ -142,12 +142,13 @@ func (db *SpanFile) Close() error {
 }
 
 type Span struct {
-	MagicNumber    uint32
-	Length         uint64
-	SequenceNumber uint32
-	RecordID       string
-	DataStreams    []DataStream
-	Checksum       uint32
+	MagicNumber uint32
+	Length      uint64
+	UnixTime    int64
+	LamportTime int64
+	RecordID    string
+	DataStreams []DataStream
+	Checksum    uint32
 }
 
 type IndexEntry struct {
@@ -161,10 +162,10 @@ type SpanFile struct {
 	fileName string
 	mmapData mmap.MMap
 	// map from string id to offset of the record
-	index          map[string]uint64
-	freeMap        freeMap // Change from freeList to freeMap
-	sequenceNumber uint32
-	fileMutex      sync.Mutex
+	index            map[string]uint64
+	freeMap          freeMap // Change from freeList to freeMap
+	latestTimestamp  Timestamp
+	fileMutex        sync.Mutex
 }
 
 type FreeSpan struct {
@@ -216,6 +217,8 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 		// Create a minimal valid span
 		span := &Span{
 			MagicNumber: activeMagic,
+			UnixTime:    time.Now().UnixNano() / int64(time.Millisecond),
+			LamportTime: 0,
 		}
 
 		// Serialize the span
@@ -262,12 +265,12 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 	}
 
 	db := &SpanFile{
-		file:           file,
-		mmapData:       mmapData,
-		index:          make(map[string]uint64),
-		freeMap:        freeMap{freeSpaces: []space{}}, // Initialize freeMap
-		sequenceNumber: 0,
-		fileName:       filename,
+		file:            file,
+		mmapData:        mmapData,
+		index:           make(map[string]uint64),
+		freeMap:         freeMap{freeSpaces: []space{}}, // Initialize freeMap
+		latestTimestamp: Timestamp{UnixTime: 0, LamportClock: 0},
+		fileName:        filename,
 	}
 
 	err = db.scanFile()
@@ -282,8 +285,8 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 func (db *SpanFile) scanFile() error {
 	offset := 0
 	fileSize := len(db.mmapData)
-	highestSeqNum := uint32(0)
-	sequences := make(map[string]uint32)
+	var latestUnixTime int64
+	var latestLamportTime int64
 	for offset < fileSize {
 		// Ensure there is enough data to read the magic number and length
 		if offset+minSpanLength > fileSize {
@@ -301,14 +304,11 @@ func (db *SpanFile) scanFile() error {
 			break
 		}
 		length, err := readUint32(db.mmapData, int(offset+4))
-		//log.Printf("Scanning span at offset %d...%d\n", offset, length)
 
 		// Ensure there is enough data for the entire span
 		if err != nil || offset+int(length) > fileSize {
 			break // Not enough data for the complete span
 		}
-
-		//log.Printf("Magicnumber %x", magicNumber)
 
 		if magicNumber == activeMagic {
 			spanData := db.mmapData[offset : offset+int(length)]
@@ -330,15 +330,12 @@ func (db *SpanFile) scanFile() error {
 
 			SpanLog("USED: span:%v-%v/%v (%s)", offset, offset+int(length), length, span.RecordID)
 
-			if span.SequenceNumber > highestSeqNum {
-				highestSeqNum = span.SequenceNumber
+			if span.UnixTime > latestUnixTime || (span.UnixTime == latestUnixTime && span.LamportTime > latestLamportTime) {
+				latestUnixTime = span.UnixTime
+				latestLamportTime = span.LamportTime
 			}
 
-			existingSequence, exists := sequences[span.RecordID]
-			if !exists || span.SequenceNumber > existingSequence {
-				sequences[span.RecordID] = span.SequenceNumber
-				db.index[span.RecordID] = uint64(offset)
-			}
+			db.index[span.RecordID] = uint64(offset)
 		} else if magicNumber == freeMagic {
 			SpanLog("FREE: span:%v-%v/%v", offset, offset+int(length), length)
 			db.addFreeSpan(uint64(offset), uint64(length))
@@ -352,7 +349,7 @@ func (db *SpanFile) scanFile() error {
 
 	db.addFreeSpan(uint64(offset), uint64(fileSize-offset))
 
-	db.sequenceNumber = highestSeqNum + 1
+	db.latestTimestamp = Timestamp{UnixTime: latestUnixTime, LamportClock: latestLamportTime}
 	return nil
 }
 
@@ -396,18 +393,17 @@ func (db *SpanFile) RemoveRecord(recordID string) error {
 }
 
 func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error {
-	//TODO: Remove locks; we are protected at a higher level.
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
 
-	sequenceNumber := db.sequenceNumber
-	db.sequenceNumber++
+	currentTime := time.Now().UnixNano() / int64(time.Millisecond)
 
 	span := &Span{
-		MagicNumber:    activeMagic,
-		SequenceNumber: sequenceNumber,
-		RecordID:       recordID,
-		DataStreams:    dataStreams,
+		MagicNumber: activeMagic,
+		UnixTime:    currentTime,
+		LamportTime: 0, // Use 0 for now as specified
+		RecordID:    recordID,
+		DataStreams: dataStreams,
 	}
 
 	spanBytes, err := serializeSpan(span)
@@ -470,6 +466,9 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 	}
 
 	db.index[recordID] = offset
+
+	// Update the latest timestamp
+	db.latestTimestamp = Timestamp{UnixTime: currentTime, LamportClock: 0}
 
 	return nil
 }
@@ -680,7 +679,8 @@ func serializeSpan(span *Span) ([]byte, error) {
 
 	// Calculate Length
 	length := 4 + 4 + // magic + length
-		lengthOf7Code(uint64(span.SequenceNumber)) +
+		lengthOf7Code(uint64(span.UnixTime)) +
+		lengthOf7Code(uint64(span.LamportTime)) +
 		lengthOf7Code(uint64(len(recordIDBytes))) +
 		uint64(len(recordIDBytes)) +
 		1 + // DataStreamCount
@@ -690,8 +690,6 @@ func serializeSpan(span *Span) ([]byte, error) {
 		length += 1 + lengthOf7Code(uint64(len(stream.Data))) + uint64(len(stream.Data))
 	}
 
-	//log.Printf("Encoded length is %v l1=%v", length, l1)
-
 	buf := make([]byte, 0, length)
 
 	// Serialize MagicNumber
@@ -700,8 +698,9 @@ func serializeSpan(span *Span) ([]byte, error) {
 	// length
 	buf = writeUint32(buf, uint32(length))
 
-	// sequence number
-	buf = write7Code(buf, uint64(span.SequenceNumber))
+	// UnixTime and LamportTime
+	buf = write7Code(buf, uint64(span.UnixTime))
+	buf = write7Code(buf, uint64(span.LamportTime))
 
 	// Serialize RecordID Length and RecordID
 	buf = write7Code(buf, uint64(len(recordIDBytes)))
@@ -756,13 +755,21 @@ func parseSpan(data []byte) (*Span, error) {
 		return nil, fmt.Errorf("checksum failed")
 	}
 
-	// Parse Sequence number
-	var seq uint64
-	seq, at, err = read7Code(data, at)
+	// Parse UnixTime
+	var unixTime uint64
+	unixTime, at, err = read7Code(data, at)
 	if err != nil {
 		return nil, err
 	}
-	span.SequenceNumber = uint32(seq)
+	span.UnixTime = int64(unixTime)
+
+	// Parse LamportTime
+	var lamportTime uint64
+	lamportTime, at, err = read7Code(data, at)
+	if err != nil {
+		return nil, err
+	}
+	span.LamportTime = int64(lamportTime)
 
 	// Parse RecordID
 	var idlength uint64
