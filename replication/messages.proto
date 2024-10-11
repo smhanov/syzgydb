@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package replication;
+
+message Timestamp {
+  int64 unix_time = 1;
+  int64 lamport_clock = 2;
+}
+
+message Update {
+  Timestamp timestamp = 1;
+  enum UpdateType {
+    DELETE_RECORD = 0;
+    UPSERT_RECORD = 1;
+    CREATE_DATABASE = 2;
+    DROP_DATABASE = 3;
+  }
+  UpdateType type = 2;
+  bytes data = 3;
+  string database_name = 4;
+  repeated string dependencies = 5;
+}
+
+message GossipMessage {
+  string node_id = 1;
+  repeated string known_peers = 2;
+  Timestamp last_timestamp = 3;
+}
+
+message UpdateRequest {
+  Timestamp since = 1;
+}
+
+message BatchUpdate {
+  string database_name = 1;
+  repeated Update updates = 2;
+}
+
+message Message {
+  enum MessageType {
+    GOSSIP = 0;
+    UPDATE = 1;
+    UPDATE_REQUEST = 2;
+    BATCH_UPDATE = 3;
+  }
+  MessageType type = 1;
+  oneof content {
+    GossipMessage gossip_message = 2;
+    Update update = 3;
+    UpdateRequest update_request = 4;
+    BatchUpdate batch_update = 5;
+  }
+}
