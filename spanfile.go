@@ -53,6 +53,14 @@ func (db *SpanFile) NextTimestamp() replication.Timestamp {
 	return db.latestTimestamp
 }
 
+// CurrentTimeStamp returns the current timestamp without incrementing it
+func (db *SpanFile) CurrentTimeStamp() replication.Timestamp {
+	db.fileMutex.RLock()
+	defer db.fileMutex.RUnlock()
+
+	return db.latestTimestamp
+}
+
 const verboseSpanFile = false
 
 type SpanReader struct {
