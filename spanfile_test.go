@@ -46,7 +46,7 @@ func TestGetSpanReader(t *testing.T) {
 	dataStreams := []DataStream{
 		{StreamID: 1, Data: []byte("Hello")},
 	}
-	db.WriteRecord("record1", dataStreams)
+	db.WriteRecord("record1", dataStreams, db.NextTimestamp())
 
 	spanReader, err := db.getSpanReader("record1")
 	if err != nil {
@@ -121,7 +121,7 @@ func TestWriteRecord(t *testing.T) {
 	dataStreams := []DataStream{
 		{StreamID: 1, Data: []byte("Hello")},
 	}
-	err := db.WriteRecord("record1", dataStreams)
+	err := db.WriteRecord("record1", dataStreams, db.NextTimestamp())
 	if err != nil {
 		t.Fatalf("Failed to write record: %v", err)
 	}
@@ -236,7 +236,7 @@ func TestRecordUpdateAndPersistence(t *testing.T) {
 	for i := range data100 {
 		data100[i] = byte('A' + i%26)
 	}
-	err := db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: data100}})
+	err := db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: data100}}, db.NextTimestamp())
 	if err != nil {
 		t.Fatalf("Failed to write record of length 100: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestRecordUpdateAndPersistence(t *testing.T) {
 	for i := range data200 {
 		data200[i] = byte('B' + i%26)
 	}
-	err = db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: data200}})
+	err = db.WriteRecord("record1", []DataStream{{StreamID: 1, Data: data200}}, db.NextTimestamp())
 	if err != nil {
 		t.Fatalf("Failed to update record to length 200: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestRecordUpdateAndPersistence(t *testing.T) {
 	for i := range data50 {
 		data50[i] = byte('C' + i%26)
 	}
-	err = db.WriteRecord("record2", []DataStream{{StreamID: 1, Data: data50}})
+	err = db.WriteRecord("record2", []DataStream{{StreamID: 1, Data: data50}}, db.NextTimestamp())
 	if err != nil {
 		t.Fatalf("Failed to write record of length 50: %v", err)
 	}
@@ -266,7 +266,7 @@ func TestRecordUpdateAndPersistence(t *testing.T) {
 	for i := range data25 {
 		data25[i] = byte('D' + i%26)
 	}
-	err = db.WriteRecord("record3", []DataStream{{StreamID: 1, Data: data25}})
+	err = db.WriteRecord("record3", []DataStream{{StreamID: 1, Data: data25}}, db.NextTimestamp())
 	if err != nil {
 		t.Fatalf("Failed to write record of length 25: %v", err)
 	}
@@ -354,7 +354,7 @@ func TestBatchOperations(t *testing.T) {
 				if _, exists := expectedRecords[recordID]; !exists {
 					dataSize := 100 + r.Intn(101) // Random size between 100 and 200 bytes
 					data := generateRandomData(dataSize)
-					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: data}})
+					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: data}}, db.NextTimestamp())
 					if err != nil {
 						t.Fatalf("Failed to write record: %v", err)
 					}
@@ -365,7 +365,7 @@ func TestBatchOperations(t *testing.T) {
 				if _, exists := expectedRecords[recordID]; exists {
 					dataSize := 100 + r.Intn(101) // Random size between 100 and 200 bytes
 					newData := generateRandomData(dataSize)
-					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: newData}})
+					err := db.WriteRecord(recordID, []DataStream{{StreamID: 1, Data: newData}}, db.NextTimestamp())
 					if err != nil {
 						t.Fatalf("Failed to update record: %v", err)
 					}
