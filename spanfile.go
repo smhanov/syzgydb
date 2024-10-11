@@ -37,6 +37,22 @@ import (
 	"github.com/smhanov/syzgydb/replication"
 )
 
+// NextTimestamp updates the internal latest timestamp by incrementing the lamport time and returns it
+func (db *SpanFile) NextTimestamp() replication.Timestamp {
+	db.fileMutex.Lock()
+	defer db.fileMutex.Unlock()
+
+	currentTime := time.Now().UnixNano() / int64(time.Millisecond)
+	if currentTime > db.latestTimestamp.UnixTime {
+		db.latestTimestamp.UnixTime = currentTime
+		db.latestTimestamp.LamportClock = 0
+	} else {
+		db.latestTimestamp.LamportClock++
+	}
+
+	return db.latestTimestamp
+}
+
 const verboseSpanFile = false
 
 type SpanReader struct {
@@ -398,12 +414,12 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
 
-	currentTime := time.Now().UnixNano() / int64(time.Millisecond)
+	timestamp := db.NextTimestamp()
 
 	span := &Span{
 		MagicNumber: activeMagic,
-		UnixTime:    currentTime,
-		LamportTime: 0, // Use 0 for now as specified
+		UnixTime:    timestamp.UnixTime,
+		LamportTime: timestamp.LamportClock,
 		RecordID:    recordID,
 		DataStreams: dataStreams,
 	}
