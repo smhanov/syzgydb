@@ -820,104 +820,110 @@ func serializeSpan(span *Span) ([]byte, error) {
 }
 
 func parseSpan(data []byte) (*Span, error) {
-	if len(data) < minSpanLength {
-		return nil, fmt.Errorf("data too short to be a valid span")
-	}
+    if len(data) < 8 { // Minimum size for magic number and length
+        return nil, fmt.Errorf("data too short to be a valid span")
+    }
 
-	span := &Span{}
-	span.MagicNumber = binary.BigEndian.Uint32(data[:4])
-	at := 4
+    span := &Span{}
+    span.MagicNumber = binary.BigEndian.Uint32(data[:4])
+    at := 4
 
-	if span.MagicNumber != activeMagic && span.MagicNumber != deletedMagic {
-		return nil, fmt.Errorf("invalid magic number")
-	}
+    var err error
+    var l uint32
+    l, err = readUint32(data, at)
+    at += 4
+    span.Length = uint64(l)
+    if err != nil {
+        return nil, err
+    }
 
-	var err error
-	var l uint32
-	l, err = readUint32(data, at)
-	at += 4
-	span.Length = uint64(l)
-	if err != nil {
-		return nil, err
-	}
+    // For freed spans, we only parse the magic number and length
+    if span.MagicNumber == freeMagic {
+        return span, nil
+    }
 
-	// Ensure the data slice is long enough for the entire span
-	if int(span.Length) > len(data) {
-		return nil, fmt.Errorf("data too short for span length, data=%v lengthRead=%v", len(data), span.Length)
-	}
+    // For active and deleted spans, continue parsing as before
+    if span.MagicNumber != activeMagic && span.MagicNumber != deletedMagic {
+        return nil, fmt.Errorf("invalid magic number")
+    }
 
-	if !verifyChecksum(data[:span.Length]) {
-		return nil, fmt.Errorf("checksum failed")
-	}
+    // Ensure the data slice is long enough for the entire span
+    if int(span.Length) > len(data) {
+        return nil, fmt.Errorf("data too short for span length, data=%v lengthRead=%v", len(data), span.Length)
+    }
 
-	// Parse UnixTime
-	var unixTime uint64
-	unixTime, at, err = read7Code(data, at)
-	if err != nil {
-		return nil, err
-	}
-	span.UnixTime = int64(unixTime)
+    if !verifyChecksum(data[:span.Length]) {
+        return nil, fmt.Errorf("checksum failed")
+    }
 
-	// Parse LamportTime
-	var lamportTime uint64
-	lamportTime, at, err = read7Code(data, at)
-	if err != nil {
-		return nil, err
-	}
-	span.LamportTime = int64(lamportTime)
+    // Parse UnixTime
+    var unixTime uint64
+    unixTime, at, err = read7Code(data, at)
+    if err != nil {
+        return nil, err
+    }
+    span.UnixTime = int64(unixTime)
 
-	// Parse RecordID
-	var idlength uint64
-	idlength, at, err = read7Code(data, at)
-	if err != nil {
-		return nil, err
-	}
-	span.RecordID = string(data[at : at+int(idlength)])
-	at += int(idlength)
+    // Parse LamportTime
+    var lamportTime uint64
+    lamportTime, at, err = read7Code(data, at)
+    if err != nil {
+        return nil, err
+    }
+    span.LamportTime = int64(lamportTime)
 
-	// Parse Number of Data Streams
-	numStreams := int(data[at])
-	at++
+    // Parse RecordID
+    var idlength uint64
+    idlength, at, err = read7Code(data, at)
+    if err != nil {
+        return nil, err
+    }
+    span.RecordID = string(data[at : at+int(idlength)])
+    at += int(idlength)
 
-	if span.MagicNumber != deletedMagic {
-		// Parse Data Streams
-		for i := 0; i < numStreams; i++ {
-			if at >= len(data) {
-				return nil, fmt.Errorf("data too short to contain all streams")
-			}
-			streamID := data[at]
-			at++
+    // Parse Number of Data Streams
+    numStreams := int(data[at])
+    at++
 
-			var streamLen uint64
-			streamLen, at, err = read7Code(data, at)
-			if err != nil {
-				return nil, err
-			}
+    if span.MagicNumber != deletedMagic {
+        // Parse Data Streams
+        for i := 0; i < numStreams; i++ {
+            if at >= len(data) {
+                return nil, fmt.Errorf("data too short to contain all streams")
+            }
+            streamID := data[at]
+            at++
 
-			if at+int(streamLen) > len(data) {
-				return nil, fmt.Errorf("data too short for stream data")
-			}
+            var streamLen uint64
+            streamLen, at, err = read7Code(data, at)
+            if err != nil {
+                return nil, err
+            }
 
-			streamData := data[at : at+int(streamLen)]
-			at += int(streamLen)
+            if at+int(streamLen) > len(data) {
+                return nil, fmt.Errorf("data too short for stream data")
+            }
 
-			span.DataStreams = append(span.DataStreams, DataStream{
-				StreamID: streamID,
-				Data:     streamData,
-			})
-		}
-	} else if numStreams != 0 {
-		return nil, fmt.Errorf("deleted span should have zero data streams")
-	}
+            streamData := data[at : at+int(streamLen)]
+            at += int(streamLen)
 
-	// Parse Checksum
-	if at+4 > len(data) {
-		return nil, fmt.Errorf("data too short for checksum")
-	}
-	at = int(span.Length) - 4
-	span.Checksum = binary.BigEndian.Uint32(data[at : at+4])
+            span.DataStreams = append(span.DataStreams, DataStream{
+                StreamID: streamID,
+                Data:     streamData,
+            })
+        }
+    } else if numStreams != 0 {
+        return nil, fmt.Errorf("deleted span should have zero data streams")
+    }
 
-	return span, nil
+    // Parse Checksum
+    if at+4 > len(data) {
+        return nil, fmt.Errorf("data too short for checksum")
+    }
+    at = int(span.Length) - 4
+    span.Checksum = binary.BigEndian.Uint32(data[at : at+4])
+
+    return span, nil
 }
 
 func parseSpanAtOffset(data []byte, offset uint64) (*Span, error) {
@@ -1029,4 +1035,31 @@ func (db *SpanFile) IsRecordDeleted(recordID string) bool {
 
 	_, exists := db.deletedIndex[recordID]
 	return exists
+}
+
+func TestParseFreedSpan(t *testing.T) {
+    // Create a freed span
+    freedSpan := make([]byte, 8)
+    binary.BigEndian.PutUint32(freedSpan[0:4], freeMagic)
+    binary.BigEndian.PutUint32(freedSpan[4:8], 8) // Length of the span
+
+    // Parse the freed span
+    span, err := parseSpan(freedSpan)
+    if err != nil {
+        t.Fatalf("Failed to parse freed span: %v", err)
+    }
+
+    // Check the parsed span
+    if span.MagicNumber != freeMagic {
+        t.Errorf("Expected magic number %d, got %d", freeMagic, span.MagicNumber)
+    }
+    if span.Length != 8 {
+        t.Errorf("Expected length 8, got %d", span.Length)
+    }
+    if span.RecordID != "" {
+        t.Errorf("Expected empty RecordID, got %s", span.RecordID)
+    }
+    if len(span.DataStreams) != 0 {
+        t.Errorf("Expected no data streams, got %d", len(span.DataStreams))
+    }
 }
