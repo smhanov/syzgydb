@@ -467,79 +467,99 @@ func (db *SpanFile) RemoveRecord(recordID string) error {
 }
 
 func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, timestamp replication.Timestamp) error {
-	db.fileMutex.Lock()
-	defer db.fileMutex.Unlock()
+    db.fileMutex.Lock()
+    defer db.fileMutex.Unlock()
 
-	span := &Span{
-		MagicNumber: activeMagic,
-		UnixTime:    timestamp.UnixTime,
-		LamportTime: timestamp.LamportClock,
-		RecordID:    recordID,
-		DataStreams: dataStreams,
-	}
+    // Check if the record was previously deleted
+    if deletedOffset, wasDeleted := db.deletedIndex[recordID]; wasDeleted {
+        // Mark the deleted span as free
+        deletedLength, err := db.getSpanLength(int(deletedOffset))
+        if err != nil {
+            return err
+        }
+        err = db.markSpanAsFreed(deletedOffset)
+        if err != nil {
+            return err
+        }
+        db.addFreeSpan(deletedOffset, deletedLength)
 
-	spanBytes, err := serializeSpan(span)
-	if err != nil {
-		return err
-	}
+        // Remove the entry from the deletedIndex
+        delete(db.deletedIndex, recordID)
 
-	offset, remaining, err := db.allocateSpan(len(spanBytes) + 4) //+4 for checksum
-	if err != nil {
-		return err
-	}
+        SpanLog("Freed previously deleted span for %s: span:%d-%d/%d", 
+            recordID, deletedOffset, deletedOffset+deletedLength, deletedLength)
+    }
 
-	// If remaining is > 0 and < minSpanLength then we need to add padding
-	// before the checksum, and add the length of this padding to the uint32
-	// stored at offset 4 of the spanBytes.
-	if remaining > 0 && remaining < minSpanLength {
-		db.freeMap.markUsed(int(offset)+len(spanBytes)+4, int(remaining))
-		padding := make([]byte, remaining)
-		spanBytes = append(spanBytes, padding...)
+    span := &Span{
+        MagicNumber: activeMagic,
+        UnixTime:    timestamp.UnixTime,
+        LamportTime: timestamp.LamportClock,
+        RecordID:    recordID,
+        DataStreams: dataStreams,
+    }
 
-		// Update the length in the spanBytes
-		length := uint32(len(spanBytes) + 4) // +4 for the checksum
-		binary.BigEndian.PutUint32(spanBytes[4:8], length)
-	}
+    spanBytes, err := serializeSpan(span)
+    if err != nil {
+        return err
+    }
 
-	checksum := calculateChecksum(spanBytes)
-	spanBytes = append(spanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
+    offset, remaining, err := db.allocateSpan(len(spanBytes) + 4) //+4 for checksum
+    if err != nil {
+        return err
+    }
 
-	SpanLog("Write %s to span:%v-%v/%v", recordID, offset, offset+uint64(len(spanBytes)), len(spanBytes))
-	if remaining > 0 && remaining < minSpanLength {
-		SpanLog("--->Adding %v bytes of padding", remaining)
-	}
-	// if the remaining space is > minSpanLength then we need to write a free span
-	// after it. This is simply the free magic number followed by the
-	// length of the remaining space.
-	if remaining >= minSpanLength {
-		SpanLog(" -->Adding free space marker at span:%v-%v/%v", int(offset)+len(spanBytes), int(offset)+len(spanBytes)+int(remaining), remaining)
-		freeSpan := make([]byte, 8)
-		binary.BigEndian.PutUint32(freeSpan[0:4], freeMagic)
-		binary.BigEndian.PutUint32(freeSpan[4:8], uint32(remaining))
-		spanBytes = append(spanBytes, freeSpan...)
-	}
+    // If remaining is > 0 and < minSpanLength then we need to add padding
+    // before the checksum, and add the length of this padding to the uint32
+    // stored at offset 4 of the spanBytes.
+    if remaining > 0 && remaining < minSpanLength {
+        db.freeMap.markUsed(int(offset)+len(spanBytes)+4, int(remaining))
+        padding := make([]byte, remaining)
+        spanBytes = append(spanBytes, padding...)
 
-	err = db.writeAt(spanBytes, offset)
-	if err != nil {
-		return err
-	}
+        // Update the length in the spanBytes
+        length := uint32(len(spanBytes) + 4) // +4 for the checksum
+        binary.BigEndian.PutUint32(spanBytes[4:8], length)
+    }
 
-	if oldOffset, exists := db.index[recordID]; exists {
-		oldLength, err := db.getSpanLength(int(oldOffset))
-		if err != nil {
-			return err
-		}
-		SpanLog(" -->Replaced record %s at span:%v-%v/%v)", recordID, oldOffset, oldOffset+oldLength, oldLength)
-		err = db.markSpanAsFreed(oldOffset)
-		if err != nil {
-			return err
-		}
-		db.addFreeSpan(oldOffset, oldLength)
-	}
+    checksum := calculateChecksum(spanBytes)
+    spanBytes = append(spanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
 
-	db.index[recordID] = offset
+    SpanLog("Write %s to span:%v-%v/%v", recordID, offset, offset+uint64(len(spanBytes)), len(spanBytes))
+    if remaining > 0 && remaining < minSpanLength {
+        SpanLog("--->Adding %v bytes of padding", remaining)
+    }
+    // if the remaining space is > minSpanLength then we need to write a free span
+    // after it. This is simply the free magic number followed by the
+    // length of the remaining space.
+    if remaining >= minSpanLength {
+        SpanLog(" -->Adding free space marker at span:%v-%v/%v", int(offset)+len(spanBytes), int(offset)+len(spanBytes)+int(remaining), remaining)
+        freeSpan := make([]byte, 8)
+        binary.BigEndian.PutUint32(freeSpan[0:4], freeMagic)
+        binary.BigEndian.PutUint32(freeSpan[4:8], uint32(remaining))
+        spanBytes = append(spanBytes, freeSpan...)
+    }
 
-	return nil
+    err = db.writeAt(spanBytes, offset)
+    if err != nil {
+        return err
+    }
+
+    if oldOffset, exists := db.index[recordID]; exists {
+        oldLength, err := db.getSpanLength(int(oldOffset))
+        if err != nil {
+            return err
+        }
+        SpanLog(" -->Replaced record %s at span:%v-%v/%v)", recordID, oldOffset, oldOffset+oldLength, oldLength)
+        err = db.markSpanAsFreed(oldOffset)
+        if err != nil {
+            return err
+        }
+        db.addFreeSpan(oldOffset, oldLength)
+    }
+
+    db.index[recordID] = offset
+
+    return nil
 }
 
 func (db *SpanFile) allocateSpan(size int) (uint64, int64, error) {

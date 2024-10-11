@@ -479,3 +479,52 @@ func TestDeleteRecord(t *testing.T) {
         t.Fatal("Expected error when reading deleted record, got nil")
     }
 }
+func TestWriteDeletedRecord(t *testing.T) {
+    db, cleanup := setupTestDB(t)
+    defer cleanup()
+
+    // Write initial record
+    initialData := []DataStream{{StreamID: 1, Data: []byte("Initial")}}
+    err := db.WriteRecord("record1", initialData, db.NextTimestamp())
+    if err != nil {
+        t.Fatalf("Failed to write initial record: %v", err)
+    }
+
+    // Delete the record
+    err = db.RemoveRecord("record1")
+    if err != nil {
+        t.Fatalf("Failed to delete record: %v", err)
+    }
+
+    // Verify the record is deleted
+    if !db.IsRecordDeleted("record1") {
+        t.Fatal("Expected record to be marked as deleted")
+    }
+
+    // Write the record again
+    newData := []DataStream{{StreamID: 1, Data: []byte("New data")}}
+    err = db.WriteRecord("record1", newData, db.NextTimestamp())
+    if err != nil {
+        t.Fatalf("Failed to write new record: %v", err)
+    }
+
+    // Verify the record is no longer marked as deleted
+    if db.IsRecordDeleted("record1") {
+        t.Fatal("Expected record to no longer be marked as deleted")
+    }
+
+    // Read the record and verify its contents
+    span, err := db.ReadRecord("record1")
+    if err != nil {
+        t.Fatalf("Failed to read record: %v", err)
+    }
+    if string(span.DataStreams[0].Data) != "New data" {
+        t.Errorf("Expected 'New data', got '%s'", span.DataStreams[0].Data)
+    }
+
+    // Verify that the deleted span has been freed
+    _, exists := db.deletedIndex["record1"]
+    if exists {
+        t.Error("Expected record to be removed from deletedIndex")
+    }
+}
