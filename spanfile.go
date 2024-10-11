@@ -4,7 +4,7 @@ Span File Format Grammar:
 SpanFile ::= Span*
 Span ::= MagicNumber (4)
          SpanLength (4)
-         SequenceNumber (7code)
+         Tim (7code)
          RecordIDLength (7code)
          RecordID (...bytes)
          DataStreamCount (byte)
@@ -31,8 +31,10 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/edsrzf/mmap-go"
+	"github.com/smhanov/syzgydb/replication"
 )
 
 const verboseSpanFile = false
@@ -162,10 +164,10 @@ type SpanFile struct {
 	fileName string
 	mmapData mmap.MMap
 	// map from string id to offset of the record
-	index            map[string]uint64
-	freeMap          freeMap // Change from freeList to freeMap
-	latestTimestamp  Timestamp
-	fileMutex        sync.Mutex
+	index           map[string]uint64
+	freeMap         freeMap // Change from freeList to freeMap
+	latestTimestamp replication.Timestamp
+	fileMutex       sync.Mutex
 }
 
 type FreeSpan struct {
@@ -269,7 +271,7 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 		mmapData:        mmapData,
 		index:           make(map[string]uint64),
 		freeMap:         freeMap{freeSpaces: []space{}}, // Initialize freeMap
-		latestTimestamp: Timestamp{UnixTime: 0, LamportClock: 0},
+		latestTimestamp: replication.Timestamp{UnixTime: 0, LamportClock: 0},
 		fileName:        filename,
 	}
 
@@ -349,7 +351,7 @@ func (db *SpanFile) scanFile() error {
 
 	db.addFreeSpan(uint64(offset), uint64(fileSize-offset))
 
-	db.latestTimestamp = Timestamp{UnixTime: latestUnixTime, LamportClock: latestLamportTime}
+	db.latestTimestamp = replication.Timestamp{UnixTime: latestUnixTime, LamportClock: latestLamportTime}
 	return nil
 }
 
@@ -468,7 +470,7 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream) error
 	db.index[recordID] = offset
 
 	// Update the latest timestamp
-	db.latestTimestamp = Timestamp{UnixTime: currentTime, LamportClock: 0}
+	db.latestTimestamp = replication.Timestamp{UnixTime: currentTime, LamportClock: 0}
 
 	return nil
 }
