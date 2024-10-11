@@ -420,25 +420,33 @@ func TestDeleteRecord(t *testing.T) {
         t.Fatalf("Failed to write record: %v", err)
     }
 
+    oldOffset := db.index["record1"]
+
     // Delete the record
     err = db.RemoveRecord("record1")
     if err != nil {
         t.Fatalf("Failed to delete record: %v", err)
     }
 
-    // Try to read the deleted record
-    _, err = db.ReadRecord("record1")
-    if err == nil {
-        t.Fatal("Expected error when reading deleted record, got nil")
+    // Verify the old span is marked as free
+    oldSpan, err := parseSpanAtOffset(db.mmapData, oldOffset)
+    if err != nil {
+        t.Fatalf("Failed to parse old span: %v", err)
+    }
+    if oldSpan.MagicNumber != freeMagic {
+        t.Errorf("Expected old span to be marked as free, got: %v", magicNumberToString(oldSpan.MagicNumber))
     }
 
-    // Verify the span is marked as deleted
-    offset, exists := db.index["record1"]
+    // Verify the new deleted span
+    newOffset, exists := db.index["record1"]
     if !exists {
-        t.Fatal("Expected record to be removed from index")
+        t.Fatal("Expected record to still be in index")
+    }
+    if newOffset == oldOffset {
+        t.Fatal("Expected new offset to be different from old offset")
     }
 
-    deletedSpan, err := parseSpanAtOffset(db.mmapData, offset)
+    deletedSpan, err := parseSpanAtOffset(db.mmapData, newOffset)
     if err != nil {
         t.Fatalf("Failed to parse deleted span: %v", err)
     }
@@ -453,5 +461,11 @@ func TestDeleteRecord(t *testing.T) {
 
     if deletedSpan.RecordID != "record1" {
         t.Errorf("Expected RecordID to be preserved, got: %s", deletedSpan.RecordID)
+    }
+
+    // Try to read the deleted record
+    _, err = db.ReadRecord("record1")
+    if err == nil {
+        t.Fatal("Expected error when reading deleted record, got nil")
     }
 }

@@ -395,32 +395,70 @@ func (db *SpanFile) addFreeSpan(offset, length uint64) {
 }
 
 func (db *SpanFile) RemoveRecord(recordID string) error {
-	db.fileMutex.Lock()
-	defer db.fileMutex.Unlock()
+    db.fileMutex.Lock()
+    defer db.fileMutex.Unlock()
 
-	offset, exists := db.index[recordID]
-	if !exists {
-		return fmt.Errorf("record not found")
-	}
+    oldOffset, exists := db.index[recordID]
+    if !exists {
+        return fmt.Errorf("record not found")
+    }
 
-	length, err := db.getSpanLength(int(offset))
-	if err != nil {
-		return err
-	}
+    // Read the original span
+    oldSpan, err := parseSpanAtOffset(db.mmapData, oldOffset)
+    if err != nil {
+        return err
+    }
 
-	SpanLog("Remove %s", recordID)
-	SpanLog(" -->Mark span:%d-%d/%d as deleted", offset, offset+length, length)
+    // Create a new deleted span
+    deletedSpan := &Span{
+        MagicNumber: deletedMagic,
+        UnixTime:    oldSpan.UnixTime,
+        LamportTime: oldSpan.LamportTime,
+        RecordID:    oldSpan.RecordID,
+        DataStreams: []DataStream{}, // Empty data streams
+    }
 
-	// Mark the span as deleted instead of freed
-	err = db.markSpanAsDeleted(offset)
-	if err != nil {
-		return err
-	}
+    // Serialize the deleted span
+    deletedSpanBytes, err := serializeSpan(deletedSpan)
+    if err != nil {
+        return err
+    }
 
-	// Remove the record from the index
-	delete(db.index, recordID)
+    // Allocate space for the new deleted span
+    newOffset, _, err := db.allocateSpan(len(deletedSpanBytes) + 4) // +4 for checksum
+    if err != nil {
+        return err
+    }
 
-	return nil
+    // Write the deleted span
+    checksum := calculateChecksum(deletedSpanBytes)
+    deletedSpanBytes = append(deletedSpanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
+    
+    err = db.writeAt(deletedSpanBytes, newOffset)
+    if err != nil {
+        return err
+    }
+
+    // Update the index to point to the new deleted span
+    db.index[recordID] = newOffset
+
+    // Mark the original span as free
+    oldLength, err := db.getSpanLength(int(oldOffset))
+    if err != nil {
+        return err
+    }
+
+    err = db.markSpanAsFreed(oldOffset)
+    if err != nil {
+        return err
+    }
+
+    db.addFreeSpan(oldOffset, oldLength)
+
+    SpanLog("Removed %s: Old span:%d-%d/%d marked as free, new deleted span at %d", 
+        recordID, oldOffset, oldOffset+oldLength, oldLength, newOffset)
+
+    return nil
 }
 
 func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, timestamp replication.Timestamp) error {
