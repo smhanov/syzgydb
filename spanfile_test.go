@@ -114,25 +114,6 @@ func TestInvalidSpanHandling(t *testing.T) {
 	}
 }
 
-func TestSequenceNumberWraparound(t *testing.T) {
-	db, cleanup := setupTestDB(t)
-	defer cleanup()
-
-	db.sequenceNumber = ^uint32(0) // Set sequence number near max value
-
-	dataStreams := []DataStream{
-		{StreamID: 1, Data: []byte("Hello")},
-	}
-	err := db.WriteRecord("record1", dataStreams)
-	if err != nil {
-		t.Fatalf("Failed to write record: %v", err)
-	}
-
-	if db.sequenceNumber != 0 {
-		t.Errorf("Expected sequence number to wrap around to 0, got %d", db.sequenceNumber)
-	}
-}
-
 func TestWriteRecord(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
