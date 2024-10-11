@@ -1,14 +1,18 @@
 package replication
 
-import "bytes"
+import (
+	"bytes"
+
+	pb "github.com/smhanov/syzgydb/replication/proto"
+)
 
 type UpdateType int32
 
 const (
-    DeleteRecord   UpdateType = 0
-    UpsertRecord   UpdateType = 1
-    CreateDatabase UpdateType = 2
-    DropDatabase   UpdateType = 3
+	DeleteRecord   UpdateType = 0
+	UpsertRecord   UpdateType = 1
+	CreateDatabase UpdateType = 2
+	DropDatabase   UpdateType = 3
 )
 
 type Update struct {
@@ -20,29 +24,29 @@ type Update struct {
 }
 
 func (u Update) Compare(other Update) int {
-    tsComp := u.Timestamp.Compare(other.Timestamp)
-    if tsComp != 0 {
-        return tsComp
-    }
-    return bytes.Compare(u.Data, other.Data)
+	tsComp := u.Timestamp.Compare(other.Timestamp)
+	if tsComp != 0 {
+		return tsComp
+	}
+	return bytes.Compare(u.Data, other.Data)
 }
 
 func (u Update) toProto() *pb.Update {
-    return &pb.Update{
-        Timestamp:    u.Timestamp.toProto(),
-        Type:         pb.Update_UpdateType(u.Type),
-        Data:         u.Data,
-        DatabaseName: u.DatabaseName,
-        Dependencies: u.Dependencies,
-    }
+	return &pb.Update{
+		Timestamp:    u.Timestamp.toProto(),
+		Type:         pb.Update_UpdateType(u.Type),
+		Data:         u.Data,
+		DatabaseName: u.DatabaseName,
+		Dependencies: u.Dependencies,
+	}
 }
 
 func fromProtoUpdate(pu *pb.Update) Update {
-    return Update{
-        Timestamp:    fromProtoTimestamp(pu.Timestamp),
-        Type:         UpdateType(pu.Type),
-        Data:         pu.Data,
-        DatabaseName: pu.DatabaseName,
-        Dependencies: pu.Dependencies,
-    }
+	return Update{
+		Timestamp:    fromProtoTimestamp(pu.Timestamp),
+		Type:         UpdateType(pu.Type),
+		Data:         pu.Data,
+		DatabaseName: pu.DatabaseName,
+		Dependencies: pu.Dependencies,
+	}
 }
