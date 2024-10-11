@@ -61,7 +61,7 @@ func (db *SpanFile) CurrentTimeStamp() replication.Timestamp {
 	return db.latestTimestamp
 }
 
-const verboseSpanFile = false
+const verboseSpanFile = true
 
 type SpanReader struct {
 	data []byte
@@ -191,13 +191,13 @@ type IndexEntry struct {
 }
 
 type SpanFile struct {
-	file            *os.File
-	fileName        string
-	mmapData        mmap.MMap
+	file     *os.File
+	fileName string
+	mmapData mmap.MMap
 	// map from string id to offset of the record
 	index           map[string]uint64
-	deletedIndex    map[string]uint64  // New map for deleted record IDs
-	freeMap         freeMap // Change from freeList to freeMap
+	deletedIndex    map[string]uint64 // New map for deleted record IDs
+	freeMap         freeMap           // Change from freeList to freeMap
 	latestTimestamp replication.Timestamp
 	fileMutex       sync.RWMutex
 }
@@ -302,7 +302,7 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 		file:            file,
 		mmapData:        mmapData,
 		index:           make(map[string]uint64),
-		deletedIndex:    make(map[string]uint64),  // Initialize deletedIndex
+		deletedIndex:    make(map[string]uint64),        // Initialize deletedIndex
 		freeMap:         freeMap{freeSpaces: []space{}}, // Initialize freeMap
 		latestTimestamp: replication.Timestamp{UnixTime: 0, LamportClock: 0},
 		fileName:        filename,
@@ -397,169 +397,169 @@ func (db *SpanFile) addFreeSpan(offset, length uint64) {
 }
 
 func (db *SpanFile) RemoveRecord(recordID string) error {
-    db.fileMutex.Lock()
-    defer db.fileMutex.Unlock()
+	db.fileMutex.Lock()
+	defer db.fileMutex.Unlock()
 
-    oldOffset, exists := db.index[recordID]
-    if !exists {
-        return fmt.Errorf("record not found")
-    }
+	oldOffset, exists := db.index[recordID]
+	if !exists {
+		return fmt.Errorf("record not found")
+	}
 
-    // Read the original span
-    oldSpan, err := parseSpanAtOffset(db.mmapData, oldOffset)
-    if err != nil {
-        return err
-    }
+	// Read the original span
+	oldSpan, err := parseSpanAtOffset(db.mmapData, oldOffset)
+	if err != nil {
+		return err
+	}
 
-    // Create a new deleted span
-    deletedSpan := &Span{
-        MagicNumber: deletedMagic,
-        UnixTime:    oldSpan.UnixTime,
-        LamportTime: oldSpan.LamportTime,
-        RecordID:    oldSpan.RecordID,
-        DataStreams: []DataStream{}, // Empty data streams
-    }
+	// Create a new deleted span
+	deletedSpan := &Span{
+		MagicNumber: deletedMagic,
+		UnixTime:    oldSpan.UnixTime,
+		LamportTime: oldSpan.LamportTime,
+		RecordID:    oldSpan.RecordID,
+		DataStreams: []DataStream{}, // Empty data streams
+	}
 
-    // Serialize the deleted span
-    deletedSpanBytes, err := serializeSpan(deletedSpan)
-    if err != nil {
-        return err
-    }
+	// Serialize the deleted span
+	deletedSpanBytes, err := serializeSpan(deletedSpan)
+	if err != nil {
+		return err
+	}
 
-    // Allocate space for the new deleted span
-    newOffset, _, err := db.allocateSpan(len(deletedSpanBytes) + 4) // +4 for checksum
-    if err != nil {
-        return err
-    }
+	// Allocate space for the new deleted span
+	newOffset, _, err := db.allocateSpan(len(deletedSpanBytes) + 4) // +4 for checksum
+	if err != nil {
+		return err
+	}
 
-    // Write the deleted span
-    checksum := calculateChecksum(deletedSpanBytes)
-    deletedSpanBytes = append(deletedSpanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
-    
-    err = db.writeAt(deletedSpanBytes, newOffset)
-    if err != nil {
-        return err
-    }
+	// Write the deleted span
+	checksum := calculateChecksum(deletedSpanBytes)
+	deletedSpanBytes = append(deletedSpanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
 
-    // Update the deletedIndex to point to the new deleted span
-    db.deletedIndex[recordID] = newOffset
+	err = db.writeAt(deletedSpanBytes, newOffset)
+	if err != nil {
+		return err
+	}
 
-    // Remove the record from the main index
-    delete(db.index, recordID)
+	// Update the deletedIndex to point to the new deleted span
+	db.deletedIndex[recordID] = newOffset
 
-    // Mark the original span as free
-    oldLength, err := db.getSpanLength(int(oldOffset))
-    if err != nil {
-        return err
-    }
+	// Remove the record from the main index
+	delete(db.index, recordID)
 
-    err = db.markSpanAsFreed(oldOffset)
-    if err != nil {
-        return err
-    }
+	// Mark the original span as free
+	oldLength, err := db.getSpanLength(int(oldOffset))
+	if err != nil {
+		return err
+	}
 
-    db.addFreeSpan(oldOffset, oldLength)
+	err = db.markSpanAsFreed(oldOffset)
+	if err != nil {
+		return err
+	}
 
-    SpanLog("Removed %s: Old span:%d-%d/%d marked as free, new deleted span at %d", 
-        recordID, oldOffset, oldOffset+oldLength, oldLength, newOffset)
+	db.addFreeSpan(oldOffset, oldLength)
 
-    return nil
+	SpanLog("Removed %s: Old span:%d-%d/%d marked as free, new deleted span at %d",
+		recordID, oldOffset, oldOffset+oldLength, oldLength, newOffset)
+
+	return nil
 }
 
 func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, timestamp replication.Timestamp) error {
-    db.fileMutex.Lock()
-    defer db.fileMutex.Unlock()
+	db.fileMutex.Lock()
+	defer db.fileMutex.Unlock()
 
-    // Check if the record was previously deleted
-    if deletedOffset, wasDeleted := db.deletedIndex[recordID]; wasDeleted {
-        // Mark the deleted span as free
-        deletedLength, err := db.getSpanLength(int(deletedOffset))
-        if err != nil {
-            return err
-        }
-        err = db.markSpanAsFreed(deletedOffset)
-        if err != nil {
-            return err
-        }
-        db.addFreeSpan(deletedOffset, deletedLength)
+	// Check if the record was previously deleted
+	if deletedOffset, wasDeleted := db.deletedIndex[recordID]; wasDeleted {
+		// Mark the deleted span as free
+		deletedLength, err := db.getSpanLength(int(deletedOffset))
+		if err != nil {
+			return err
+		}
+		err = db.markSpanAsFreed(deletedOffset)
+		if err != nil {
+			return err
+		}
+		db.addFreeSpan(deletedOffset, deletedLength)
 
-        // Remove the entry from the deletedIndex
-        delete(db.deletedIndex, recordID)
+		// Remove the entry from the deletedIndex
+		delete(db.deletedIndex, recordID)
 
-        SpanLog("Freed previously deleted span for %s: span:%d-%d/%d", 
-            recordID, deletedOffset, deletedOffset+deletedLength, deletedLength)
-    }
+		SpanLog("Freed previously deleted span for %s: span:%d-%d/%d",
+			recordID, deletedOffset, deletedOffset+deletedLength, deletedLength)
+	}
 
-    span := &Span{
-        MagicNumber: activeMagic,
-        UnixTime:    timestamp.UnixTime,
-        LamportTime: timestamp.LamportClock,
-        RecordID:    recordID,
-        DataStreams: dataStreams,
-    }
+	span := &Span{
+		MagicNumber: activeMagic,
+		UnixTime:    timestamp.UnixTime,
+		LamportTime: timestamp.LamportClock,
+		RecordID:    recordID,
+		DataStreams: dataStreams,
+	}
 
-    spanBytes, err := serializeSpan(span)
-    if err != nil {
-        return err
-    }
+	spanBytes, err := serializeSpan(span)
+	if err != nil {
+		return err
+	}
 
-    offset, remaining, err := db.allocateSpan(len(spanBytes) + 4) //+4 for checksum
-    if err != nil {
-        return err
-    }
+	offset, remaining, err := db.allocateSpan(len(spanBytes) + 4) //+4 for checksum
+	if err != nil {
+		return err
+	}
 
-    // If remaining is > 0 and < minSpanLength then we need to add padding
-    // before the checksum, and add the length of this padding to the uint32
-    // stored at offset 4 of the spanBytes.
-    if remaining > 0 && remaining < minSpanLength {
-        db.freeMap.markUsed(int(offset)+len(spanBytes)+4, int(remaining))
-        padding := make([]byte, remaining)
-        spanBytes = append(spanBytes, padding...)
+	// If remaining is > 0 and < minSpanLength then we need to add padding
+	// before the checksum, and add the length of this padding to the uint32
+	// stored at offset 4 of the spanBytes.
+	if remaining > 0 && remaining < minSpanLength {
+		db.freeMap.markUsed(int(offset)+len(spanBytes)+4, int(remaining))
+		padding := make([]byte, remaining)
+		spanBytes = append(spanBytes, padding...)
 
-        // Update the length in the spanBytes
-        length := uint32(len(spanBytes) + 4) // +4 for the checksum
-        binary.BigEndian.PutUint32(spanBytes[4:8], length)
-    }
+		// Update the length in the spanBytes
+		length := uint32(len(spanBytes) + 4) // +4 for the checksum
+		binary.BigEndian.PutUint32(spanBytes[4:8], length)
+	}
 
-    checksum := calculateChecksum(spanBytes)
-    spanBytes = append(spanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
+	checksum := calculateChecksum(spanBytes)
+	spanBytes = append(spanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
 
-    SpanLog("Write %s to span:%v-%v/%v", recordID, offset, offset+uint64(len(spanBytes)), len(spanBytes))
-    if remaining > 0 && remaining < minSpanLength {
-        SpanLog("--->Adding %v bytes of padding", remaining)
-    }
-    // if the remaining space is > minSpanLength then we need to write a free span
-    // after it. This is simply the free magic number followed by the
-    // length of the remaining space.
-    if remaining >= minSpanLength {
-        SpanLog(" -->Adding free space marker at span:%v-%v/%v", int(offset)+len(spanBytes), int(offset)+len(spanBytes)+int(remaining), remaining)
-        freeSpan := make([]byte, 8)
-        binary.BigEndian.PutUint32(freeSpan[0:4], freeMagic)
-        binary.BigEndian.PutUint32(freeSpan[4:8], uint32(remaining))
-        spanBytes = append(spanBytes, freeSpan...)
-    }
+	SpanLog("Write %s to span:%v-%v/%v", recordID, offset, offset+uint64(len(spanBytes)), len(spanBytes))
+	if remaining > 0 && remaining < minSpanLength {
+		SpanLog("--->Adding %v bytes of padding", remaining)
+	}
+	// if the remaining space is > minSpanLength then we need to write a free span
+	// after it. This is simply the free magic number followed by the
+	// length of the remaining space.
+	if remaining >= minSpanLength {
+		SpanLog(" -->Adding free space marker at span:%v-%v/%v", int(offset)+len(spanBytes), int(offset)+len(spanBytes)+int(remaining), remaining)
+		freeSpan := make([]byte, 8)
+		binary.BigEndian.PutUint32(freeSpan[0:4], freeMagic)
+		binary.BigEndian.PutUint32(freeSpan[4:8], uint32(remaining))
+		spanBytes = append(spanBytes, freeSpan...)
+	}
 
-    err = db.writeAt(spanBytes, offset)
-    if err != nil {
-        return err
-    }
+	err = db.writeAt(spanBytes, offset)
+	if err != nil {
+		return err
+	}
 
-    if oldOffset, exists := db.index[recordID]; exists {
-        oldLength, err := db.getSpanLength(int(oldOffset))
-        if err != nil {
-            return err
-        }
-        SpanLog(" -->Replaced record %s at span:%v-%v/%v)", recordID, oldOffset, oldOffset+oldLength, oldLength)
-        err = db.markSpanAsFreed(oldOffset)
-        if err != nil {
-            return err
-        }
-        db.addFreeSpan(oldOffset, oldLength)
-    }
+	if oldOffset, exists := db.index[recordID]; exists {
+		oldLength, err := db.getSpanLength(int(oldOffset))
+		if err != nil {
+			return err
+		}
+		SpanLog(" -->Replaced record %s at span:%v-%v/%v)", recordID, oldOffset, oldOffset+oldLength, oldLength)
+		err = db.markSpanAsFreed(oldOffset)
+		if err != nil {
+			return err
+		}
+		db.addFreeSpan(oldOffset, oldLength)
+	}
 
-    db.index[recordID] = offset
+	db.index[recordID] = offset
 
-    return nil
+	return nil
 }
 
 func (db *SpanFile) allocateSpan(size int) (uint64, int64, error) {
@@ -599,18 +599,18 @@ func (db *SpanFile) markSpanAsFreed(offset uint64) error {
 }
 
 func (db *SpanFile) ReadRecord(recordID string) (*Span, error) {
-    db.fileMutex.RLock()
-    defer db.fileMutex.RUnlock()
+	db.fileMutex.RLock()
+	defer db.fileMutex.RUnlock()
 
-    if _, exists := db.deletedIndex[recordID]; exists {
-        return nil, fmt.Errorf("record has been deleted")
-    }
+	if _, exists := db.deletedIndex[recordID]; exists {
+		return nil, fmt.Errorf("record has been deleted")
+	}
 
-    offset, exists := db.index[recordID]
-    if !exists {
-        return nil, fmt.Errorf("record not found")
-    }
-    return parseSpanAtOffset(db.mmapData, offset)
+	offset, exists := db.index[recordID]
+	if !exists {
+		return nil, fmt.Errorf("record not found")
+	}
+	return parseSpanAtOffset(db.mmapData, offset)
 }
 
 func (db *SpanFile) IterateRecords(callback func(recordID string, sr *SpanReader) error) error {
@@ -770,154 +770,154 @@ func readUint32(buf []byte, offset int) (uint32, error) {
 }
 
 func serializeSpan(span *Span) ([]byte, error) {
-    recordIDBytes := []byte(span.RecordID)
+	recordIDBytes := []byte(span.RecordID)
 
-    // Calculate Length
-    length := 4 + 4 + // magic + length
-        lengthOf7Code(uint64(span.UnixTime)) +
-        lengthOf7Code(uint64(span.LamportTime)) +
-        lengthOf7Code(uint64(len(recordIDBytes))) +
-        uint64(len(recordIDBytes)) +
-        1 + // DataStreamCount
-        4 // Checksum
+	// Calculate Length
+	length := 4 + 4 + // magic + length
+		lengthOf7Code(uint64(span.UnixTime)) +
+		lengthOf7Code(uint64(span.LamportTime)) +
+		lengthOf7Code(uint64(len(recordIDBytes))) +
+		uint64(len(recordIDBytes)) +
+		1 + // DataStreamCount
+		4 // Checksum
 
-    if span.MagicNumber != deletedMagic {
-        for _, stream := range span.DataStreams {
-            length += 1 + lengthOf7Code(uint64(len(stream.Data))) + uint64(len(stream.Data))
-        }
-    }
+	if span.MagicNumber != deletedMagic {
+		for _, stream := range span.DataStreams {
+			length += 1 + lengthOf7Code(uint64(len(stream.Data))) + uint64(len(stream.Data))
+		}
+	}
 
-    buf := make([]byte, 0, length)
+	buf := make([]byte, 0, length)
 
-    // Serialize MagicNumber
-    buf = writeUint32(buf, span.MagicNumber)
+	// Serialize MagicNumber
+	buf = writeUint32(buf, span.MagicNumber)
 
-    // length
-    buf = writeUint32(buf, uint32(length))
+	// length
+	buf = writeUint32(buf, uint32(length))
 
-    // UnixTime and LamportTime
-    buf = write7Code(buf, uint64(span.UnixTime))
-    buf = write7Code(buf, uint64(span.LamportTime))
+	// UnixTime and LamportTime
+	buf = write7Code(buf, uint64(span.UnixTime))
+	buf = write7Code(buf, uint64(span.LamportTime))
 
-    // Serialize RecordID Length and RecordID
-    buf = write7Code(buf, uint64(len(recordIDBytes)))
-    buf = append(buf, recordIDBytes...)
+	// Serialize RecordID Length and RecordID
+	buf = write7Code(buf, uint64(len(recordIDBytes)))
+	buf = append(buf, recordIDBytes...)
 
-    // Serialize Number of Data Streams
-    if span.MagicNumber == deletedMagic {
-        buf = append(buf, 0) // Zero data streams for deleted spans
-    } else {
-        buf = append(buf, byte(len(span.DataStreams)))
-        // Serialize Data Streams
-        for _, ds := range span.DataStreams {
-            buf = append(buf, ds.StreamID)
-            buf = write7Code(buf, uint64(len(ds.Data)))
-            buf = append(buf, ds.Data...)
-        }
-    }
+	// Serialize Number of Data Streams
+	if span.MagicNumber == deletedMagic {
+		buf = append(buf, 0) // Zero data streams for deleted spans
+	} else {
+		buf = append(buf, byte(len(span.DataStreams)))
+		// Serialize Data Streams
+		for _, ds := range span.DataStreams {
+			buf = append(buf, ds.StreamID)
+			buf = write7Code(buf, uint64(len(ds.Data)))
+			buf = append(buf, ds.Data...)
+		}
+	}
 
-    return buf, nil
+	return buf, nil
 }
 
 func parseSpan(data []byte) (*Span, error) {
-    if len(data) < minSpanLength {
-        return nil, fmt.Errorf("data too short to be a valid span")
-    }
+	if len(data) < minSpanLength {
+		return nil, fmt.Errorf("data too short to be a valid span")
+	}
 
-    span := &Span{}
-    span.MagicNumber = binary.BigEndian.Uint32(data[:4])
-    at := 4
+	span := &Span{}
+	span.MagicNumber = binary.BigEndian.Uint32(data[:4])
+	at := 4
 
-    if span.MagicNumber != activeMagic && span.MagicNumber != deletedMagic {
-        return nil, fmt.Errorf("invalid magic number")
-    }
+	if span.MagicNumber != activeMagic && span.MagicNumber != deletedMagic {
+		return nil, fmt.Errorf("invalid magic number")
+	}
 
-    var err error
-    var l uint32
-    l, err = readUint32(data, at)
-    at += 4
-    span.Length = uint64(l)
-    if err != nil {
-        return nil, err
-    }
+	var err error
+	var l uint32
+	l, err = readUint32(data, at)
+	at += 4
+	span.Length = uint64(l)
+	if err != nil {
+		return nil, err
+	}
 
-    // Ensure the data slice is long enough for the entire span
-    if int(span.Length) > len(data) {
-        return nil, fmt.Errorf("data too short for span length, data=%v lengthRead=%v", len(data), span.Length)
-    }
+	// Ensure the data slice is long enough for the entire span
+	if int(span.Length) > len(data) {
+		return nil, fmt.Errorf("data too short for span length, data=%v lengthRead=%v", len(data), span.Length)
+	}
 
-    if !verifyChecksum(data[:span.Length]) {
-        return nil, fmt.Errorf("checksum failed")
-    }
+	if !verifyChecksum(data[:span.Length]) {
+		return nil, fmt.Errorf("checksum failed")
+	}
 
-    // Parse UnixTime
-    var unixTime uint64
-    unixTime, at, err = read7Code(data, at)
-    if err != nil {
-        return nil, err
-    }
-    span.UnixTime = int64(unixTime)
+	// Parse UnixTime
+	var unixTime uint64
+	unixTime, at, err = read7Code(data, at)
+	if err != nil {
+		return nil, err
+	}
+	span.UnixTime = int64(unixTime)
 
-    // Parse LamportTime
-    var lamportTime uint64
-    lamportTime, at, err = read7Code(data, at)
-    if err != nil {
-        return nil, err
-    }
-    span.LamportTime = int64(lamportTime)
+	// Parse LamportTime
+	var lamportTime uint64
+	lamportTime, at, err = read7Code(data, at)
+	if err != nil {
+		return nil, err
+	}
+	span.LamportTime = int64(lamportTime)
 
-    // Parse RecordID
-    var idlength uint64
-    idlength, at, err = read7Code(data, at)
-    if err != nil {
-        return nil, err
-    }
-    span.RecordID = string(data[at : at+int(idlength)])
-    at += int(idlength)
+	// Parse RecordID
+	var idlength uint64
+	idlength, at, err = read7Code(data, at)
+	if err != nil {
+		return nil, err
+	}
+	span.RecordID = string(data[at : at+int(idlength)])
+	at += int(idlength)
 
-    // Parse Number of Data Streams
-    numStreams := int(data[at])
-    at++
+	// Parse Number of Data Streams
+	numStreams := int(data[at])
+	at++
 
-    if span.MagicNumber != deletedMagic {
-        // Parse Data Streams
-        for i := 0; i < numStreams; i++ {
-            if at >= len(data) {
-                return nil, fmt.Errorf("data too short to contain all streams")
-            }
-            streamID := data[at]
-            at++
+	if span.MagicNumber != deletedMagic {
+		// Parse Data Streams
+		for i := 0; i < numStreams; i++ {
+			if at >= len(data) {
+				return nil, fmt.Errorf("data too short to contain all streams")
+			}
+			streamID := data[at]
+			at++
 
-            var streamLen uint64
-            streamLen, at, err = read7Code(data, at)
-            if err != nil {
-                return nil, err
-            }
+			var streamLen uint64
+			streamLen, at, err = read7Code(data, at)
+			if err != nil {
+				return nil, err
+			}
 
-            if at+int(streamLen) > len(data) {
-                return nil, fmt.Errorf("data too short for stream data")
-            }
+			if at+int(streamLen) > len(data) {
+				return nil, fmt.Errorf("data too short for stream data")
+			}
 
-            streamData := data[at : at+int(streamLen)]
-            at += int(streamLen)
+			streamData := data[at : at+int(streamLen)]
+			at += int(streamLen)
 
-            span.DataStreams = append(span.DataStreams, DataStream{
-                StreamID: streamID,
-                Data:     streamData,
-            })
-        }
-    } else if numStreams != 0 {
-        return nil, fmt.Errorf("deleted span should have zero data streams")
-    }
+			span.DataStreams = append(span.DataStreams, DataStream{
+				StreamID: streamID,
+				Data:     streamData,
+			})
+		}
+	} else if numStreams != 0 {
+		return nil, fmt.Errorf("deleted span should have zero data streams")
+	}
 
-    // Parse Checksum
-    if at+4 > len(data) {
-        return nil, fmt.Errorf("data too short for checksum")
-    }
-    at = int(span.Length) - 4
-    span.Checksum = binary.BigEndian.Uint32(data[at : at+4])
+	// Parse Checksum
+	if at+4 > len(data) {
+		return nil, fmt.Errorf("data too short for checksum")
+	}
+	at = int(span.Length) - 4
+	span.Checksum = binary.BigEndian.Uint32(data[at : at+4])
 
-    return span, nil
+	return span, nil
 }
 
 func parseSpanAtOffset(data []byte, offset uint64) (*Span, error) {
@@ -993,40 +993,40 @@ func SpanLog(format string, v ...interface{}) {
 	}
 }
 func (db *SpanFile) markSpanAsDeleted(offset uint64) error {
-    // Read the original span
-    span, err := parseSpanAtOffset(db.mmapData, offset)
-    if err != nil {
-        return err
-    }
+	// Read the original span
+	span, err := parseSpanAtOffset(db.mmapData, offset)
+	if err != nil {
+		return err
+	}
 
-    // Create a new deleted span
-    deletedSpan := &Span{
-        MagicNumber: deletedMagic,
-        Length:      span.Length,
-        UnixTime:    span.UnixTime,
-        LamportTime: span.LamportTime,
-        RecordID:    span.RecordID,
-        DataStreams: []DataStream{}, // Empty data streams
-    }
+	// Create a new deleted span
+	deletedSpan := &Span{
+		MagicNumber: deletedMagic,
+		Length:      span.Length,
+		UnixTime:    span.UnixTime,
+		LamportTime: span.LamportTime,
+		RecordID:    span.RecordID,
+		DataStreams: []DataStream{}, // Empty data streams
+	}
 
-    // Serialize the deleted span
-    deletedSpanBytes, err := serializeSpan(deletedSpan)
-    if err != nil {
-        return err
-    }
+	// Serialize the deleted span
+	deletedSpanBytes, err := serializeSpan(deletedSpan)
+	if err != nil {
+		return err
+	}
 
-    // Write the deleted span
-    err = db.writeAt(deletedSpanBytes, offset)
-    if err != nil {
-        return err
-    }
+	// Write the deleted span
+	err = db.writeAt(deletedSpanBytes, offset)
+	if err != nil {
+		return err
+	}
 
-    return nil
+	return nil
 }
 func (db *SpanFile) IsRecordDeleted(recordID string) bool {
-    db.fileMutex.RLock()
-    defer db.fileMutex.RUnlock()
+	db.fileMutex.RLock()
+	defer db.fileMutex.RUnlock()
 
-    _, exists := db.deletedIndex[recordID]
-    return exists
+	_, exists := db.deletedIndex[recordID]
+	return exists
 }
