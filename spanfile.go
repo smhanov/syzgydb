@@ -82,8 +82,9 @@ func (db *SpanFile) getSpanReader(recordID string) (*SpanReader, error) {
 }
 
 const (
-	activeMagic = 0x5350414E // 'SPAN'
-	freeMagic   = 0x46524545 // 'FREE'
+	activeMagic  = 0x5350414E // 'SPAN'
+	freeMagic    = 0x46524545 // 'FREE'
+	deletedMagic = 0x44454C45 // 'DELE'
 )
 
 const minSpanLength = 15
@@ -371,6 +372,9 @@ func (db *SpanFile) scanFile() error {
 		} else if magicNumber == freeMagic {
 			SpanLog("FREE: span:%v-%v/%v", offset, offset+int(length), length)
 			db.addFreeSpan(uint64(offset), uint64(length))
+		} else if magicNumber == deletedMagic {
+			SpanLog("DELETED: span:%v-%v/%v", offset, offset+int(length), length)
+			// We don't need to do anything with deleted spans during scan
 		}
 
 		offset += int(length)
@@ -394,29 +398,24 @@ func (db *SpanFile) RemoveRecord(recordID string) error {
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
 
-	// Find the offset of the record
 	offset, exists := db.index[recordID]
 	if !exists {
 		return fmt.Errorf("record not found")
 	}
 
-	// Get the length of the span
 	length, err := db.getSpanLength(int(offset))
 	if err != nil {
 		return err
 	}
 
 	SpanLog("Remove %s", recordID)
-	SpanLog(" -->Mark span:%d-%d/%d as freed", offset, offset+length, length)
+	SpanLog(" -->Mark span:%d-%d/%d as deleted", offset, offset+length, length)
 
-	// Mark the span as free
-	err = db.markSpanAsFreed(offset)
+	// Mark the span as deleted instead of freed
+	err = db.markSpanAsDeleted(offset)
 	if err != nil {
 		return err
 	}
-
-	// Add the span to the free list
-	db.addFreeSpan(offset, length)
 
 	// Remove the record from the index
 	delete(db.index, recordID)
@@ -909,6 +908,8 @@ func magicNumberToString(magic uint32) string {
 		return "SPAN"
 	case freeMagic:
 		return "FREE"
+	case deletedMagic:
+		return "DELE"
 	default:
 		return "UNKNOWN"
 	}
@@ -918,4 +919,8 @@ func SpanLog(format string, v ...interface{}) {
 	if verboseSpanFile {
 		log.Printf(format, v...)
 	}
+}
+func (db *SpanFile) markSpanAsDeleted(offset uint64) error {
+	binary.BigEndian.PutUint32(db.mmapData[offset:offset+4], deletedMagic)
+	return msync(db.mmapData[offset : offset+4])
 }
