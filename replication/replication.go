@@ -1,3 +1,4 @@
+// Package replication implements a distributed replication system for SyzgyDB.
 package replication
 
 import (
@@ -8,6 +9,9 @@ import (
     "time"
 )
 
+// ReplicationEngine is the core component of the replication system.
+// It manages peer connections, handles local and remote updates,
+// and coordinates the gossip protocol.
 type ReplicationEngine struct {
     storage         StorageInterface
     ownURL          string
@@ -20,6 +24,9 @@ type ReplicationEngine struct {
     bufferMu        sync.Mutex
 }
 
+// Init initializes a new ReplicationEngine with the given parameters.
+// It sets up the necessary channels, starts background processes,
+// and prepares the engine for operation.
 func Init(storage StorageInterface, ownURL string, peerURLs []string, jwtSecret []byte) (*ReplicationEngine, error) {
     if storage == nil {
         return nil, errors.New("storage cannot be nil")
@@ -50,6 +57,7 @@ func Init(storage StorageInterface, ownURL string, peerURLs []string, jwtSecret 
         re.peers[url] = NewPeer(url)
     }
 
+    // Start background processes
     go re.processLocalUpdates()
     go re.GossipLoop()
     go re.ConnectToPeers()
@@ -58,16 +66,20 @@ func Init(storage StorageInterface, ownURL string, peerURLs []string, jwtSecret 
     return re, nil
 }
 
+// GetHandler returns an http.Handler for handling WebSocket connections.
+// This is used to set up the WebSocket endpoint for peer communication.
 func (re *ReplicationEngine) GetHandler() http.Handler {
     return http.HandlerFunc(re.HandleWebSocket)
 }
 
+// processLocalUpdates listens for local updates and broadcasts them to peers.
 func (re *ReplicationEngine) processLocalUpdates() {
     for update := range re.updatesChan {
         re.broadcastUpdate(update)
     }
 }
 
+// broadcastUpdate sends an update to all connected peers.
 func (re *ReplicationEngine) broadcastUpdate(update Update) {
     re.mu.Lock()
     defer re.mu.Unlock()
@@ -79,6 +91,8 @@ func (re *ReplicationEngine) broadcastUpdate(update Update) {
     }
 }
 
+// handleReceivedUpdate processes an update received from a peer.
+// It checks dependencies and either applies the update or buffers it.
 func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
     if re.dependenciesSatisfied(update.Dependencies) {
         err := re.applyUpdate(update)
@@ -90,6 +104,7 @@ func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
     }
 }
 
+// dependenciesSatisfied checks if all dependencies of an update are met.
 func (re *ReplicationEngine) dependenciesSatisfied(dependencies []string) bool {
     for _, dep := range dependencies {
         if !re.storage.Exists(dep) {
@@ -99,6 +114,7 @@ func (re *ReplicationEngine) dependenciesSatisfied(dependencies []string) bool {
     return true
 }
 
+// bufferUpdate stores an update that can't be applied immediately due to unmet dependencies.
 func (re *ReplicationEngine) bufferUpdate(update Update) {
     re.bufferMu.Lock()
     defer re.bufferMu.Unlock()
@@ -107,6 +123,7 @@ func (re *ReplicationEngine) bufferUpdate(update Update) {
     }
 }
 
+// applyUpdate commits an update to storage and processes any buffered updates that now have their dependencies met.
 func (re *ReplicationEngine) applyUpdate(update Update) error {
     err := re.storage.CommitUpdates([]Update{update})
     if err != nil {
@@ -123,6 +140,7 @@ func (re *ReplicationEngine) applyUpdate(update Update) error {
     return nil
 }
 
+// processBufferedUpdates attempts to apply buffered updates whose dependencies are now satisfied.
 func (re *ReplicationEngine) processBufferedUpdates(update Update) {
     re.bufferMu.Lock()
     defer re.bufferMu.Unlock()
@@ -143,6 +161,7 @@ func (re *ReplicationEngine) processBufferedUpdates(update Update) {
     }
 }
 
+// startBufferedUpdatesProcessor periodically attempts to apply buffered updates.
 func (re *ReplicationEngine) startBufferedUpdatesProcessor() {
     ticker := time.NewTicker(10 * time.Second)
     go func() {

@@ -14,6 +14,7 @@ import (
 
 var upgrader = websocket.Upgrader{}
 
+// ConnectToPeers attempts to establish WebSocket connections with all known peers.
 func (re *ReplicationEngine) ConnectToPeers() {
 	for {
 		re.mu.Lock()
@@ -27,6 +28,7 @@ func (re *ReplicationEngine) ConnectToPeers() {
 	}
 }
 
+// HandleWebSocket upgrades an HTTP connection to a WebSocket and handles the peer connection.
 func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	tokenString := r.Header.Get("Authorization")
 	_, err := ValidateToken(tokenString, re.jwtSecret)
@@ -51,6 +53,7 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	go peer.HandleIncomingMessages(re)
 }
 
+// Peer represents a connection to another node in the replication network.
 type Peer struct {
 	url        string
 	connection *websocket.Conn
@@ -58,6 +61,7 @@ type Peer struct {
 	mu         sync.Mutex
 }
 
+// NewPeer creates a new Peer instance.
 func NewPeer(url string) *Peer {
 	return &Peer{
 		url:        url,
@@ -65,6 +69,7 @@ func NewPeer(url string) *Peer {
 	}
 }
 
+// Connect establishes a WebSocket connection with the peer.
 func (p *Peer) Connect(jwtSecret []byte) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -87,18 +92,21 @@ func (p *Peer) Connect(jwtSecret []byte) {
 	go p.HandleIncomingMessages(nil)
 }
 
+// IsConnected checks if the peer is currently connected.
 func (p *Peer) IsConnected() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.connection != nil
 }
 
+// SetConnection sets the WebSocket connection for the peer.
 func (p *Peer) SetConnection(conn *websocket.Conn) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.connection = conn
 }
 
+// HandleIncomingMessages processes messages received from the peer.
 func (p *Peer) HandleIncomingMessages(re *ReplicationEngine) {
 	for {
 		_, message, err := p.connection.ReadMessage()
@@ -118,6 +126,7 @@ func (p *Peer) HandleIncomingMessages(re *ReplicationEngine) {
 	}
 }
 
+// processMessage handles different types of incoming messages.
 func (p *Peer) processMessage(data []byte, re *ReplicationEngine) error {
 	var msg pb.Message
 	if err := proto.Unmarshal(data, &msg); err != nil {
@@ -163,6 +172,7 @@ func (p *Peer) processMessage(data []byte, re *ReplicationEngine) error {
 	return nil
 }
 
+// SendGossipMessage sends a gossip message to the peer.
 func (p *Peer) SendGossipMessage(msg *pb.GossipMessage) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -182,6 +192,7 @@ func (p *Peer) SendGossipMessage(msg *pb.GossipMessage) error {
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
+// SendUpdate sends an update message to the peer.
 func (p *Peer) SendUpdate(update Update) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -201,6 +212,7 @@ func (p *Peer) SendUpdate(update Update) error {
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
+// RequestUpdates sends an update request to the peer.
 func (p *Peer) RequestUpdates(since Timestamp) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -223,6 +235,7 @@ func (p *Peer) RequestUpdates(since Timestamp) error {
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
+// sendBatchUpdate sends a batch update to the peer.
 func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUpdate) {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
@@ -246,6 +259,7 @@ func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUp
 	}
 }
 
+// toProtoUpdates converts a slice of Updates to a slice of protobuf Updates.
 func toProtoUpdates(updates []Update) []*pb.Update {
 	var protoUpdates []*pb.Update
 	for _, update := range updates {

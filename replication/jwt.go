@@ -7,6 +7,7 @@ import (
 	jwt "github.com/golang-jwt/jwt/v4"
 )
 
+// GenerateToken creates a new JWT token for a given node ID.
 func GenerateToken(nodeID string, secret []byte) (string, error) {
 	claims := jwt.MapClaims{
 		"node_id": nodeID,
@@ -16,6 +17,7 @@ func GenerateToken(nodeID string, secret []byte) (string, error) {
 	return token.SignedString(secret)
 }
 
+// ValidateToken checks if a given token is valid and returns the node ID if it is.
 func ValidateToken(tokenString string, secret []byte) (string, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return secret, nil

@@ -5,6 +5,7 @@ import (
     "time"
 )
 
+// MockStorage is an in-memory implementation of the StorageInterface for testing purposes.
 type MockStorage struct {
     updates      map[string][]Update
     updatesMutex sync.Mutex
@@ -13,6 +14,7 @@ type MockStorage struct {
     databases    map[string]bool
 }
 
+// NewMockStorage creates a new instance of MockStorage.
 func NewMockStorage() *MockStorage {
     return &MockStorage{
         updates:     make(map[string][]Update),
@@ -21,6 +23,7 @@ func NewMockStorage() *MockStorage {
     }
 }
 
+// CommitUpdates applies a list of updates to the mock storage.
 func (ms *MockStorage) CommitUpdates(updates []Update) error {
     ms.updatesMutex.Lock()
     defer ms.updatesMutex.Unlock()
@@ -45,6 +48,7 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
     return nil
 }
 
+// GetUpdatesSince retrieves all updates that occurred after the given timestamp.
 func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp) (map[string][]Update, error) {
     ms.updatesMutex.Lock()
     defer ms.updatesMutex.Unlock()
@@ -60,6 +64,7 @@ func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp) (map[string][]Update
     return result, nil
 }
 
+// ResolveConflict determines which of two conflicting updates should be applied.
 func (ms *MockStorage) ResolveConflict(update1, update2 Update) (Update, error) {
     comp := update1.Compare(update2)
     if comp >= 0 {
@@ -68,6 +73,7 @@ func (ms *MockStorage) ResolveConflict(update1, update2 Update) (Update, error) 
     return update2, nil
 }
 
+// SubscribeUpdates returns a channel that receives new updates as they occur.
 func (ms *MockStorage) SubscribeUpdates() (<-chan Update, error) {
     ms.subMutex.Lock()
     defer ms.subMutex.Unlock()
@@ -77,12 +83,14 @@ func (ms *MockStorage) SubscribeUpdates() (<-chan Update, error) {
     return ch, nil
 }
 
+// Exists checks if a given dependency (usually a database) exists in the storage.
 func (ms *MockStorage) Exists(dependency string) bool {
     ms.updatesMutex.Lock()
     defer ms.updatesMutex.Unlock()
     return ms.databases[dependency]
 }
 
+// GenerateUpdate creates a new update for testing purposes.
 func (ms *MockStorage) GenerateUpdate(dbName string) {
     ms.updatesMutex.Lock()
     defer ms.updatesMutex.Unlock()

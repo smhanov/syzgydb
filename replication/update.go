@@ -6,6 +6,7 @@ import (
 	pb "github.com/smhanov/syzgydb/replication/proto"
 )
 
+// UpdateType represents the type of update operation.
 type UpdateType int32
 
 const (
@@ -15,6 +16,7 @@ const (
 	DropDatabase   UpdateType = 3
 )
 
+// Update represents a single update operation in the replication system.
 type Update struct {
     Timestamp    Timestamp   `json:"timestamp"`
     Type         UpdateType  `json:"type"`
@@ -23,6 +25,7 @@ type Update struct {
     Dependencies []string    `json:"dependencies"`
 }
 
+// Compare compares two Updates based on their timestamps and data.
 func (u Update) Compare(other Update) int {
 	tsComp := u.Timestamp.Compare(other.Timestamp)
 	if tsComp != 0 {
@@ -31,6 +34,7 @@ func (u Update) Compare(other Update) int {
 	return bytes.Compare(u.Data, other.Data)
 }
 
+// toProto converts an Update to its protobuf representation.
 func (u Update) toProto() *pb.Update {
 	return &pb.Update{
 		Timestamp:    u.Timestamp.toProto(),
@@ -41,6 +45,7 @@ func (u Update) toProto() *pb.Update {
 	}
 }
 
+// fromProtoUpdate converts a protobuf Update to an Update struct.
 func fromProtoUpdate(pu *pb.Update) Update {
 	return Update{
 		Timestamp:    fromProtoTimestamp(pu.Timestamp),

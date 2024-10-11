@@ -7,6 +7,7 @@ import (
 	pb "github.com/smhanov/syzgydb/replication/proto"
 )
 
+// GossipLoop runs the gossip protocol, periodically sending gossip messages to peers.
 func (re *ReplicationEngine) GossipLoop() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -22,6 +23,7 @@ func (re *ReplicationEngine) GossipLoop() {
 	}
 }
 
+// sendGossipMessage sends a gossip message to a specific peer.
 func (re *ReplicationEngine) sendGossipMessage(peer *Peer) {
 	msg := &pb.GossipMessage{
 		NodeId:        re.ownURL,
@@ -34,6 +36,8 @@ func (re *ReplicationEngine) sendGossipMessage(peer *Peer) {
 	}
 }
 
+// HandleGossipMessage processes a received gossip message, updating the peer list
+// and requesting updates if necessary.
 func (re *ReplicationEngine) HandleGossipMessage(msg *pb.GossipMessage) {
 	re.updatePeerList(msg.KnownPeers)
 	if re.lastTimestamp.Compare(fromProtoTimestamp(msg.LastTimestamp)) < 0 {
@@ -41,6 +45,7 @@ func (re *ReplicationEngine) HandleGossipMessage(msg *pb.GossipMessage) {
 	}
 }
 
+// updatePeerList adds new peers to the ReplicationEngine's peer list.
 func (re *ReplicationEngine) updatePeerList(newPeers []string) {
 	re.mu.Lock()
 	defer re.mu.Unlock()
@@ -53,6 +58,7 @@ func (re *ReplicationEngine) updatePeerList(newPeers []string) {
 	}
 }
 
+// getPeerURLs returns a list of all known peer URLs.
 func (re *ReplicationEngine) getPeerURLs() []string {
 	urls := make([]string, 0, len(re.peers))
 	for url := range re.peers {
@@ -61,6 +67,7 @@ func (re *ReplicationEngine) getPeerURLs() []string {
 	return urls
 }
 
+// requestUpdatesFromPeer sends an update request to a specific peer.
 func (re *ReplicationEngine) requestUpdatesFromPeer(peerURL string, since Timestamp) {
 	peer := re.peers[peerURL]
 	if peer != nil && peer.IsConnected() {
