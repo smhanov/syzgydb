@@ -1,6 +1,8 @@
 syntax = "proto3";
 
-package replication;
+option go_package = "replication/proto";                                                                      
+
+package proto;
 
 message Timestamp {
   int64 unix_time = 1;
