@@ -191,11 +191,12 @@ type IndexEntry struct {
 }
 
 type SpanFile struct {
-	file     *os.File
-	fileName string
-	mmapData mmap.MMap
+	file            *os.File
+	fileName        string
+	mmapData        mmap.MMap
 	// map from string id to offset of the record
 	index           map[string]uint64
+	deletedIndex    map[string]uint64  // New map for deleted record IDs
 	freeMap         freeMap // Change from freeList to freeMap
 	latestTimestamp replication.Timestamp
 	fileMutex       sync.RWMutex
@@ -301,6 +302,7 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 		file:            file,
 		mmapData:        mmapData,
 		index:           make(map[string]uint64),
+		deletedIndex:    make(map[string]uint64),  // Initialize deletedIndex
 		freeMap:         freeMap{freeSpaces: []space{}}, // Initialize freeMap
 		latestTimestamp: replication.Timestamp{UnixTime: 0, LamportClock: 0},
 		fileName:        filename,
@@ -439,8 +441,11 @@ func (db *SpanFile) RemoveRecord(recordID string) error {
         return err
     }
 
-    // Update the index to point to the new deleted span
-    db.index[recordID] = newOffset
+    // Update the deletedIndex to point to the new deleted span
+    db.deletedIndex[recordID] = newOffset
+
+    // Remove the record from the main index
+    delete(db.index, recordID)
 
     // Mark the original span as free
     oldLength, err := db.getSpanLength(int(oldOffset))
@@ -574,11 +579,18 @@ func (db *SpanFile) markSpanAsFreed(offset uint64) error {
 }
 
 func (db *SpanFile) ReadRecord(recordID string) (*Span, error) {
-	offset, exists := db.index[recordID]
-	if !exists {
-		return nil, fmt.Errorf("record not found")
-	}
-	return parseSpanAtOffset(db.mmapData, offset)
+    db.fileMutex.RLock()
+    defer db.fileMutex.RUnlock()
+
+    if _, exists := db.deletedIndex[recordID]; exists {
+        return nil, fmt.Errorf("record has been deleted")
+    }
+
+    offset, exists := db.index[recordID]
+    if !exists {
+        return nil, fmt.Errorf("record not found")
+    }
+    return parseSpanAtOffset(db.mmapData, offset)
 }
 
 func (db *SpanFile) IterateRecords(callback func(recordID string, sr *SpanReader) error) error {
@@ -990,4 +1002,11 @@ func (db *SpanFile) markSpanAsDeleted(offset uint64) error {
     }
 
     return nil
+}
+func (db *SpanFile) IsRecordDeleted(recordID string) bool {
+    db.fileMutex.RLock()
+    defer db.fileMutex.RUnlock()
+
+    _, exists := db.deletedIndex[recordID]
+    return exists
 }

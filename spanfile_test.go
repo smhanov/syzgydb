@@ -437,13 +437,18 @@ func TestDeleteRecord(t *testing.T) {
         t.Errorf("Expected old span to be marked as free, got: %v", magicNumberToString(oldSpan.MagicNumber))
     }
 
-    // Verify the new deleted span
-    newOffset, exists := db.index["record1"]
+    // Verify the record is in the deletedIndex
+    newOffset, exists := db.deletedIndex["record1"]
     if !exists {
-        t.Fatal("Expected record to still be in index")
+        t.Fatal("Expected record to be in deletedIndex")
     }
     if newOffset == oldOffset {
         t.Fatal("Expected new offset to be different from old offset")
+    }
+
+    // Verify the record is not in the main index
+    if _, exists := db.index["record1"]; exists {
+        t.Fatal("Expected record to be removed from main index")
     }
 
     deletedSpan, err := parseSpanAtOffset(db.mmapData, newOffset)
@@ -461,6 +466,11 @@ func TestDeleteRecord(t *testing.T) {
 
     if deletedSpan.RecordID != "record1" {
         t.Errorf("Expected RecordID to be preserved, got: %s", deletedSpan.RecordID)
+    }
+
+    // Verify IsRecordDeleted method
+    if !db.IsRecordDeleted("record1") {
+        t.Error("Expected IsRecordDeleted to return true")
     }
 
     // Try to read the deleted record
