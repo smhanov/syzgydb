@@ -134,7 +134,7 @@ func TestReadRecord(t *testing.T) {
 	dataStreams := []DataStream{
 		{StreamID: 1, Data: []byte("Hello")},
 	}
-	db.WriteRecord("record1", dataStreams)
+	db.WriteRecord("record1", dataStreams, db.NextTimestamp())
 
 	span, err := db.ReadRecord("record1")
 	if err != nil {
@@ -153,7 +153,7 @@ func TestUpdateRecord(t *testing.T) {
 	dataStreams := []DataStream{
 		{StreamID: 1, Data: []byte("Hello")},
 	}
-	db.WriteRecord("record1", dataStreams)
+	db.WriteRecord("record1", dataStreams, db.NextTimestamp())
 
 	updatedStreams := []DataStream{
 		{StreamID: 1, Data: []byte("Updated")},
@@ -180,8 +180,8 @@ func TestIterateRecords(t *testing.T) {
 	dataStreams := []DataStream{
 		{StreamID: 1, Data: []byte("Hello")},
 	}
-	db.WriteRecord("record1", dataStreams)
-	db.WriteRecord("record2", dataStreams)
+	db.WriteRecord("record1", dataStreams, db.NextTimestamp())
+	db.WriteRecord("record2", dataStreams, db.NextTimestamp())
 
 	count := 0
 	err := db.IterateRecords(func(recordID string, sr *SpanReader) error {
@@ -215,7 +215,7 @@ func TestGetStats(t *testing.T) {
 	dataStreams := []DataStream{
 		{StreamID: 1, Data: []byte("Hello")},
 	}
-	db.WriteRecord("record1", dataStreams)
+	db.WriteRecord("record1", dataStreams, db.NextTimestamp())
 
 	size, numRecords := db.GetStats()
 	if numRecords != 1 {

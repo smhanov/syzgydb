@@ -265,7 +265,7 @@ func NewCollection(options CollectionOptions) (*Collection, error) {
 		dataStreams := []DataStream{
 			{StreamID: 0, Data: optionsData},
 		}
-		err = spanFile.WriteRecord("", dataStreams)
+		err = spanFile.WriteRecord("", dataStreams, spanFile.NextTimestamp())
 		if err != nil {
 			return nil, fmt.Errorf("failed to write options: %v", err)
 		}

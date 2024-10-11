@@ -97,7 +97,13 @@ func (sr *SpanReader) getStream(id uint8) ([]byte, error) {
 	at := 8 // Skip MagicNumber and length
 	var err error
 
-	// Skip SequenceNumber
+	// Skip UnixTime
+	_, at, err = read7Code(sr.data, at)
+	if err != nil {
+		return nil, err
+	}
+
+	// skip LamportTime
 	_, at, err = read7Code(sr.data, at)
 	if err != nil {
 		return nil, err
@@ -191,7 +197,7 @@ type SpanFile struct {
 	index           map[string]uint64
 	freeMap         freeMap // Change from freeList to freeMap
 	latestTimestamp replication.Timestamp
-	fileMutex       sync.Mutex
+	fileMutex       sync.RWMutex
 }
 
 type FreeSpan struct {
@@ -490,9 +496,6 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, times
 	}
 
 	db.index[recordID] = offset
-
-	// Update the latest timestamp
-	db.latestTimestamp = replication.Timestamp{UnixTime: currentTime, LamportClock: 0}
 
 	return nil
 }
