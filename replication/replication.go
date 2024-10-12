@@ -140,6 +140,19 @@ func (re *ReplicationEngine) applyUpdate(update Update) error {
     return nil
 }
 
+// handleReceivedUpdate processes an update received from a peer.
+// It checks dependencies and either applies the update or buffers it.
+func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
+    if re.dependenciesSatisfied(update.Dependencies) {
+        err := re.applyUpdate(update)
+        if err != nil {
+            log.Println("Failed to apply update:", err)
+        }
+    } else {
+        re.bufferUpdate(update)
+    }
+}
+
 // processBufferedUpdates attempts to apply buffered updates whose dependencies are now satisfied.
 func (re *ReplicationEngine) processBufferedUpdates(update Update) {
     re.bufferMu.Lock()
