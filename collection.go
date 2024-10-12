@@ -420,43 +420,73 @@ func (c *Collection) Close() error {
 	return nil
 }
 
+// AddRecordDirect adds a record directly to the collection with the specified ID, metadata, datastreams, and timestamp.
+func (c *Collection) AddRecordDirect(id uint64, metadata []byte, dataStreams []DataStream, timestamp replication.Timestamp) error {
+    c.mutex.Lock()
+    defer c.mutex.Unlock()
+
+    // Find the vector datastream (assuming it's always StreamID 1)
+    var vectorData []byte
+    for _, ds := range dataStreams {
+        if ds.StreamID == 1 {
+            vectorData = ds.Data
+            break
+        }
+    }
+
+    if vectorData == nil {
+        return fmt.Errorf("vector data not found in datastreams")
+    }
+
+    // Decode the vector
+    vector := decodeVector(vectorData, c.DimensionCount, c.Quantization)
+
+    // Use the common function to add the record
+    return c.addRecordCommon(id, vector, metadata, dataStreams, timestamp)
+}
+
 /*
 AddDocument adds a new document to the collection with the specified ID, vector, and metadata.
 It manages pivots and encodes the document for storage.
 */
-func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) error {
+    c.mutex.Lock()
+    defer c.mutex.Unlock()
 
-	// Check if the vector size matches the expected dimensions
-	if len(vector) != c.DimensionCount {
-		log.Panicf("vector size does not match the expected number of dimensions: expected %d, got %d", c.DimensionCount, len(vector))
-	}
+    // Check if the vector size matches the expected dimensions
+    if len(vector) != c.DimensionCount {
+        return fmt.Errorf("vector size does not match the expected number of dimensions: expected %d, got %d", c.DimensionCount, len(vector))
+    }
 
-	doc := &Document{
-		Vector:   vector,
-		Metadata: metadata,
-		ID:       id,
-	}
+    // Encode the vector
+    encodedVector := encodeVector(vector, c.Quantization)
 
-	// Encode the document
-	encodedVector := encodeDocument(doc, c.Quantization)
+    // Prepare datastreams
+    dataStreams := []DataStream{
+        {StreamID: 0, Data: metadata},
+        {StreamID: 1, Data: encodedVector},
+    }
 
-	// Get the next timestamp
-	timestamp := c.spanfile.NextTimestamp()
+    // Use the common function to add the record
+    return c.addRecordCommon(id, vector, metadata, dataStreams, c.spanfile.NextTimestamp())
+}
 
-	// Write to spanfile
-	dataStreams := []DataStream{
-		{StreamID: 0, Data: metadata},
-		{StreamID: 1, Data: encodedVector},
-	}
-	err := c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, timestamp)
-	if err != nil {
-		log.Panicf("Failed to write record: %v", err)
-	}
+func (c *Collection) addRecordCommon(id uint64, vector []float64, metadata []byte, dataStreams []DataStream, timestamp replication.Timestamp) error {
+    // Write to spanfile
+    err := c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, timestamp)
+    if err != nil {
+        return fmt.Errorf("failed to write record: %v", err)
+    }
 
-	// Add the document's vector to the LSH table
-	c.lshTree.addPoint(id, vector)
+    // Add the document's vector to the LSH table
+    c.lshTree.addPoint(id, vector)
+
+    return nil
+}
+
+func encodeVector(vector []float64, quantization int) []byte {
+    doc := &Document{Vector: vector}
+    return encodeDocument(doc, quantization)
 }
 
 /*
