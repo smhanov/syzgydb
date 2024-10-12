@@ -21,6 +21,13 @@ type ReplicationEngine struct {
 	mu              sync.Mutex
 	bufferedUpdates map[string][]Update
 	bufferMu        sync.Mutex
+	updateRequests  map[string]*updateRequest
+}
+
+type updateRequest struct {
+	peerURL    string
+	since      Timestamp
+	inProgress bool
 }
 
 // Init initializes a new ReplicationEngine with the given parameters.

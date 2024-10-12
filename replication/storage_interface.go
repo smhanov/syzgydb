@@ -49,8 +49,9 @@ type StorageInterface interface {
     // CommitUpdates applies a list of updates to the storage.
     CommitUpdates(updates []Update) error
 
-    // GetUpdatesSince retrieves all updates that occurred after the given timestamp.
-    GetUpdatesSince(timestamp Timestamp) (map[string][]Update, error)
+    // GetUpdatesSince retrieves updates that occurred after the given timestamp, up to maxResults.
+    // It returns the updates, a boolean indicating if there are more results, and an error if any.
+    GetUpdatesSince(timestamp Timestamp, maxResults int) (map[string][]Update, bool, error)
 
     // ResolveConflict determines which of two conflicting updates should be applied.
     ResolveConflict(update1, update2 Update) (Update, error)
@@ -64,3 +65,4 @@ type StorageInterface interface {
     // GetRecord retrieves a record by its ID and database name.
     GetRecord(databaseName, recordID string) ([]DataStream, error)
 }
+const MaxUpdateResults = 100

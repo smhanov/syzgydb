@@ -146,25 +146,21 @@ func (p *Peer) processMessage(data []byte, re *ReplicationEngine) error {
 	case pb.Message_UPDATE_REQUEST:
 		if re != nil {
 			since := fromProtoTimestamp(msg.GetUpdateRequest().Since)
-			updates, err := re.storage.GetUpdatesSince(since)
+			maxResults := int(msg.GetUpdateRequest().MaxResults)
+			updates, hasMore, err := re.storage.GetUpdatesSince(since, maxResults)
 			if err != nil {
 				return err
 			}
-			for dbName, dbUpdates := range updates {
-				batchUpdate := &pb.BatchUpdate{
-					DatabaseName: dbName,
-					Updates:      toProtoUpdates(dbUpdates),
-				}
-				re.sendBatchUpdate(p, batchUpdate)
+			batchUpdate := &pb.BatchUpdate{
+				Updates: toProtoUpdates(flattenUpdates(updates)),
+				HasMore: hasMore,
 			}
+			re.sendBatchUpdate(p, batchUpdate)
 		}
 	case pb.Message_BATCH_UPDATE:
 		if re != nil {
 			batchUpdate := msg.GetBatchUpdate()
-			for _, protoUpdate := range batchUpdate.Updates {
-				update := fromProtoUpdate(protoUpdate)
-				re.handleReceivedUpdate(update)
-			}
+			re.handleReceivedBatchUpdate(p.url, batchUpdate)
 		}
 	default:
 		return errors.New("unknown message type")
@@ -213,26 +209,27 @@ func (p *Peer) SendUpdate(update Update) error {
 }
 
 // RequestUpdates sends an update request to the peer.
-func (p *Peer) RequestUpdates(since Timestamp) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.connection == nil {
-		return errors.New("not connected")
-	}
-	request := &pb.UpdateRequest{
-		Since: since.toProto(),
-	}
-	message := &pb.Message{
-		Type: pb.Message_UPDATE_REQUEST,
-		Content: &pb.Message_UpdateRequest{
-			UpdateRequest: request,
-		},
-	}
-	data, err := proto.Marshal(message)
-	if err != nil {
-		return err
-	}
-	return p.connection.WriteMessage(websocket.BinaryMessage, data)
+func (p *Peer) RequestUpdates(since Timestamp, maxResults int) error {
+    p.mu.Lock()
+    defer p.mu.Unlock()
+    if p.connection == nil {
+        return errors.New("not connected")
+    }
+    request := &pb.UpdateRequest{
+        Since:      since.toProto(),
+        MaxResults: int32(maxResults),
+    }
+    message := &pb.Message{
+        Type: pb.Message_UPDATE_REQUEST,
+        Content: &pb.Message_UpdateRequest{
+            UpdateRequest: request,
+        },
+    }
+    data, err := proto.Marshal(message)
+    if err != nil {
+        return err
+    }
+    return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
 // sendBatchUpdate sends a batch update to the peer.
@@ -266,4 +263,11 @@ func toProtoUpdates(updates []Update) []*pb.Update {
 		protoUpdates = append(protoUpdates, update.toProto())
 	}
 	return protoUpdates
+}
+func flattenUpdates(updates map[string][]Update) []Update {
+    var flattened []Update
+    for _, dbUpdates := range updates {
+        flattened = append(flattened, dbUpdates...)
+    }
+    return flattened
 }

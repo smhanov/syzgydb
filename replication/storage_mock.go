@@ -66,20 +66,31 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 	return nil
 }
 
-// GetUpdatesSince retrieves all updates that occurred after the given timestamp.
-func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp) (map[string][]Update, error) {
-	ms.updatesMutex.Lock()
-	defer ms.updatesMutex.Unlock()
+// GetUpdatesSince retrieves updates that occurred after the given timestamp, up to maxResults.
+func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp, maxResults int) (map[string][]Update, bool, error) {
+    ms.updatesMutex.Lock()
+    defer ms.updatesMutex.Unlock()
 
-	result := make(map[string][]Update)
-	for dbName, updates := range ms.updates {
-		for _, update := range updates {
-			if update.Timestamp.Compare(timestamp) > 0 {
-				result[dbName] = append(result[dbName], update)
-			}
-		}
-	}
-	return result, nil
+    result := make(map[string][]Update)
+    totalUpdates := 0
+    hasMore := false
+
+    for dbName, updates := range ms.updates {
+        for _, update := range updates {
+            if update.Timestamp.Compare(timestamp) > 0 {
+                if totalUpdates >= maxResults {
+                    hasMore = true
+                    break
+                }
+                result[dbName] = append(result[dbName], update)
+                totalUpdates++
+            }
+        }
+        if hasMore {
+            break
+        }
+    }
+    return result, hasMore, nil
 }
 
 // ResolveConflict determines which of two conflicting updates should be applied.
