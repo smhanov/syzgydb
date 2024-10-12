@@ -16,8 +16,7 @@ import (
 )
 
 type Server struct {
-	collections map[string]*Collection
-	mutex       sync.Mutex
+    node *Node
 }
 
 func gzipMiddleware(next http.Handler) http.Handler {
@@ -45,101 +44,70 @@ func (w gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
-func (s *Server) collectionNameToFileName(name string) string {
-	return filepath.Join(globalConfig.DataFolder, name+".dat")
-}
-
-func (s *Server) fileNameToCollectionName(fileName string) string {
-	// Extract the base filename from the full path
-	baseName := filepath.Base(fileName)
-	// Remove the .dat extension
-	return strings.TrimSuffix(baseName, ".dat")
-}
 func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Received %s request for %s", r.Method, r.URL.Path)
+    log.Printf("Received %s request for %s", r.Method, r.URL.Path)
 
-	switch r.Method {
-	case http.MethodPost:
-		var temp struct {
-			Name           string `json:"name"`
-			DistanceMethod string `json:"distance_function"`
-			DimensionCount int    `json:"vector_size"`
-			Quantization   int    `json:"quantization"`
-		}
+    switch r.Method {
+    case http.MethodPost:
+        var temp struct {
+            Name           string `json:"name"`
+            DistanceMethod string `json:"distance_function"`
+            DimensionCount int    `json:"vector_size"`
+            Quantization   int    `json:"quantization"`
+        }
 
-		if err := json.NewDecoder(r.Body).Decode(&temp); err != nil {
-			writeErrorResponse(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
+        if err := json.NewDecoder(r.Body).Decode(&temp); err != nil {
+            writeErrorResponse(w, "Invalid request body", http.StatusBadRequest)
+            return
+        }
 
-		log.Printf("Creating collection with options: %+v", temp)
+        log.Printf("Creating collection with options: %+v", temp)
 
-		opts := CollectionOptions{
-			Name:           temp.Name,
-			DimensionCount: temp.DimensionCount,
-			Quantization:   temp.Quantization,
-		}
+        opts := CollectionOptions{
+            Name:           temp.Name,
+            DimensionCount: temp.DimensionCount,
+            Quantization:   temp.Quantization,
+        }
 
-		switch temp.DistanceMethod {
-		case "euclidean":
-			opts.DistanceMethod = Euclidean
-		case "cosine":
-			opts.DistanceMethod = Cosine
-		default:
-			writeErrorResponse(w, "Invalid distance method", http.StatusBadRequest)
-			return
-		}
+        switch temp.DistanceMethod {
+        case "euclidean":
+            opts.DistanceMethod = Euclidean
+        case "cosine":
+            opts.DistanceMethod = Cosine
+        default:
+            writeErrorResponse(w, "Invalid distance method", http.StatusBadRequest)
+            return
+        }
 
-		name := opts.Name
-		opts.Name = s.collectionNameToFileName(name)
+        err := s.node.CreateCollection(opts)
+        if err != nil {
+            writeErrorResponse(w, fmt.Sprintf("Failed to create collection: %v", err), http.StatusInternalServerError)
+            return
+        }
 
-		s.mutex.Lock()
-		if _, exists := s.collections[name]; exists {
-			s.mutex.Unlock()
-			writeErrorResponse(w, "Collection already exists", http.StatusBadRequest)
-			return
-		}
-		collection, err := NewCollection(opts)
-		if err != nil {
-			s.mutex.Unlock()
-			writeErrorResponse(w, fmt.Sprintf("Failed to create collection: %v", err), http.StatusInternalServerError)
-			return
-		}
-		s.collections[name] = collection
-		s.mutex.Unlock()
+        log.Printf("Collection %s created successfully", opts.Name)
+        w.WriteHeader(http.StatusCreated)
+        json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": opts.Name})
 
-		log.Printf("Collection %s created successfully", name)
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": name})
+    case http.MethodGet:
+        collectionsInfo := []collectionStatsWithName{}
 
-	case http.MethodGet:
-		collectionsInfo := []collectionStatsWithName{}
+        s.node.mutex.RLock()
+        for name, collection := range s.node.collections {
+            collectionsInfo = append(collectionsInfo, s.getCollectionStats(collection, name))
+        }
+        s.node.mutex.RUnlock()
 
-		s.mutex.Lock()
-		collections := make([]*Collection, 0, len(s.collections))
-		for _, collection := range s.collections {
-			collections = append(collections, collection)
-		}
-		s.mutex.Unlock()
+        sort.Slice(collectionsInfo, func(i, j int) bool {
+            return collectionsInfo[i].DocumentCount > collectionsInfo[j].DocumentCount
+        })
 
-		for _, collection := range collections {
-			collectionsInfo = append(collectionsInfo, s.getCollectionStats(collection))
-		}
-
-		sort.Slice(collectionsInfo, func(i, j int) bool {
-			return collectionsInfo[i].DocumentCount > collectionsInfo[j].DocumentCount
-		})
-
-		for i := range collectionsInfo {
-			collectionsInfo[i].Name = s.fileNameToCollectionName(collectionsInfo[i].Name)
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Header().Set("Content-Type", "application/json")
-		encoder := json.NewEncoder(w)
-		encoder.SetIndent("", "  ")
-		encoder.Encode(collectionsInfo)
-	}
+        w.WriteHeader(http.StatusOK)
+        w.Header().Set("Content-Type", "application/json")
+        encoder := json.NewEncoder(w)
+        encoder.SetIndent("", "  ")
+        encoder.Encode(collectionsInfo)
+    }
 }
 
 func (s *Server) handleGetCollectionIDs(w http.ResponseWriter, r *http.Request) {
@@ -481,12 +449,12 @@ type collectionStatsWithName struct {
 	Name string `json:"name"`
 }
 
-func (s *Server) getCollectionStats(collection *Collection) collectionStatsWithName {
-	stats := collection.ComputeStats()
-	return collectionStatsWithName{
-		CollectionStats: stats,
-		Name:            s.fileNameToCollectionName(collection.Name),
-	}
+func (s *Server) getCollectionStats(collection *Collection, name string) collectionStatsWithName {
+    stats := collection.ComputeStats()
+    return collectionStatsWithName{
+        CollectionStats: stats,
+        Name:            name,
+    }
 }
 
 func writeErrorResponse(w http.ResponseWriter, message string, statusCode int) {
