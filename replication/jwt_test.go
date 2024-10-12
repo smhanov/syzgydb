@@ -26,9 +26,13 @@ func TestJWTGenerationAndValidation(t *testing.T) {
 	}
 
 	// Test expired token
-	expiredToken, _ := GenerateToken(nodeID, secret)
-	time.Sleep(2 * time.Second)
-	_, err = ValidateToken(expiredToken, secret)
+	claims := jwt.MapClaims{
+		"node_id": nodeID,
+		"exp":     time.Now().Add(-1 * time.Hour).Unix(), // Set expiration to 1 hour ago
+	}
+	expiredToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	expiredTokenString, _ := expiredToken.SignedString(secret)
+	_, err = ValidateToken(expiredTokenString, secret)
 	if err == nil {
 		t.Error("Expected error for expired token, got nil")
 	}

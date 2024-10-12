@@ -22,12 +22,18 @@ func ValidateToken(tokenString string, secret []byte) (string, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return secret, nil
 	})
-	if err != nil || !token.Valid {
+	if err != nil {
+		return "", err
+	}
+	if !token.Valid {
 		return "", errors.New("invalid token")
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		return "", errors.New("invalid claims")
+	}
+	if err := claims.Valid(); err != nil {
+		return "", err
 	}
 	nodeID, ok := claims["node_id"].(string)
 	if !ok {
