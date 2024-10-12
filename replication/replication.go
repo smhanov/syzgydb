@@ -105,7 +105,7 @@ func (re *ReplicationEngine) bufferUpdate(update Update) {
 	re.bufferedUpdates[update.DatabaseName] = append(re.bufferedUpdates[update.DatabaseName], update)
 }
 
-// applyUpdate commits an update to storage and processes any buffered updates that now have their dependencies met.
+// applyUpdate commits an update to storage.
 func (re *ReplicationEngine) applyUpdate(update Update) error {
 	log.Printf("Apply update %+v", update)
 	err := re.storage.CommitUpdates([]Update{update})
@@ -119,6 +119,16 @@ func (re *ReplicationEngine) applyUpdate(update Update) error {
 	}
 	re.mu.Unlock()
 
+	return nil
+}
+
+// applyUpdateAndProcessBuffer applies an update and processes buffered updates.
+func (re *ReplicationEngine) applyUpdateAndProcessBuffer(update Update) error {
+	err := re.applyUpdate(update)
+	if err != nil {
+		return err
+	}
+
 	re.processBufferedUpdates(update)
 	return nil
 }
@@ -127,7 +137,7 @@ func (re *ReplicationEngine) applyUpdate(update Update) error {
 // It checks if the database exists and either applies the update or buffers it.
 func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
 	if re.dependenciesSatisfied(update) {
-		err := re.applyUpdate(update)
+		err := re.applyUpdateAndProcessBuffer(update)
 		if err != nil {
 			log.Println("Failed to apply update:", err)
 		}
@@ -143,17 +153,23 @@ func (re *ReplicationEngine) processBufferedUpdates(update Update) {
 	depKey := update.DatabaseName
 	buffered, exists := re.bufferedUpdates[depKey]
 	if exists {
+		var remainingUpdates []Update
 		for _, bufferedUpdate := range buffered {
 			if re.dependenciesSatisfied(bufferedUpdate) {
 				err := re.applyUpdate(bufferedUpdate)
 				if err != nil {
 					log.Println("Failed to apply buffered update:", err)
+					remainingUpdates = append(remainingUpdates, bufferedUpdate)
 				}
 			} else {
-				continue
+				remainingUpdates = append(remainingUpdates, bufferedUpdate)
 			}
 		}
-		delete(re.bufferedUpdates, depKey)
+		if len(remainingUpdates) > 0 {
+			re.bufferedUpdates[depKey] = remainingUpdates
+		} else {
+			delete(re.bufferedUpdates, depKey)
+		}
 	}
 }
 
