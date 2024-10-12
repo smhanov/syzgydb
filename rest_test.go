@@ -34,18 +34,19 @@ func TestGetCollectionIDs(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	collection, err := NewCollection(CollectionOptions{
-		Name:           testFilePath("test_collection.dat"),
+	collection, err := server.node.CreateCollection(CollectionOptions{
+		Name:           "test_collection",
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
+		FileMode:       CreateAndOverwrite,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create test collection: %v", err))
 	}
-	server.node.collections["test_collection"] = collection
-	server.node.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
-	server.node.collections["test_collection"].AddDocument(1234567891, []float64{0.5, 0.4, 0.3, 0.2, 0.1}, []byte(`{"key2":"value2"}`))
+
+	collection.AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
+	collection.AddDocument(1234567891, []float64{0.5, 0.4, 0.3, 0.2, 0.1}, []byte(`{"key2":"value2"}`))
 
 	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections/test_collection/ids", nil)
 	if err != nil {
@@ -497,29 +498,25 @@ func TestGetAllCollections(t *testing.T) {
 	server := setupTestServer()
 
 	// Create some collections for testing
-	collection1, err := NewCollection(CollectionOptions{
+	_, err := NewCollection(CollectionOptions{
 		Name:           testFilePath("collection1.dat"),
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
-		FileMode:       CreateAndOverwrite,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create collection1: %v", err)
 	}
-	server.collections["collection1"] = collection1
 
-	collection2, err := NewCollection(CollectionOptions{
+	_, err = NewCollection(CollectionOptions{
 		Name:           testFilePath("collection2.dat"),
 		DistanceMethod: Euclidean,
 		DimensionCount: 64,
 		Quantization:   32,
-		FileMode:       CreateAndOverwrite,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create collection2: %v", err)
 	}
-	server.collections["collection2"] = collection2
 
 	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections", nil)
 	if err != nil {
