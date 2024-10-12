@@ -12,17 +12,25 @@ type Config struct {
 
 	// If non-zero, we will use psuedorandom numbers so everything is predictable for testing.
 	RandomSeed int64
+
+	// Replication engine settings
+	ReplicationOwnURL   string   `mapstructure:"replication_own_url"`
+	ReplicationPeerURLs []string `mapstructure:"replication_peer_urls"`
+	ReplicationJWTKey   string   `mapstructure:"replication_jwt_key"`
 }
 
 var globalConfig Config
 
 func init() {
 	globalConfig = Config{
-		OllamaServer: "default_ollama_server",
-		TextModel:    "default_text_model",
-		ImageModel:   "default_image_model",
-		DataFolder:   "default_data_folder",
-		SyzgyHost:    "default_syzgy_host",
+		OllamaServer:        "default_ollama_server",
+		TextModel:           "default_text_model",
+		ImageModel:          "default_image_model",
+		DataFolder:          "default_data_folder",
+		SyzgyHost:           "default_syzgy_host",
+		ReplicationOwnURL:   "http://localhost:8080",
+		ReplicationPeerURLs: []string{},
+		ReplicationJWTKey:   "",
 	}
 
 	myRandom = &myRandomType{}
