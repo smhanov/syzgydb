@@ -163,18 +163,31 @@ func TestUpdateBuffering(t *testing.T) {
 
 	re.handleReceivedUpdate(createDB)
 
-	// Check if the buffered update was applied
-	if len(re.bufferedUpdates["non_existent_db"]) != 0 {
-		t.Error("Expected buffered update to be applied")
-	}
+	// Use a timeout to ensure the test doesn't run indefinitely
+	timeout := time.After(5 * time.Second)
+	done := make(chan bool)
 
-	record, err := re.storage.GetRecord("non_existent_db", "record1")
-	if err != nil {
-		t.Fatalf("Failed to get record: %v", err)
-	}
+	go func() {
+		// Check if the buffered update was applied
+		for len(re.bufferedUpdates["non_existent_db"]) != 0 {
+			time.Sleep(100 * time.Millisecond)
+		}
 
-	if len(record) == 0 || string(record[0].Data) != "test data" {
-		t.Error("Expected buffered update to be applied correctly")
+		record, err := re.storage.GetRecord("non_existent_db", "record1")
+		if err != nil {
+			t.Errorf("Failed to get record: %v", err)
+		} else if len(record) == 0 || string(record[0].Data) != "test data" {
+			t.Error("Expected buffered update to be applied correctly")
+		}
+
+		done <- true
+	}()
+
+	select {
+	case <-timeout:
+		t.Fatal("Test timed out")
+	case <-done:
+		// Test completed successfully
 	}
 }
 
