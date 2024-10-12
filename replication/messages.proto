@@ -26,7 +26,6 @@ message Update {
   string record_id = 3;
   repeated DataStream data_streams = 4;
   string database_name = 5;
-  repeated string dependencies = 6;
 }
 
 message GossipMessage {

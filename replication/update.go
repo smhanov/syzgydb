@@ -28,7 +28,6 @@ type Update struct {
     RecordID     string      `json:"record_id"`
     DataStreams  []DataStream `json:"data_streams"`
     DatabaseName string      `json:"database_name"`
-    Dependencies []string    `json:"dependencies"`
 }
 
 // Compare compares two Updates based on their timestamps and record IDs.
@@ -55,7 +54,6 @@ func (u Update) toProto() *pb.Update {
         RecordId:     u.RecordID,
         DataStreams:  protoDataStreams,
         DatabaseName: u.DatabaseName,
-        Dependencies: u.Dependencies,
     }
 }
 
@@ -74,6 +72,5 @@ func fromProtoUpdate(pu *pb.Update) Update {
         RecordID:     pu.RecordId,
         DataStreams:  dataStreams,
         DatabaseName: pu.DatabaseName,
-        Dependencies: pu.Dependencies,
     }
 }

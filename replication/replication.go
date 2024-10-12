@@ -91,23 +91,16 @@ func (re *ReplicationEngine) broadcastUpdate(update Update) {
 	}
 }
 
-// dependenciesSatisfied checks if all dependencies of an update are met.
-func (re *ReplicationEngine) dependenciesSatisfied(dependencies []string) bool {
-	for _, dep := range dependencies {
-		if !re.storage.Exists(dep) {
-			return false
-		}
-	}
-	return true
+// dependenciesSatisfied checks if the database of an update exists.
+func (re *ReplicationEngine) dependenciesSatisfied(databaseName string) bool {
+	return re.storage.Exists(databaseName)
 }
 
 // bufferUpdate stores an update that can't be applied immediately due to unmet dependencies.
 func (re *ReplicationEngine) bufferUpdate(update Update) {
 	re.bufferMu.Lock()
 	defer re.bufferMu.Unlock()
-	for _, dep := range update.Dependencies {
-		re.bufferedUpdates[dep] = append(re.bufferedUpdates[dep], update)
-	}
+	re.bufferedUpdates[update.DatabaseName] = append(re.bufferedUpdates[update.DatabaseName], update)
 }
 
 // applyUpdate commits an update to storage and processes any buffered updates that now have their dependencies met.
@@ -128,9 +121,9 @@ func (re *ReplicationEngine) applyUpdate(update Update) error {
 }
 
 // handleReceivedUpdate processes an update received from a peer.
-// It checks dependencies and either applies the update or buffers it.
+// It checks if the database exists and either applies the update or buffers it.
 func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
-	if re.dependenciesSatisfied(update.Dependencies) {
+	if re.dependenciesSatisfied(update.DatabaseName) {
 		err := re.applyUpdate(update)
 		if err != nil {
 			log.Println("Failed to apply update:", err)
