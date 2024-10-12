@@ -409,122 +409,149 @@ func TestBatchOperations(t *testing.T) {
 	}
 }
 func TestDeleteRecord(t *testing.T) {
-    db, cleanup := setupTestDB(t)
-    defer cleanup()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
 
-    dataStreams := []DataStream{
-        {StreamID: 1, Data: []byte("Hello")},
-    }
-    err := db.WriteRecord("record1", dataStreams, db.NextTimestamp())
-    if err != nil {
-        t.Fatalf("Failed to write record: %v", err)
-    }
+	dataStreams := []DataStream{
+		{StreamID: 1, Data: []byte("Hello")},
+	}
+	err := db.WriteRecord("record1", dataStreams, db.NextTimestamp())
+	if err != nil {
+		t.Fatalf("Failed to write record: %v", err)
+	}
 
-    oldOffset := db.index["record1"]
+	oldOffset := db.index["record1"]
 
-    // Delete the record
-    err = db.RemoveRecord("record1")
-    if err != nil {
-        t.Fatalf("Failed to delete record: %v", err)
-    }
+	// Delete the record
+	err = db.RemoveRecord("record1")
+	if err != nil {
+		t.Fatalf("Failed to delete record: %v", err)
+	}
 
-    // Verify the old span is marked as free
-    oldSpan, err := parseSpanAtOffset(db.mmapData, oldOffset)
-    if err != nil {
-        t.Fatalf("Failed to parse old span: %v", err)
-    }
-    if oldSpan.MagicNumber != freeMagic {
-        t.Errorf("Expected old span to be marked as free, got: %v", magicNumberToString(oldSpan.MagicNumber))
-    }
+	// Verify the old span is marked as free
+	oldSpan, err := parseSpanAtOffset(db.mmapData, oldOffset)
+	if err != nil {
+		t.Fatalf("Failed to parse old span: %v", err)
+	}
+	if oldSpan.MagicNumber != freeMagic {
+		t.Errorf("Expected old span to be marked as free, got: %v", magicNumberToString(oldSpan.MagicNumber))
+	}
 
-    // Verify the record is in the deletedIndex
-    newOffset, exists := db.deletedIndex["record1"]
-    if !exists {
-        t.Fatal("Expected record to be in deletedIndex")
-    }
-    if newOffset == oldOffset {
-        t.Fatal("Expected new offset to be different from old offset")
-    }
+	// Verify the record is in the deletedIndex
+	newOffset, exists := db.deletedIndex["record1"]
+	if !exists {
+		t.Fatal("Expected record to be in deletedIndex")
+	}
+	if newOffset == oldOffset {
+		t.Fatal("Expected new offset to be different from old offset")
+	}
 
-    // Verify the record is not in the main index
-    if _, exists := db.index["record1"]; exists {
-        t.Fatal("Expected record to be removed from main index")
-    }
+	// Verify the record is not in the main index
+	if _, exists := db.index["record1"]; exists {
+		t.Fatal("Expected record to be removed from main index")
+	}
 
-    deletedSpan, err := parseSpanAtOffset(db.mmapData, newOffset)
-    if err != nil {
-        t.Fatalf("Failed to parse deleted span: %v", err)
-    }
+	deletedSpan, err := parseSpanAtOffset(db.mmapData, newOffset)
+	if err != nil {
+		t.Fatalf("Failed to parse deleted span: %v", err)
+	}
 
-    if deletedSpan.MagicNumber != deletedMagic {
-        t.Errorf("Expected deleted magic number, got: %v", magicNumberToString(deletedSpan.MagicNumber))
-    }
+	if deletedSpan.MagicNumber != deletedMagic {
+		t.Errorf("Expected deleted magic number, got: %v", magicNumberToString(deletedSpan.MagicNumber))
+	}
 
-    if len(deletedSpan.DataStreams) != 0 {
-        t.Errorf("Expected zero data streams in deleted span, got: %d", len(deletedSpan.DataStreams))
-    }
+	if len(deletedSpan.DataStreams) != 0 {
+		t.Errorf("Expected zero data streams in deleted span, got: %d", len(deletedSpan.DataStreams))
+	}
 
-    if deletedSpan.RecordID != "record1" {
-        t.Errorf("Expected RecordID to be preserved, got: %s", deletedSpan.RecordID)
-    }
+	if deletedSpan.RecordID != "record1" {
+		t.Errorf("Expected RecordID to be preserved, got: %s", deletedSpan.RecordID)
+	}
 
-    // Verify IsRecordDeleted method
-    if !db.IsRecordDeleted("record1") {
-        t.Error("Expected IsRecordDeleted to return true")
-    }
+	// Verify IsRecordDeleted method
+	if !db.IsRecordDeleted("record1") {
+		t.Error("Expected IsRecordDeleted to return true")
+	}
 
-    // Try to read the deleted record
-    _, err = db.ReadRecord("record1")
-    if err == nil {
-        t.Fatal("Expected error when reading deleted record, got nil")
-    }
+	// Try to read the deleted record
+	_, err = db.ReadRecord("record1")
+	if err == nil {
+		t.Fatal("Expected error when reading deleted record, got nil")
+	}
 }
 func TestWriteDeletedRecord(t *testing.T) {
-    db, cleanup := setupTestDB(t)
-    defer cleanup()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
 
-    // Write initial record
-    initialData := []DataStream{{StreamID: 1, Data: []byte("Initial")}}
-    err := db.WriteRecord("record1", initialData, db.NextTimestamp())
-    if err != nil {
-        t.Fatalf("Failed to write initial record: %v", err)
-    }
+	// Write initial record
+	initialData := []DataStream{{StreamID: 1, Data: []byte("Initial")}}
+	err := db.WriteRecord("record1", initialData, db.NextTimestamp())
+	if err != nil {
+		t.Fatalf("Failed to write initial record: %v", err)
+	}
 
-    // Delete the record
-    err = db.RemoveRecord("record1")
-    if err != nil {
-        t.Fatalf("Failed to delete record: %v", err)
-    }
+	// Delete the record
+	err = db.RemoveRecord("record1")
+	if err != nil {
+		t.Fatalf("Failed to delete record: %v", err)
+	}
 
-    // Verify the record is deleted
-    if !db.IsRecordDeleted("record1") {
-        t.Fatal("Expected record to be marked as deleted")
-    }
+	// Verify the record is deleted
+	if !db.IsRecordDeleted("record1") {
+		t.Fatal("Expected record to be marked as deleted")
+	}
 
-    // Write the record again
-    newData := []DataStream{{StreamID: 1, Data: []byte("New data")}}
-    err = db.WriteRecord("record1", newData, db.NextTimestamp())
-    if err != nil {
-        t.Fatalf("Failed to write new record: %v", err)
-    }
+	// Write the record again
+	newData := []DataStream{{StreamID: 1, Data: []byte("New data")}}
+	err = db.WriteRecord("record1", newData, db.NextTimestamp())
+	if err != nil {
+		t.Fatalf("Failed to write new record: %v", err)
+	}
 
-    // Verify the record is no longer marked as deleted
-    if db.IsRecordDeleted("record1") {
-        t.Fatal("Expected record to no longer be marked as deleted")
-    }
+	// Verify the record is no longer marked as deleted
+	if db.IsRecordDeleted("record1") {
+		t.Fatal("Expected record to no longer be marked as deleted")
+	}
 
-    // Read the record and verify its contents
-    span, err := db.ReadRecord("record1")
-    if err != nil {
-        t.Fatalf("Failed to read record: %v", err)
-    }
-    if string(span.DataStreams[0].Data) != "New data" {
-        t.Errorf("Expected 'New data', got '%s'", span.DataStreams[0].Data)
-    }
+	// Read the record and verify its contents
+	span, err := db.ReadRecord("record1")
+	if err != nil {
+		t.Fatalf("Failed to read record: %v", err)
+	}
+	if string(span.DataStreams[0].Data) != "New data" {
+		t.Errorf("Expected 'New data', got '%s'", span.DataStreams[0].Data)
+	}
 
-    // Verify that the deleted span has been freed
-    _, exists := db.deletedIndex["record1"]
-    if exists {
-        t.Error("Expected record to be removed from deletedIndex")
-    }
+	// Verify that the deleted span has been freed
+	_, exists := db.deletedIndex["record1"]
+	if exists {
+		t.Error("Expected record to be removed from deletedIndex")
+	}
+}
+
+func TestParseFreedSpan(t *testing.T) {
+	// Create a freed span
+	freedSpan := make([]byte, 8)
+	binary.BigEndian.PutUint32(freedSpan[0:4], freeMagic)
+	binary.BigEndian.PutUint32(freedSpan[4:8], 8) // Length of the span
+
+	// Parse the freed span
+	span, err := parseSpan(freedSpan)
+	if err != nil {
+		t.Fatalf("Failed to parse freed span: %v", err)
+	}
+
+	// Check the parsed span
+	if span.MagicNumber != freeMagic {
+		t.Errorf("Expected magic number %d, got %d", freeMagic, span.MagicNumber)
+	}
+	if span.Length != 8 {
+		t.Errorf("Expected length 8, got %d", span.Length)
+	}
+	if span.RecordID != "" {
+		t.Errorf("Expected empty RecordID, got %s", span.RecordID)
+	}
+	if len(span.DataStreams) != 0 {
+		t.Errorf("Expected no data streams, got %d", len(span.DataStreams))
+	}
 }

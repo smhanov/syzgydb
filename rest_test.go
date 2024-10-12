@@ -373,7 +373,7 @@ func TestUpdateRecordMetadata(t *testing.T) {
 	}
 }
 
-func TestDeleteRecord(t *testing.T) {
+func TestRestDeleteRecord(t *testing.T) {
 	ensureTestFolder(t)
 	server := setupTestServer()
 

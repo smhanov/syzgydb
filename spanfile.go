@@ -4,7 +4,8 @@ Span File Format Grammar:
 SpanFile ::= Span*
 Span ::= MagicNumber (4)
          SpanLength (4)
-         Tim (7code)
+         Time (7code)
+				 LamportTime (7code)
          RecordIDLength (7code)
          RecordID (...bytes)
          DataStreamCount (byte)
@@ -18,7 +19,7 @@ DataStream ::= StreamID (1)
 
 Padding is placed in a span if it is placed before another record,
 and there is not enough space to fit in at leeast an empty span.
-(4+1+1+1+1+4 = 12 bytes)
+(4+4+1+1+1+1+4 = 16 bytes)
 */
 
 package syzgydb
@@ -36,6 +37,14 @@ import (
 	"github.com/edsrzf/mmap-go"
 	"github.com/smhanov/syzgydb/replication"
 )
+
+const (
+	activeMagic  = 0x5350414E // 'SPAN'
+	freeMagic    = 0x46524545 // 'FREE'
+	deletedMagic = 0x44454C45 // 'DELE'
+)
+
+const minSpanLength = 16
 
 // NextTimestamp updates the internal latest timestamp by incrementing the lamport time and returns it
 func (db *SpanFile) NextTimestamp() replication.Timestamp {
@@ -80,14 +89,6 @@ func (db *SpanFile) getSpanReader(recordID string) (*SpanReader, error) {
 
 	return sr, nil
 }
-
-const (
-	activeMagic  = 0x5350414E // 'SPAN'
-	freeMagic    = 0x46524545 // 'FREE'
-	deletedMagic = 0x44454C45 // 'DELE'
-)
-
-const minSpanLength = 15
 
 type DataStream struct {
 	StreamID uint8
@@ -397,123 +398,125 @@ func (db *SpanFile) addFreeSpan(offset, length uint64) {
 }
 
 func (db *SpanFile) RemoveRecord(recordID string) error {
-    db.fileMutex.Lock()
-    defer db.fileMutex.Unlock()
+	db.fileMutex.Lock()
+	defer db.fileMutex.Unlock()
 
-    oldOffset, exists := db.index[recordID]
-    if !exists {
-        return fmt.Errorf("record not found")
-    }
+	oldOffset, exists := db.index[recordID]
+	if !exists {
+		return fmt.Errorf("record not found")
+	}
 
-    // Read the original span
-    oldSpan, err := parseSpanAtOffset(db.mmapData, oldOffset)
-    if err != nil {
-        return err
-    }
+	// Read the original span
+	oldSpan, err := parseSpanAtOffset(db.mmapData, oldOffset)
+	if err != nil {
+		return err
+	}
 
-    // Create a new deleted span
-    deletedSpan := &Span{
-        MagicNumber: deletedMagic,
-        UnixTime:    oldSpan.UnixTime,
-        LamportTime: oldSpan.LamportTime,
-        RecordID:    oldSpan.RecordID,
-        DataStreams: []DataStream{}, // Empty data streams
-    }
+	// Create a new deleted span
+	deletedSpan := &Span{
+		MagicNumber: deletedMagic,
+		UnixTime:    oldSpan.UnixTime,
+		LamportTime: oldSpan.LamportTime,
+		RecordID:    oldSpan.RecordID,
+		DataStreams: []DataStream{}, // Empty data streams
+	}
 
-    // Serialize the deleted span
-    deletedSpanBytes, err := serializeSpan(deletedSpan)
-    if err != nil {
-        return err
-    }
+	// Serialize the deleted span
+	deletedSpanBytes, err := serializeSpan(deletedSpan)
+	if err != nil {
+		return err
+	}
 
-    err = db.writeSpanToAllocatedSpace(deletedSpan, len(deletedSpanBytes)+4) // +4 for checksum
-    if err != nil {
-        return err
-    }
+	var offset uint64
+	offset, err = db.writeSpanToAllocatedSpace(deletedSpan, len(deletedSpanBytes)+4) // +4 for checksum
+	if err != nil {
+		return err
+	}
 
-    // Update the deletedIndex to point to the new deleted span
-    db.deletedIndex[recordID] = uint64(len(db.mmapData) - len(deletedSpanBytes) - 4)
+	// Update the deletedIndex to point to the new deleted span
+	db.deletedIndex[recordID] = offset
 
-    // Remove the record from the main index
-    delete(db.index, recordID)
+	// Remove the record from the main index
+	delete(db.index, recordID)
 
-    // Mark the original span as free
-    oldLength, err := db.getSpanLength(int(oldOffset))
-    if err != nil {
-        return err
-    }
+	// Mark the original span as free
+	oldLength, err := db.getSpanLength(int(oldOffset))
+	if err != nil {
+		return err
+	}
 
-    err = db.markSpanAsFreed(oldOffset)
-    if err != nil {
-        return err
-    }
+	err = db.markSpanAsFreed(oldOffset)
+	if err != nil {
+		return err
+	}
 
-    db.addFreeSpan(oldOffset, oldLength)
+	db.addFreeSpan(oldOffset, oldLength)
 
-    SpanLog("Removed %s: Old span:%d-%d/%d marked as free, new deleted span at %d",
-        recordID, oldOffset, oldOffset+oldLength, oldLength, db.deletedIndex[recordID])
+	SpanLog("Removed %s: Old span:%d-%d/%d marked as free, new deleted span at %d",
+		recordID, oldOffset, oldOffset+oldLength, oldLength, db.deletedIndex[recordID])
 
-    return nil
+	return nil
 }
 
 func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, timestamp replication.Timestamp) error {
-    db.fileMutex.Lock()
-    defer db.fileMutex.Unlock()
+	db.fileMutex.Lock()
+	defer db.fileMutex.Unlock()
 
-    // Check if the record was previously deleted
-    if deletedOffset, wasDeleted := db.deletedIndex[recordID]; wasDeleted {
-        // Mark the deleted span as free
-        deletedLength, err := db.getSpanLength(int(deletedOffset))
-        if err != nil {
-            return err
-        }
-        err = db.markSpanAsFreed(deletedOffset)
-        if err != nil {
-            return err
-        }
-        db.addFreeSpan(deletedOffset, deletedLength)
+	// Check if the record was previously deleted
+	if deletedOffset, wasDeleted := db.deletedIndex[recordID]; wasDeleted {
+		// Mark the deleted span as free
+		deletedLength, err := db.getSpanLength(int(deletedOffset))
+		if err != nil {
+			return err
+		}
+		err = db.markSpanAsFreed(deletedOffset)
+		if err != nil {
+			return err
+		}
+		db.addFreeSpan(deletedOffset, deletedLength)
 
-        // Remove the entry from the deletedIndex
-        delete(db.deletedIndex, recordID)
+		// Remove the entry from the deletedIndex
+		delete(db.deletedIndex, recordID)
 
-        SpanLog("Freed previously deleted span for %s: span:%d-%d/%d",
-            recordID, deletedOffset, deletedOffset+deletedLength, deletedLength)
-    }
+		SpanLog("Freed previously deleted span for %s: span:%d-%d/%d",
+			recordID, deletedOffset, deletedOffset+deletedLength, deletedLength)
+	}
 
-    span := &Span{
-        MagicNumber: activeMagic,
-        UnixTime:    timestamp.UnixTime,
-        LamportTime: timestamp.LamportClock,
-        RecordID:    recordID,
-        DataStreams: dataStreams,
-    }
+	span := &Span{
+		MagicNumber: activeMagic,
+		UnixTime:    timestamp.UnixTime,
+		LamportTime: timestamp.LamportClock,
+		RecordID:    recordID,
+		DataStreams: dataStreams,
+	}
 
-    spanBytes, err := serializeSpan(span)
-    if err != nil {
-        return err
-    }
+	spanBytes, err := serializeSpan(span)
+	if err != nil {
+		return err
+	}
 
-    err = db.writeSpanToAllocatedSpace(span, len(spanBytes)+4) // +4 for checksum
-    if err != nil {
-        return err
-    }
+	var offset uint64
+	offset, err = db.writeSpanToAllocatedSpace(span, len(spanBytes)+4) // +4 for checksum
+	if err != nil {
+		return err
+	}
 
-    if oldOffset, exists := db.index[recordID]; exists {
-        oldLength, err := db.getSpanLength(int(oldOffset))
-        if err != nil {
-            return err
-        }
-        SpanLog(" -->Replaced record %s at span:%v-%v/%v)", recordID, oldOffset, oldOffset+oldLength, oldLength)
-        err = db.markSpanAsFreed(oldOffset)
-        if err != nil {
-            return err
-        }
-        db.addFreeSpan(oldOffset, oldLength)
-    }
+	if oldOffset, exists := db.index[recordID]; exists {
+		oldLength, err := db.getSpanLength(int(oldOffset))
+		if err != nil {
+			return err
+		}
+		SpanLog(" -->Replaced record %s at span:%v-%v/%v)", recordID, oldOffset, oldOffset+oldLength, oldLength)
+		err = db.markSpanAsFreed(oldOffset)
+		if err != nil {
+			return err
+		}
+		db.addFreeSpan(oldOffset, oldLength)
+	}
 
-    db.index[recordID] = uint64(len(db.mmapData) - len(spanBytes) - 4) // Update index with new offset
+	db.index[recordID] = offset // Update index with new offset
 
-    return nil
+	return nil
 }
 
 func (db *SpanFile) allocateSpan(size int) (uint64, int64, error) {
@@ -990,49 +993,49 @@ func (db *SpanFile) IsRecordDeleted(recordID string) bool {
 	_, exists := db.deletedIndex[recordID]
 	return exists
 }
-func (db *SpanFile) writeSpanToAllocatedSpace(span *Span, size int) error {
-    spanBytes, err := serializeSpan(span)
-    if err != nil {
-        return err
-    }
+func (db *SpanFile) writeSpanToAllocatedSpace(span *Span, size int) (uint64, error) {
+	spanBytes, err := serializeSpan(span)
+	if err != nil {
+		return 0, err
+	}
 
-    offset, remaining, err := db.allocateSpan(size)
-    if err != nil {
-        return err
-    }
+	offset, remaining, err := db.allocateSpan(size)
+	if err != nil {
+		return 0, err
+	}
 
-    // Add padding if necessary
-    if remaining > 0 && remaining < minSpanLength {
-        db.freeMap.markUsed(int(offset)+len(spanBytes)+4, int(remaining))
-        padding := make([]byte, remaining)
-        spanBytes = append(spanBytes, padding...)
+	// Add padding if necessary
+	if remaining > 0 && remaining < minSpanLength {
+		db.freeMap.markUsed(int(offset)+len(spanBytes)+4, int(remaining))
+		padding := make([]byte, remaining)
+		spanBytes = append(spanBytes, padding...)
 
-        // Update the length in the spanBytes
-        length := uint32(len(spanBytes) + 4) // +4 for the checksum
-        binary.BigEndian.PutUint32(spanBytes[4:8], length)
-    }
+		// Update the length in the spanBytes
+		length := uint32(len(spanBytes) + 4) // +4 for the checksum
+		binary.BigEndian.PutUint32(spanBytes[4:8], length)
+	}
 
-    checksum := calculateChecksum(spanBytes)
-    spanBytes = append(spanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
+	checksum := calculateChecksum(spanBytes)
+	spanBytes = append(spanBytes, byte(checksum>>24), byte(checksum>>16), byte(checksum>>8), byte(checksum))
 
-    SpanLog("Write %s to span:%v-%v/%v", span.RecordID, offset, offset+uint64(len(spanBytes)), len(spanBytes))
-    if remaining > 0 && remaining < minSpanLength {
-        SpanLog("--->Adding %v bytes of padding", remaining)
-    }
+	SpanLog("Write %s to span:%v-%v/%v", span.RecordID, offset, offset+uint64(len(spanBytes)), len(spanBytes))
+	if remaining > 0 && remaining < minSpanLength {
+		SpanLog("--->Adding %v bytes of padding", remaining)
+	}
 
-    // Add free space marker if necessary
-    if remaining >= minSpanLength {
-        SpanLog(" -->Adding free space marker at span:%v-%v/%v", int(offset)+len(spanBytes), int(offset)+len(spanBytes)+int(remaining), remaining)
-        freeSpan := make([]byte, 8)
-        binary.BigEndian.PutUint32(freeSpan[0:4], freeMagic)
-        binary.BigEndian.PutUint32(freeSpan[4:8], uint32(remaining))
-        spanBytes = append(spanBytes, freeSpan...)
-    }
+	// Add free space marker if necessary
+	if remaining >= minSpanLength {
+		SpanLog(" -->Adding free space marker at span:%v-%v/%v", int(offset)+len(spanBytes), int(offset)+len(spanBytes)+int(remaining), remaining)
+		freeSpan := make([]byte, 8)
+		binary.BigEndian.PutUint32(freeSpan[0:4], freeMagic)
+		binary.BigEndian.PutUint32(freeSpan[4:8], uint32(remaining))
+		spanBytes = append(spanBytes, freeSpan...)
+	}
 
-    err = db.writeAt(spanBytes, offset)
-    if err != nil {
-        return err
-    }
+	err = db.writeAt(spanBytes, offset)
+	if err != nil {
+		return 0, err
+	}
 
-    return nil
+	return offset, nil
 }
