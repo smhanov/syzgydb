@@ -34,7 +34,7 @@ func TestGetCollectionIDs(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	collection, err := server.node.CreateCollection(CollectionOptions{
+	_, err := server.node.CreateCollection(CollectionOptions{
 		Name:           "test_collection",
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
@@ -45,6 +45,7 @@ func TestGetCollectionIDs(t *testing.T) {
 		panic(fmt.Sprintf("Failed to create test collection: %v", err))
 	}
 
+	collection, _ := server.node.GetCollection("test_collection")
 	collection.AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 	collection.AddDocument(1234567891, []float64{0.5, 0.4, 0.3, 0.2, 0.1}, []byte(`{"key2":"value2"}`))
 
@@ -90,9 +91,8 @@ func TestDeleteCollection(t *testing.T) {
 
 	// Create the collection explicitly for this test
 	collectionName := "test_collection"
-	fileName := server.node.collectionNameToFileName(collectionName)
-	collection, err := NewCollection(CollectionOptions{
-		Name:           fileName,
+	_, err := server.node.CreateCollection(CollectionOptions{
+		Name:           collectionName,
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
@@ -100,7 +100,6 @@ func TestDeleteCollection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.node.collections[collectionName] = collection
 
 	req, err := http.NewRequest(http.MethodDelete, "/api/v1/collections/test_collection", nil)
 	if err != nil {
@@ -127,8 +126,8 @@ func TestSearchRecords(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	collection, err := NewCollection(CollectionOptions{
-		Name:           testFilePath("test_collection.dat"),
+	_, err := server.node.CreateCollection(CollectionOptions{
+		Name:           "test_collection",
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
@@ -136,8 +135,8 @@ func TestSearchRecords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.node.collections["test_collection"] = collection
-	server.node.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
+	collection, _ := server.node.GetCollection("test_collection")
+	collection.AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 
 	reqBody := `{"vector": [0.1, 0.2, 0.3, 0.4, 0.5], "k": 1}`
 	req, err := http.NewRequest(http.MethodPost, "/api/v1/collections/test_collection/search", strings.NewReader(reqBody))
@@ -219,8 +218,8 @@ func TestGetCollectionInfo(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	collection, err := NewCollection(CollectionOptions{
-		Name:           testFilePath("test_collection.dat"),
+	_, err := server.node.CreateCollection(CollectionOptions{
+		Name:           "test_collection",
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
@@ -228,7 +227,6 @@ func TestGetCollectionInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.node.collections["test_collection"] = collection
 
 	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections/test_collection", nil)
 	if err != nil {
@@ -328,8 +326,8 @@ func TestInsertRecords(t *testing.T) {
 func TestUpdateRecordMetadata(t *testing.T) {
 	ensureTestFolder(t)
 	server := setupTestServer()
-	collection, err := NewCollection(CollectionOptions{
-		Name:           testFilePath("test_collection.dat"),
+	_, err := server.node.CreateCollection(CollectionOptions{
+		Name:           "test_collection",
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
 		Quantization:   64,
@@ -337,8 +335,8 @@ func TestUpdateRecordMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.node.collections["test_collection"] = collection
-	server.node.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
+	collection, _ := server.node.GetCollection("test_collection")
+	collection.AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 
 	reqBody := `{
 		"metadata": {"key1": "new_value1"}
