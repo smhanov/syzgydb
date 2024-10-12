@@ -1,6 +1,41 @@
 // Package replication defines interfaces and types for the SyzgyDB replication system.
 package replication
 
+import "bytes"
+
+// UpdateType represents the type of update operation.
+type UpdateType int32
+
+const (
+    DeleteRecord   UpdateType = 0
+    UpsertRecord   UpdateType = 1
+    CreateDatabase UpdateType = 2
+    DropDatabase   UpdateType = 3
+)
+
+type DataStream struct {
+    StreamID uint8
+    Data     []byte
+}
+
+// Update represents a single update operation in the replication system.
+type Update struct {
+    Timestamp    Timestamp   `json:"timestamp"`
+    Type         UpdateType  `json:"type"`
+    RecordID     string      `json:"record_id"`
+    DataStreams  []DataStream `json:"data_streams"`
+    DatabaseName string      `json:"database_name"`
+}
+
+// Compare compares two Updates based on their timestamps and record IDs.
+func (u Update) Compare(other Update) int {
+    tsComp := u.Timestamp.Compare(other.Timestamp)
+    if tsComp != 0 {
+        return tsComp
+    }
+    return bytes.Compare([]byte(u.RecordID), []byte(other.RecordID))
+}
+
 // StorageInterface defines the methods that must be implemented by any storage backend
 // to be compatible with the replication system.
 type StorageInterface interface {
