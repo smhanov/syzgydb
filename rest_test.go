@@ -495,8 +495,8 @@ func TestGetAllCollections(t *testing.T) {
 	server := setupTestServer()
 
 	// Create some collections for testing
-	_, err := NewCollection(CollectionOptions{
-		Name:           testFilePath("collection1.dat"),
+	_, err := server.node.CreateCollection(CollectionOptions{
+		Name:           "collection1",
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
@@ -505,8 +505,8 @@ func TestGetAllCollections(t *testing.T) {
 		t.Fatalf("Failed to create collection1: %v", err)
 	}
 
-	_, err = NewCollection(CollectionOptions{
-		Name:           testFilePath("collection2.dat"),
+	_, err = server.node.CreateCollection(CollectionOptions{
+		Name:           "collection2",
 		DistanceMethod: Euclidean,
 		DimensionCount: 64,
 		Quantization:   32,
