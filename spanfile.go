@@ -178,8 +178,7 @@ func (db *SpanFile) Close() error {
 type Span struct {
 	MagicNumber uint32
 	Length      uint64
-	UnixTime    int64
-	LamportTime int64
+	Timestamp   replication.Timestamp
 	RecordID    string
 	DataStreams []DataStream
 	Checksum    uint32
@@ -416,7 +415,7 @@ func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestam
 			return err
 		}
 
-		existingTimestamp := replication.Timestamp{UnixTime: deletedSpan.UnixTime, LamportClock: deletedSpan.LamportTime}
+		existingTimestamp := deletedSpan.Timestamp
 		if existingTimestamp.After(timestamp) || existingTimestamp.Compare(timestamp) == 0 {
 			return nil // Do nothing if the new timestamp is older or equal
 		}
@@ -447,7 +446,7 @@ func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestam
 		return err
 	}
 
-	existingTimestamp := replication.Timestamp{UnixTime: oldSpan.UnixTime, LamportClock: oldSpan.LamportTime}
+	existingTimestamp := oldSpan.Timestamp
 	if existingTimestamp.After(timestamp) {
 		return nil // Ignore the removal if existing timestamp is newer
 	}
@@ -482,8 +481,7 @@ func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestam
 func (db *SpanFile) addDeletedSpan(recordID string, timestamp replication.Timestamp) error {
 	deletedSpan := &Span{
 		MagicNumber: deletedMagic,
-		UnixTime:    timestamp.UnixTime,
-		LamportTime: timestamp.LamportClock,
+		Timestamp:   timestamp,
 		RecordID:    recordID,
 		DataStreams: []DataStream{}, // Empty data streams
 	}
@@ -792,8 +790,8 @@ func serializeSpan(span *Span) ([]byte, error) {
 
 	// Calculate Length
 	length := 4 + 4 + // magic + length
-		lengthOf7Code(uint64(span.UnixTime)) +
-		lengthOf7Code(uint64(span.LamportTime)) +
+		lengthOf7Code(uint64(span.Timestamp.UnixTime)) +
+		lengthOf7Code(uint64(span.Timestamp.LamportClock)) +
 		lengthOf7Code(uint64(len(recordIDBytes))) +
 		uint64(len(recordIDBytes)) +
 		1 + // DataStreamCount
@@ -813,9 +811,9 @@ func serializeSpan(span *Span) ([]byte, error) {
 	// length
 	buf = writeUint32(buf, uint32(length))
 
-	// UnixTime and LamportTime
-	buf = write7Code(buf, uint64(span.UnixTime))
-	buf = write7Code(buf, uint64(span.LamportTime))
+	// Timestamp
+	buf = write7Code(buf, uint64(span.Timestamp.UnixTime))
+	buf = write7Code(buf, uint64(span.Timestamp.LamportClock))
 
 	// Serialize RecordID Length and RecordID
 	buf = write7Code(buf, uint64(len(recordIDBytes)))
@@ -874,21 +872,20 @@ func parseSpan(data []byte) (*Span, error) {
 		return nil, fmt.Errorf("checksum failed")
 	}
 
-	// Parse UnixTime
-	var unixTime uint64
+	// Parse Timestamp
+	var unixTime, lamportClock uint64
 	unixTime, at, err = read7Code(data, at)
 	if err != nil {
 		return nil, err
 	}
-	span.UnixTime = int64(unixTime)
-
-	// Parse LamportTime
-	var lamportTime uint64
-	lamportTime, at, err = read7Code(data, at)
+	lamportClock, at, err = read7Code(data, at)
 	if err != nil {
 		return nil, err
 	}
-	span.LamportTime = int64(lamportTime)
+	span.Timestamp = replication.Timestamp{
+		UnixTime:     int64(unixTime),
+		LamportClock: int64(lamportClock),
+	}
 
 	// Parse RecordID
 	var idlength uint64
