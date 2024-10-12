@@ -34,7 +34,7 @@ func TestGetCollectionIDs(t *testing.T) {
 	server := setupTestServer()
 
 	// Create the collection explicitly for this test
-	_, err := server.node.CreateCollection(CollectionOptions{
+	collection, err := server.node.CreateCollection(CollectionOptions{
 		Name:           "test_collection",
 		DistanceMethod: Cosine,
 		DimensionCount: 5,
@@ -45,7 +45,6 @@ func TestGetCollectionIDs(t *testing.T) {
 		panic(fmt.Sprintf("Failed to create test collection: %v", err))
 	}
 
-	collection, _ := server.node.GetCollection("test_collection")
 	collection.AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 	collection.AddDocument(1234567891, []float64{0.5, 0.4, 0.3, 0.2, 0.1}, []byte(`{"key2":"value2"}`))
 
