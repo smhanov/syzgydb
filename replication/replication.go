@@ -21,6 +21,8 @@ type ReplicationEngine struct {
 	bufferedUpdates map[string][]Update
 	bufferMu        sync.Mutex
 	updateRequests  map[string]*updateRequest
+	gossipTicker    *time.Ticker
+	gossipDone      chan bool
 }
 
 type updateRequest struct {
@@ -49,6 +51,8 @@ func Init(storage StorageInterface, config ReplicationConfig, localTimeStamp Tim
 		peers:           make(map[string]*Peer),
 		lastTimestamp:   localTimeStamp,
 		bufferedUpdates: make(map[string][]Update),
+		gossipTicker:    time.NewTicker(5 * time.Second),
+		gossipDone:      make(chan bool),
 	}
 
 	for _, url := range config.PeerURLs {

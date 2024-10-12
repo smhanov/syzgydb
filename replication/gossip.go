@@ -9,17 +9,20 @@ import (
 
 // GossipLoop runs the gossip protocol, periodically sending gossip messages to peers.
 func (re *ReplicationEngine) GossipLoop() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		re.mu.Lock()
-		for _, peer := range re.peers {
-			if peer.IsConnected() {
-				go re.sendGossipMessage(peer)
+	for {
+		select {
+		case <-re.gossipTicker.C:
+			re.mu.Lock()
+			for _, peer := range re.peers {
+				if peer.IsConnected() {
+					go re.sendGossipMessage(peer)
+				}
 			}
+			re.mu.Unlock()
+		case <-re.gossipDone:
+			re.gossipTicker.Stop()
+			return
 		}
-		re.mu.Unlock()
 	}
 }
 
