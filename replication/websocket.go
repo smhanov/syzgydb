@@ -20,7 +20,7 @@ func (re *ReplicationEngine) ConnectToPeers() {
 		re.mu.Lock()
 		for _, peer := range re.peers {
 			if !peer.IsConnected() {
-				go peer.Connect(re.jwtSecret)
+				go peer.Connect(re.config.JWTSecret)
 			}
 		}
 		re.mu.Unlock()
@@ -31,7 +31,7 @@ func (re *ReplicationEngine) ConnectToPeers() {
 // HandleWebSocket upgrades an HTTP connection to a WebSocket and handles the peer connection.
 func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	tokenString := r.Header.Get("Authorization")
-	_, err := ValidateToken(tokenString, re.jwtSecret)
+	_, err := ValidateToken(tokenString, re.config.JWTSecret)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
