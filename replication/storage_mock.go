@@ -132,7 +132,6 @@ func (ms *MockStorage) GenerateUpdate(dbName string) {
             {StreamID: 1, Data: []byte("Sample data")},
         },
         DatabaseName: dbName,
-        Dependencies: []string{dbName},
     }
     ms.updates[dbName] = append(ms.updates[dbName], update)
 
