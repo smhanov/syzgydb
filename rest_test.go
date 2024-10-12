@@ -43,9 +43,9 @@ func TestGetCollectionIDs(t *testing.T) {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create test collection: %v", err))
 	}
-	server.collections["test_collection"] = collection
-	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
-	server.collections["test_collection"].AddDocument(1234567891, []float64{0.5, 0.4, 0.3, 0.2, 0.1}, []byte(`{"key2":"value2"}`))
+	server.node.collections["test_collection"] = collection
+	server.node.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
+	server.node.collections["test_collection"].AddDocument(1234567891, []float64{0.5, 0.4, 0.3, 0.2, 0.1}, []byte(`{"key2":"value2"}`))
 
 	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections/test_collection/ids", nil)
 	if err != nil {
@@ -89,7 +89,7 @@ func TestDeleteCollection(t *testing.T) {
 
 	// Create the collection explicitly for this test
 	collectionName := "test_collection"
-	fileName := server.collectionNameToFileName(collectionName)
+	fileName := server.node.collectionNameToFileName(collectionName)
 	collection, err := NewCollection(CollectionOptions{
 		Name:           fileName,
 		DistanceMethod: Cosine,
@@ -99,7 +99,7 @@ func TestDeleteCollection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.collections[collectionName] = collection
+	server.node.collections[collectionName] = collection
 
 	req, err := http.NewRequest(http.MethodDelete, "/api/v1/collections/test_collection", nil)
 	if err != nil {
@@ -135,8 +135,8 @@ func TestSearchRecords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.collections["test_collection"] = collection
-	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
+	server.node.collections["test_collection"] = collection
+	server.node.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 
 	reqBody := `{"vector": [0.1, 0.2, 0.3, 0.4, 0.5], "k": 1}`
 	req, err := http.NewRequest(http.MethodPost, "/api/v1/collections/test_collection/search", strings.NewReader(reqBody))
@@ -227,7 +227,7 @@ func TestGetCollectionInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.collections["test_collection"] = collection
+	server.node.collections["test_collection"] = collection
 
 	req, err := http.NewRequest(http.MethodGet, "/api/v1/collections/test_collection", nil)
 	if err != nil {
@@ -278,7 +278,7 @@ func TestInsertRecords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.collections["test_collection"] = collection
+	server.node.collections["test_collection"] = collection
 
 	reqBody := `[
 		{
@@ -336,8 +336,8 @@ func TestUpdateRecordMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.collections["test_collection"] = collection
-	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
+	server.node.collections["test_collection"] = collection
+	server.node.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"key1":"value1"}`))
 
 	reqBody := `{
 		"metadata": {"key1": "new_value1"}
@@ -386,12 +386,12 @@ func TestRestDeleteRecord(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.collections["test_collection"] = collection
+	server.node.collections["test_collection"] = collection
 	metadata, err := json.Marshal(map[string]string{"key1": "value1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	server.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(metadata))
+	server.node.collections["test_collection"].AddDocument(1234567890, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(metadata))
 
 	req, err := http.NewRequest(http.MethodDelete, "/api/v1/collections/test_collection/records/1234567890", nil)
 	if err != nil {
@@ -438,12 +438,12 @@ func TestSearchRecordsWithFilter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test collection: %v", err)
 	}
-	server.collections["test_collection"] = collection
+	server.node.collections["test_collection"] = collection
 
 	// Add documents with different metadata
-	server.collections["test_collection"].AddDocument(1, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"category":"A", "score":80}`))
-	server.collections["test_collection"].AddDocument(2, []float64{0.2, 0.3, 0.4, 0.5, 0.6}, []byte(`{"category":"B", "score":90}`))
-	server.collections["test_collection"].AddDocument(3, []float64{0.3, 0.4, 0.5, 0.6, 0.7}, []byte(`{"category":"A", "score":70}`))
+	server.node.collections["test_collection"].AddDocument(1, []float64{0.1, 0.2, 0.3, 0.4, 0.5}, []byte(`{"category":"A", "score":80}`))
+	server.node.collections["test_collection"].AddDocument(2, []float64{0.2, 0.3, 0.4, 0.5, 0.6}, []byte(`{"category":"B", "score":90}`))
+	server.node.collections["test_collection"].AddDocument(3, []float64{0.3, 0.4, 0.5, 0.6, 0.7}, []byte(`{"category":"A", "score":70}`))
 
 	// Prepare the search request with a filter
 	reqBody := `{
