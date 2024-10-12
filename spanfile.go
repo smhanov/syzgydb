@@ -955,37 +955,7 @@ func SpanLog(format string, v ...interface{}) {
 		log.Printf(format, v...)
 	}
 }
-func (db *SpanFile) markSpanAsDeleted(offset uint64) error {
-	// Read the original span
-	span, err := parseSpanAtOffset(db.mmapData, offset)
-	if err != nil {
-		return err
-	}
 
-	// Create a new deleted span
-	deletedSpan := &Span{
-		MagicNumber: deletedMagic,
-		Length:      span.Length,
-		UnixTime:    span.UnixTime,
-		LamportTime: span.LamportTime,
-		RecordID:    span.RecordID,
-		DataStreams: []DataStream{}, // Empty data streams
-	}
-
-	// Serialize the deleted span
-	deletedSpanBytes, err := serializeSpan(deletedSpan)
-	if err != nil {
-		return err
-	}
-
-	// Write the deleted span
-	err = db.writeAt(deletedSpanBytes, offset)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
 func (db *SpanFile) IsRecordDeleted(recordID string) bool {
 	db.fileMutex.RLock()
 	defer db.fileMutex.RUnlock()
@@ -993,6 +963,7 @@ func (db *SpanFile) IsRecordDeleted(recordID string) bool {
 	_, exists := db.deletedIndex[recordID]
 	return exists
 }
+
 func (db *SpanFile) writeSpanToAllocatedSpace(span *Span, size int) (uint64, error) {
 	spanBytes, err := serializeSpan(span)
 	if err != nil {
