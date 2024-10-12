@@ -16,7 +16,6 @@ type ReplicationEngine struct {
 	storage         StorageInterface
 	config          ReplicationConfig
 	peers           map[string]*Peer
-	updatesChan     <-chan Update
 	lastTimestamp   Timestamp
 	mu              sync.Mutex
 	bufferedUpdates map[string][]Update
@@ -31,7 +30,7 @@ type updateRequest struct {
 }
 
 // Init initializes a new ReplicationEngine with the given parameters.
-// It sets up the necessary channels, starts background processes,
+// It sets up the necessary structures, starts background processes,
 // and prepares the engine for operation.
 func Init(storage StorageInterface, config ReplicationConfig, localTimeStamp Timestamp) (*ReplicationEngine, error) {
 	if storage == nil {
@@ -44,16 +43,10 @@ func Init(storage StorageInterface, config ReplicationConfig, localTimeStamp Tim
 		return nil, errors.New("config.JWTSecret cannot be empty")
 	}
 
-	updatesChan, err := storage.SubscribeUpdates()
-	if err != nil {
-		return nil, err
-	}
-
 	re := &ReplicationEngine{
 		storage:         storage,
 		config:          config,
 		peers:           make(map[string]*Peer),
-		updatesChan:     updatesChan,
 		lastTimestamp:   localTimeStamp,
 		bufferedUpdates: make(map[string][]Update),
 	}
@@ -63,7 +56,6 @@ func Init(storage StorageInterface, config ReplicationConfig, localTimeStamp Tim
 	}
 
 	// Start background processes
-	go re.processLocalUpdates()
 	go re.GossipLoop()
 	go re.ConnectToPeers()
 	go re.startBufferedUpdatesProcessor()
@@ -77,11 +69,32 @@ func (re *ReplicationEngine) GetHandler() http.Handler {
 	return http.HandlerFunc(re.HandleWebSocket)
 }
 
-// processLocalUpdates listens for local updates and broadcasts them to peers.
-func (re *ReplicationEngine) processLocalUpdates() {
-	for update := range re.updatesChan {
+// SubmitUpdates commits a batch of updates to storage and broadcasts them to peers.
+func (re *ReplicationEngine) SubmitUpdates(updates []Update) error {
+	// Sort updates by timestamp
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].Timestamp.Compare(updates[j].Timestamp) < 0
+	})
+
+	// Commit updates to storage
+	err := re.storage.CommitUpdates(updates)
+	if err != nil {
+		return err
+	}
+
+	// Update lastTimestamp
+	re.mu.Lock()
+	if len(updates) > 0 && updates[len(updates)-1].Timestamp.After(re.lastTimestamp) {
+		re.lastTimestamp = updates[len(updates)-1].Timestamp
+	}
+	re.mu.Unlock()
+
+	// Broadcast updates to peers
+	for _, update := range updates {
 		re.broadcastUpdate(update)
 	}
+
+	return nil
 }
 
 // broadcastUpdate sends an update to all connected peers.
