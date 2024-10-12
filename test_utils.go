@@ -55,11 +55,7 @@ func setupTestServer() *Server {
 	ensureTestFolder(nil) // We're not in a test context here, so pass nil
 
 	globalConfig.DataFolder = "./testdata" // Set the data folder to the testfolder
-	server := &Server{
-		collections: make(map[string]*Collection),
-	}
+	node := NewNode(globalConfig.DataFolder)
 
-	os.Remove(testFilePath("test_collection.dat"))
-
-	return server
+	return &Server{node: node}
 }

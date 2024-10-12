@@ -376,7 +376,7 @@ func TestBatchOperations(t *testing.T) {
 				if _, exists := expectedRecords[recordID]; exists {
 					delete(expectedRecords, recordID)
 					// Simulate deletion by writing an empty data stream
-					err := db.RemoveRecord(recordID)
+					err := db.RemoveRecord(recordID, db.NextTimestamp())
 					if err != nil {
 						t.Fatalf("Failed to delete record: %v", err)
 					}
@@ -396,7 +396,6 @@ func TestBatchOperations(t *testing.T) {
 
 		// Verify all expected records are present
 		for recordID, expectedData := range expectedRecords {
-			t.Logf("Verifying record %s", recordID)
 			span, err := db.ReadRecord(recordID)
 			if err != nil {
 				DumpIndex(name)
@@ -423,7 +422,7 @@ func TestDeleteRecord(t *testing.T) {
 	oldOffset := db.index["record1"]
 
 	// Delete the record
-	err = db.RemoveRecord("record1")
+	err = db.RemoveRecord("record1", db.NextTimestamp())
 	if err != nil {
 		t.Fatalf("Failed to delete record: %v", err)
 	}
@@ -491,7 +490,7 @@ func TestWriteDeletedRecord(t *testing.T) {
 	}
 
 	// Delete the record
-	err = db.RemoveRecord("record1")
+	err = db.RemoveRecord("record1", db.NextTimestamp())
 	if err != nil {
 		t.Fatalf("Failed to delete record: %v", err)
 	}

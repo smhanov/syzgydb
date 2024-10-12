@@ -3,6 +3,8 @@ package replication
 import (
 	"testing"
 	"time"
+
+	jwt "github.com/golang-jwt/jwt/v4"
 )
 
 func TestJWTGenerationAndValidation(t *testing.T) {

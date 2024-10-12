@@ -6,17 +6,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
 type Server struct {
-    node *Node
+	node *Node
 }
 
 func gzipMiddleware(next http.Handler) http.Handler {
@@ -45,67 +42,67 @@ func (w gzipResponseWriter) Write(b []byte) (int, error) {
 }
 
 func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
-    log.Printf("Received %s request for %s", r.Method, r.URL.Path)
+	log.Printf("Received %s request for %s", r.Method, r.URL.Path)
 
-    switch r.Method {
-    case http.MethodPost:
-        var temp struct {
-            Name           string `json:"name"`
-            DistanceMethod string `json:"distance_function"`
-            DimensionCount int    `json:"vector_size"`
-            Quantization   int    `json:"quantization"`
-        }
+	switch r.Method {
+	case http.MethodPost:
+		var temp struct {
+			Name           string `json:"name"`
+			DistanceMethod string `json:"distance_function"`
+			DimensionCount int    `json:"vector_size"`
+			Quantization   int    `json:"quantization"`
+		}
 
-        if err := json.NewDecoder(r.Body).Decode(&temp); err != nil {
-            writeErrorResponse(w, "Invalid request body", http.StatusBadRequest)
-            return
-        }
+		if err := json.NewDecoder(r.Body).Decode(&temp); err != nil {
+			writeErrorResponse(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
 
-        log.Printf("Creating collection with options: %+v", temp)
+		log.Printf("Creating collection with options: %+v", temp)
 
-        opts := CollectionOptions{
-            Name:           temp.Name,
-            DimensionCount: temp.DimensionCount,
-            Quantization:   temp.Quantization,
-        }
+		opts := CollectionOptions{
+			Name:           temp.Name,
+			DimensionCount: temp.DimensionCount,
+			Quantization:   temp.Quantization,
+		}
 
-        switch temp.DistanceMethod {
-        case "euclidean":
-            opts.DistanceMethod = Euclidean
-        case "cosine":
-            opts.DistanceMethod = Cosine
-        default:
-            writeErrorResponse(w, "Invalid distance method", http.StatusBadRequest)
-            return
-        }
+		switch temp.DistanceMethod {
+		case "euclidean":
+			opts.DistanceMethod = Euclidean
+		case "cosine":
+			opts.DistanceMethod = Cosine
+		default:
+			writeErrorResponse(w, "Invalid distance method", http.StatusBadRequest)
+			return
+		}
 
-        err := s.node.CreateCollection(opts)
-        if err != nil {
-            writeErrorResponse(w, fmt.Sprintf("Failed to create collection: %v", err), http.StatusInternalServerError)
-            return
-        }
+		_, err := s.node.CreateCollection(opts)
+		if err != nil {
+			writeErrorResponse(w, fmt.Sprintf("Failed to create collection: %v", err), http.StatusInternalServerError)
+			return
+		}
 
-        log.Printf("Collection %s created successfully", opts.Name)
-        w.WriteHeader(http.StatusCreated)
-        json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": opts.Name})
+		log.Printf("Collection %s created successfully", opts.Name)
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Collection created successfully.", "collection_name": opts.Name})
 
-    case http.MethodGet:
-        collectionsInfo := []collectionStatsWithName{}
+	case http.MethodGet:
+		collectionsInfo := []collectionStatsWithName{}
 
-        for name, collection := range s.node.collections {
-            collectionsInfo = append(collectionsInfo, s.getCollectionStats(collection, name))
-        }
+		for name, collection := range s.node.collections {
+			collectionsInfo = append(collectionsInfo, s.getCollectionStats(collection, name))
+		}
 
-        sort.Slice(collectionsInfo, func(i, j int) bool {
-            return collectionsInfo[i].DocumentCount > collectionsInfo[j].DocumentCount
-        })
+		sort.Slice(collectionsInfo, func(i, j int) bool {
+			return collectionsInfo[i].DocumentCount > collectionsInfo[j].DocumentCount
+		})
 
-        w.WriteHeader(http.StatusOK)
-        w.Header().Set("Content-Type", "application/json")
-        encoder := json.NewEncoder(w)
-        encoder.SetIndent("", "  ")
-        encoder.Encode(collectionsInfo)
-    }
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		encoder.Encode(collectionsInfo)
+	}
 }
 
 func (s *Server) handleGetCollectionIDs(w http.ResponseWriter, r *http.Request) {
@@ -116,9 +113,7 @@ func (s *Server) handleGetCollectionIDs(w http.ResponseWriter, r *http.Request) 
 	}
 	collectionName := parts[4]
 
-	s.mutex.Lock()
-	collection, exists := s.collections[collectionName]
-	s.mutex.Unlock()
+	collection, exists := s.node.GetCollection(collectionName)
 
 	if !exists {
 		http.Error(w, "Collection not found", http.StatusNotFound)
@@ -158,7 +153,7 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("Fetching info for collection %s", collectionName)
-		json.NewEncoder(w).Encode(s.getCollectionStats(collection))
+		json.NewEncoder(w).Encode(s.getCollectionStats(collection, collectionName))
 
 	case http.MethodDelete:
 		log.Printf("Deleting collection %s", collectionName)
@@ -433,11 +428,11 @@ type collectionStatsWithName struct {
 }
 
 func (s *Server) getCollectionStats(collection *Collection, name string) collectionStatsWithName {
-    stats := collection.ComputeStats()
-    return collectionStatsWithName{
-        CollectionStats: stats,
-        Name:            name,
-    }
+	stats := collection.ComputeStats()
+	return collectionStatsWithName{
+		CollectionStats: stats,
+		Name:            name,
+	}
 }
 
 func writeErrorResponse(w http.ResponseWriter, message string, statusCode int) {

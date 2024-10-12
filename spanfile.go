@@ -32,7 +32,6 @@ import (
 	"os"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/edsrzf/mmap-go"
 	"github.com/smhanov/syzgydb/replication"
@@ -50,15 +49,7 @@ const minSpanLength = 16
 func (db *SpanFile) NextTimestamp() replication.Timestamp {
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
-
-	currentTime := time.Now().UnixNano() / int64(time.Millisecond)
-	if currentTime > db.latestTimestamp.UnixTime {
-		db.latestTimestamp.UnixTime = currentTime
-		db.latestTimestamp.LamportClock = 0
-	} else {
-		db.latestTimestamp.LamportClock++
-	}
-
+	db.latestTimestamp = db.latestTimestamp.Next()
 	return db.latestTimestamp
 }
 
@@ -251,8 +242,7 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 		// Create a minimal valid span
 		span := &Span{
 			MagicNumber: activeMagic,
-			UnixTime:    time.Now().UnixNano() / int64(time.Millisecond),
-			LamportTime: 0,
+			Timestamp:   replication.Now(),
 		}
 
 		// Serialize the span
@@ -320,8 +310,8 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 func (db *SpanFile) scanFile() error {
 	offset := 0
 	fileSize := len(db.mmapData)
-	var latestUnixTime int64
-	var latestLamportTime int64
+	latestTimestamp := replication.Now()
+
 	for offset < fileSize {
 		// Ensure there is enough data to read the magic number and length
 		if offset+minSpanLength > fileSize {
@@ -365,9 +355,8 @@ func (db *SpanFile) scanFile() error {
 
 			SpanLog("USED: span:%v-%v/%v (%s)", offset, offset+int(length), length, span.RecordID)
 
-			if span.UnixTime > latestUnixTime || (span.UnixTime == latestUnixTime && span.LamportTime > latestLamportTime) {
-				latestUnixTime = span.UnixTime
-				latestLamportTime = span.LamportTime
+			if span.Timestamp.After(latestTimestamp) {
+				latestTimestamp = span.Timestamp
 			}
 
 			db.index[span.RecordID] = uint64(offset)
@@ -387,7 +376,7 @@ func (db *SpanFile) scanFile() error {
 
 	db.addFreeSpan(uint64(offset), uint64(fileSize-offset))
 
-	db.latestTimestamp = replication.Timestamp{UnixTime: latestUnixTime, LamportClock: latestLamportTime}
+	db.latestTimestamp = latestTimestamp
 	return nil
 }
 
@@ -415,8 +404,7 @@ func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestam
 			return err
 		}
 
-		existingTimestamp := deletedSpan.Timestamp
-		if existingTimestamp.After(timestamp) || existingTimestamp.Compare(timestamp) == 0 {
+		if deletedSpan.Timestamp.After(timestamp) {
 			return nil // Do nothing if the new timestamp is older or equal
 		}
 
@@ -446,8 +434,7 @@ func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestam
 		return err
 	}
 
-	existingTimestamp := oldSpan.Timestamp
-	if existingTimestamp.After(timestamp) {
+	if oldSpan.Timestamp.After(timestamp) {
 		return nil // Ignore the removal if existing timestamp is newer
 	}
 
@@ -522,16 +509,14 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, times
 			return err
 		}
 
-		existingTimestamp := replication.Timestamp{UnixTime: existingSpan.UnixTime, LamportClock: existingSpan.LamportTime}
-		if existingTimestamp.After(timestamp) {
+		if existingSpan.Timestamp.After(timestamp) {
 			return nil // Ignore the write
 		}
 	}
 
 	span := &Span{
 		MagicNumber: activeMagic,
-		UnixTime:    timestamp.UnixTime,
-		LamportTime: timestamp.LamportClock,
+		Timestamp:   timestamp,
 		RecordID:    recordID,
 		DataStreams: dataStreams,
 	}
