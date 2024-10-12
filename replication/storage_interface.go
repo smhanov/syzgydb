@@ -36,6 +36,13 @@ func (u Update) Compare(other Update) int {
     return bytes.Compare([]byte(u.RecordID), []byte(other.RecordID))
 }
 
+// ReplicationConfig holds the configuration settings for the replication engine.
+type ReplicationConfig struct {
+    OwnURL    string   `json:"own_url"`
+    PeerURLs  []string `json:"peer_urls"`
+    JWTSecret []byte   `json:"jwt_secret"`
+}
+
 // StorageInterface defines the methods that must be implemented by any storage backend
 // to be compatible with the replication system.
 type StorageInterface interface {

@@ -14,10 +14,9 @@ import (
 // and coordinates the gossip protocol.
 type ReplicationEngine struct {
 	storage         StorageInterface
-	ownURL          string
+	config          ReplicationConfig
 	peers           map[string]*Peer
 	updatesChan     <-chan Update
-	jwtSecret       []byte
 	lastTimestamp   Timestamp
 	mu              sync.Mutex
 	bufferedUpdates map[string][]Update
@@ -27,15 +26,15 @@ type ReplicationEngine struct {
 // Init initializes a new ReplicationEngine with the given parameters.
 // It sets up the necessary channels, starts background processes,
 // and prepares the engine for operation.
-func Init(storage StorageInterface, ownURL string, peerURLs []string, jwtSecret []byte, localTimeStamp Timestamp) (*ReplicationEngine, error) {
+func Init(storage StorageInterface, config ReplicationConfig, localTimeStamp Timestamp) (*ReplicationEngine, error) {
 	if storage == nil {
 		return nil, errors.New("storage cannot be nil")
 	}
-	if ownURL == "" {
-		return nil, errors.New("ownURL cannot be empty")
+	if config.OwnURL == "" {
+		return nil, errors.New("config.OwnURL cannot be empty")
 	}
-	if len(jwtSecret) == 0 {
-		return nil, errors.New("jwtSecret cannot be empty")
+	if len(config.JWTSecret) == 0 {
+		return nil, errors.New("config.JWTSecret cannot be empty")
 	}
 
 	updatesChan, err := storage.SubscribeUpdates()
@@ -45,15 +44,14 @@ func Init(storage StorageInterface, ownURL string, peerURLs []string, jwtSecret 
 
 	re := &ReplicationEngine{
 		storage:         storage,
-		ownURL:          ownURL,
+		config:          config,
 		peers:           make(map[string]*Peer),
 		updatesChan:     updatesChan,
-		jwtSecret:       jwtSecret,
-		lastTimestamp:   localTimeStamp, // Use the provided localTimeStamp for lastTimestamp
+		lastTimestamp:   localTimeStamp,
 		bufferedUpdates: make(map[string][]Update),
 	}
 
-	for _, url := range peerURLs {
+	for _, url := range config.PeerURLs {
 		re.peers[url] = NewPeer(url)
 	}
 
