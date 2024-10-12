@@ -397,7 +397,7 @@ func (db *SpanFile) addFreeSpan(offset, length uint64) {
 	db.freeMap.markFree(int(offset), int(length)) // Use markFree from freeMap
 }
 
-func (db *SpanFile) RemoveRecord(recordID string) error {
+func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestamp) error {
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
 
@@ -412,11 +412,17 @@ func (db *SpanFile) RemoveRecord(recordID string) error {
 		return err
 	}
 
+	// Check if the existing record's timestamp is after the one passed in
+	existingTimestamp := replication.Timestamp{UnixTime: oldSpan.UnixTime, LamportClock: oldSpan.LamportTime}
+	if existingTimestamp.After(timestamp) {
+		return nil // Ignore the removal
+	}
+
 	// Create a new deleted span
 	deletedSpan := &Span{
 		MagicNumber: deletedMagic,
-		UnixTime:    oldSpan.UnixTime,
-		LamportTime: oldSpan.LamportTime,
+		UnixTime:    timestamp.UnixTime,
+		LamportTime: timestamp.LamportClock,
 		RecordID:    oldSpan.RecordID,
 		DataStreams: []DataStream{}, // Empty data streams
 	}
@@ -462,24 +468,28 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, times
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
 
-	// Check if the record was previously deleted
-	if deletedOffset, wasDeleted := db.deletedIndex[recordID]; wasDeleted {
-		// Mark the deleted span as free
-		deletedLength, err := db.getSpanLength(int(deletedOffset))
+	// Check if the record was previously deleted or already exists
+	existingOffset, exists := db.index[recordID]
+	deletedOffset, wasDeleted := db.deletedIndex[recordID]
+
+	if exists || wasDeleted {
+		var existingSpan *Span
+		var err error
+
+		if exists {
+			existingSpan, err = parseSpanAtOffset(db.mmapData, existingOffset)
+		} else {
+			existingSpan, err = parseSpanAtOffset(db.mmapData, deletedOffset)
+		}
+
 		if err != nil {
 			return err
 		}
-		err = db.markSpanAsFreed(deletedOffset)
-		if err != nil {
-			return err
+
+		existingTimestamp := replication.Timestamp{UnixTime: existingSpan.UnixTime, LamportClock: existingSpan.LamportTime}
+		if existingTimestamp.After(timestamp) {
+			return nil // Ignore the write
 		}
-		db.addFreeSpan(deletedOffset, deletedLength)
-
-		// Remove the entry from the deletedIndex
-		delete(db.deletedIndex, recordID)
-
-		SpanLog("Freed previously deleted span for %s: span:%d-%d/%d",
-			recordID, deletedOffset, deletedOffset+deletedLength, deletedLength)
 	}
 
 	span := &Span{
@@ -501,17 +511,30 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, times
 		return err
 	}
 
-	if oldOffset, exists := db.index[recordID]; exists {
-		oldLength, err := db.getSpanLength(int(oldOffset))
+	if exists {
+		oldLength, err := db.getSpanLength(int(existingOffset))
 		if err != nil {
 			return err
 		}
-		SpanLog(" -->Replaced record %s at span:%v-%v/%v)", recordID, oldOffset, oldOffset+oldLength, oldLength)
-		err = db.markSpanAsFreed(oldOffset)
+		SpanLog(" -->Replaced record %s at span:%v-%v/%v)", recordID, existingOffset, existingOffset+oldLength, oldLength)
+		err = db.markSpanAsFreed(existingOffset)
 		if err != nil {
 			return err
 		}
-		db.addFreeSpan(oldOffset, oldLength)
+		db.addFreeSpan(existingOffset, oldLength)
+	}
+
+	if wasDeleted {
+		delete(db.deletedIndex, recordID)
+		deletedLength, err := db.getSpanLength(int(deletedOffset))
+		if err != nil {
+			return err
+		}
+		err = db.markSpanAsFreed(deletedOffset)
+		if err != nil {
+			return err
+		}
+		db.addFreeSpan(deletedOffset, deletedLength)
 	}
 
 	db.index[recordID] = offset // Update index with new offset
