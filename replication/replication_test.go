@@ -24,7 +24,6 @@ func TestMockStorage(t *testing.T) {
 			RecordID:     "",
 			DataStreams:  []DataStream{{StreamID: 0, Data: []byte("test_db")}},
 			DatabaseName: "test_db",
-			Dependencies: []string{},
 		},
 	})
 

@@ -18,7 +18,7 @@ DataStream ::= StreamID (1)
   StreamData (...bytes)
 
 Padding is placed in a span if it is placed before another record,
-and there is not enough space to fit in at leeast an empty span.
+and there is not enough space to fit in at least an empty span.
 (4+4+1+1+1+1+4 = 16 bytes)
 */
 
