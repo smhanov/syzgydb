@@ -71,11 +71,6 @@ func (re *ReplicationEngine) GetHandler() http.Handler {
 
 // SubmitUpdates commits a batch of updates to storage and broadcasts them to peers.
 func (re *ReplicationEngine) SubmitUpdates(updates []Update) error {
-	// Sort updates by timestamp
-	sort.Slice(updates, func(i, j int) bool {
-		return updates[i].Timestamp.Compare(updates[j].Timestamp) < 0
-	})
-
 	// Commit updates to storage
 	err := re.storage.CommitUpdates(updates)
 	if err != nil {
@@ -219,4 +214,11 @@ func (re *ReplicationEngine) startBufferedUpdatesProcessor() {
 			re.bufferMu.Unlock()
 		}
 	}()
+}
+
+// NextTimestamp generates and returns the next logical timestamp.
+func (re *ReplicationEngine) NextTimestamp() Timestamp {
+	re.mu.Lock()
+	defer re.mu.Unlock()
+	return re.lastTimestamp.Next()
 }
