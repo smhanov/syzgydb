@@ -92,11 +92,9 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
     case http.MethodGet:
         collectionsInfo := []collectionStatsWithName{}
 
-        s.node.mutex.RLock()
         for name, collection := range s.node.collections {
             collectionsInfo = append(collectionsInfo, s.getCollectionStats(collection, name))
         }
-        s.node.mutex.RUnlock()
 
         sort.Slice(collectionsInfo, func(i, j int) bool {
             return collectionsInfo[i].DocumentCount > collectionsInfo[j].DocumentCount
@@ -142,10 +140,7 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 	}
 	collectionName := parts[4]
 
-	s.mutex.Lock()
-	collection, exists := s.collections[collectionName]
-	s.mutex.Unlock()
-
+	collection, exists := s.node.GetCollection(collectionName)
 	if !exists {
 		if r.Method == http.MethodDelete {
 			w.WriteHeader(http.StatusOK)
@@ -167,11 +162,11 @@ func (s *Server) handleCollection(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodDelete:
 		log.Printf("Deleting collection %s", collectionName)
-		s.mutex.Lock()
-		delete(s.collections, collectionName)
-		s.mutex.Unlock()
-		collection.Close()
-		os.Remove(s.collectionNameToFileName(collectionName))
+		err := s.node.DropCollection(collectionName)
+		if err != nil {
+			writeErrorResponse(w, fmt.Sprintf("Failed to delete collection: %v", err), http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Collection deleted successfully."})
 	}
@@ -185,10 +180,7 @@ func (s *Server) handleInsertRecord(w http.ResponseWriter, r *http.Request) {
 	}
 	collectionName := parts[4]
 
-	s.mutex.Lock()
-	collection, exists := s.collections[collectionName]
-	s.mutex.Unlock()
-
+	collection, exists := s.node.GetCollection(collectionName)
 	if !exists {
 		http.Error(w, "Collection not found", http.StatusNotFound)
 		return
@@ -263,10 +255,7 @@ func (s *Server) handleUpdateMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mutex.Lock()
-	collection, exists := s.collections[collectionName]
-	s.mutex.Unlock()
-
+	collection, exists := s.node.GetCollection(collectionName)
 	if !exists {
 		http.Error(w, "Collection not found", http.StatusNotFound)
 		return
@@ -310,10 +299,7 @@ func (s *Server) handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mutex.Lock()
-	collection, exists := s.collections[collectionName]
-	s.mutex.Unlock()
-
+	collection, exists := s.node.GetCollection(collectionName)
 	if !exists {
 		http.Error(w, "Collection not found", http.StatusNotFound)
 		return
@@ -335,10 +321,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 	}
 	collectionName := parts[4]
 
-	s.mutex.Lock()
-	collection, exists := s.collections[collectionName]
-	s.mutex.Unlock()
-
+	collection, exists := s.node.GetCollection(collectionName)
 	if !exists {
 		http.Error(w, "Collection not found", http.StatusNotFound)
 		return
