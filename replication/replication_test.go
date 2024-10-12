@@ -21,8 +21,10 @@ func TestMockStorage(t *testing.T) {
 		{
 			Timestamp:    Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 1},
 			Type:         CreateDatabase,
-			Data:         []byte("test_db"),
+			RecordID:     "",
+			DataStreams:  []DataStream{{StreamID: 0, Data: []byte("test_db")}},
 			DatabaseName: "test_db",
+			Dependencies: []string{},
 		},
 	})
 
