@@ -27,14 +27,14 @@ type ReplicationEngine struct {
 // Init initializes a new ReplicationEngine with the given parameters.
 // It sets up the necessary channels, starts background processes,
 // and prepares the engine for operation.
-func Init(storage StorageInterface, ownURL string, peerURLs []string, jwtSecret []byte) (*ReplicationEngine, error) {
+func Init(storage StorageInterface, ownURL string, peerURLs []string, jwtSecret []byte, localTimeStamp Timestamp) (*ReplicationEngine, error) {
 	if storage == nil {
 		return nil, errors.New("storage cannot be nil")
 	}
 	if ownURL == "" {
 		return nil, errors.New("ownURL cannot be empty")
 	}
-	if jwtSecret == nil || len(jwtSecret) == 0 {
+	if len(jwtSecret) == 0 {
 		return nil, errors.New("jwtSecret cannot be empty")
 	}
 
@@ -49,7 +49,7 @@ func Init(storage StorageInterface, ownURL string, peerURLs []string, jwtSecret 
 		peers:           make(map[string]*Peer),
 		updatesChan:     updatesChan,
 		jwtSecret:       jwtSecret,
-		lastTimestamp:   Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 0},
+		lastTimestamp:   localTimeStamp, // Use the provided localTimeStamp for lastTimestamp
 		bufferedUpdates: make(map[string][]Update),
 	}
 
@@ -98,6 +98,8 @@ func (re *ReplicationEngine) dependenciesSatisfied(update Update) bool {
 
 // bufferUpdate stores an update that can't be applied immediately due to unmet dependencies.
 func (re *ReplicationEngine) bufferUpdate(update Update) {
+	log.Printf("Buffer update %+v", update)
+
 	re.bufferMu.Lock()
 	defer re.bufferMu.Unlock()
 	re.bufferedUpdates[update.DatabaseName] = append(re.bufferedUpdates[update.DatabaseName], update)
@@ -105,6 +107,7 @@ func (re *ReplicationEngine) bufferUpdate(update Update) {
 
 // applyUpdate commits an update to storage and processes any buffered updates that now have their dependencies met.
 func (re *ReplicationEngine) applyUpdate(update Update) error {
+	log.Printf("Apply update %+v", update)
 	err := re.storage.CommitUpdates([]Update{update})
 	if err != nil {
 		return err
