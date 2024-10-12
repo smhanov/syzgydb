@@ -16,42 +16,64 @@ const (
 	DropDatabase   UpdateType = 3
 )
 
+type DataStream struct {
+    StreamID uint8
+    Data     []byte
+}
+
 // Update represents a single update operation in the replication system.
 type Update struct {
     Timestamp    Timestamp   `json:"timestamp"`
     Type         UpdateType  `json:"type"`
-    Data         []byte      `json:"data"`
+    RecordID     string      `json:"record_id"`
+    DataStreams  []DataStream `json:"data_streams"`
     DatabaseName string      `json:"database_name"`
     Dependencies []string    `json:"dependencies"`
 }
 
-// Compare compares two Updates based on their timestamps and data.
+// Compare compares two Updates based on their timestamps and record IDs.
 func (u Update) Compare(other Update) int {
-	tsComp := u.Timestamp.Compare(other.Timestamp)
-	if tsComp != 0 {
-		return tsComp
-	}
-	return bytes.Compare(u.Data, other.Data)
+    tsComp := u.Timestamp.Compare(other.Timestamp)
+    if tsComp != 0 {
+        return tsComp
+    }
+    return bytes.Compare([]byte(u.RecordID), []byte(other.RecordID))
 }
 
 // toProto converts an Update to its protobuf representation.
 func (u Update) toProto() *pb.Update {
-	return &pb.Update{
-		Timestamp:    u.Timestamp.toProto(),
-		Type:         pb.Update_UpdateType(u.Type),
-		Data:         u.Data,
-		DatabaseName: u.DatabaseName,
-		Dependencies: u.Dependencies,
-	}
+    protoDataStreams := make([]*pb.DataStream, len(u.DataStreams))
+    for i, ds := range u.DataStreams {
+        protoDataStreams[i] = &pb.DataStream{
+            StreamId: uint32(ds.StreamID),
+            Data:     ds.Data,
+        }
+    }
+    return &pb.Update{
+        Timestamp:    u.Timestamp.toProto(),
+        Type:         pb.Update_UpdateType(u.Type),
+        RecordId:     u.RecordID,
+        DataStreams:  protoDataStreams,
+        DatabaseName: u.DatabaseName,
+        Dependencies: u.Dependencies,
+    }
 }
 
 // fromProtoUpdate converts a protobuf Update to an Update struct.
 func fromProtoUpdate(pu *pb.Update) Update {
-	return Update{
-		Timestamp:    fromProtoTimestamp(pu.Timestamp),
-		Type:         UpdateType(pu.Type),
-		Data:         pu.Data,
-		DatabaseName: pu.DatabaseName,
-		Dependencies: pu.Dependencies,
-	}
+    dataStreams := make([]DataStream, len(pu.DataStreams))
+    for i, pds := range pu.DataStreams {
+        dataStreams[i] = DataStream{
+            StreamID: uint8(pds.StreamId),
+            Data:     pds.Data,
+        }
+    }
+    return Update{
+        Timestamp:    fromProtoTimestamp(pu.Timestamp),
+        Type:         UpdateType(pu.Type),
+        RecordID:     pu.RecordId,
+        DataStreams:  dataStreams,
+        DatabaseName: pu.DatabaseName,
+        Dependencies: pu.Dependencies,
+    }
 }

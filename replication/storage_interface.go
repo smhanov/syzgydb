@@ -18,4 +18,7 @@ type StorageInterface interface {
 
     // Exists checks if a given dependency (usually a database) exists in the storage.
     Exists(dependency string) bool
+
+    // GetRecord retrieves a record by its ID and database name.
+    GetRecord(databaseName, recordID string) ([]DataStream, error)
 }

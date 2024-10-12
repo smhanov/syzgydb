@@ -9,6 +9,11 @@ message Timestamp {
   int64 lamport_clock = 2;
 }
 
+message DataStream {
+  uint32 stream_id = 1;
+  bytes data = 2;
+}
+
 message Update {
   Timestamp timestamp = 1;
   enum UpdateType {
@@ -18,9 +23,10 @@ message Update {
     DROP_DATABASE = 3;
   }
   UpdateType type = 2;
-  bytes data = 3;
-  string database_name = 4;
-  repeated string dependencies = 5;
+  string record_id = 3;
+  repeated DataStream data_streams = 4;
+  string database_name = 5;
+  repeated string dependencies = 6;
 }
 
 message GossipMessage {

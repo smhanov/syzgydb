@@ -8,6 +8,7 @@ import (
 // MockStorage is an in-memory implementation of the StorageInterface for testing purposes.
 type MockStorage struct {
     updates      map[string][]Update
+    records      map[string]map[string][]DataStream
     updatesMutex sync.Mutex
     subscribers  []chan Update
     subMutex     sync.Mutex
@@ -18,6 +19,7 @@ type MockStorage struct {
 func NewMockStorage() *MockStorage {
     return &MockStorage{
         updates:     make(map[string][]Update),
+        records:     make(map[string]map[string][]DataStream),
         databases:   make(map[string]bool),
         subscribers: make([]chan Update, 0),
     }
@@ -31,8 +33,19 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
     for _, update := range updates {
         if update.Type == CreateDatabase {
             ms.databases[update.DatabaseName] = true
+            ms.records[update.DatabaseName] = make(map[string][]DataStream)
         } else if update.Type == DropDatabase {
             delete(ms.databases, update.DatabaseName)
+            delete(ms.records, update.DatabaseName)
+        } else if update.Type == UpsertRecord {
+            if _, ok := ms.records[update.DatabaseName]; !ok {
+                ms.records[update.DatabaseName] = make(map[string][]DataStream)
+            }
+            ms.records[update.DatabaseName][update.RecordID] = update.DataStreams
+        } else if update.Type == DeleteRecord {
+            if dbRecords, ok := ms.records[update.DatabaseName]; ok {
+                delete(dbRecords, update.RecordID)
+            }
         }
         ms.updates[update.DatabaseName] = append(ms.updates[update.DatabaseName], update)
     }
@@ -90,6 +103,19 @@ func (ms *MockStorage) Exists(dependency string) bool {
     return ms.databases[dependency]
 }
 
+// GetRecord retrieves a record by its ID and database name.
+func (ms *MockStorage) GetRecord(databaseName, recordID string) ([]DataStream, error) {
+    ms.updatesMutex.Lock()
+    defer ms.updatesMutex.Unlock()
+
+    if dbRecords, ok := ms.records[databaseName]; ok {
+        if record, ok := dbRecords[recordID]; ok {
+            return record, nil
+        }
+    }
+    return nil, nil
+}
+
 // GenerateUpdate creates a new update for testing purposes.
 func (ms *MockStorage) GenerateUpdate(dbName string) {
     ms.updatesMutex.Lock()
@@ -101,7 +127,10 @@ func (ms *MockStorage) GenerateUpdate(dbName string) {
             LamportClock: int64(len(ms.updates[dbName]) + 1),
         },
         Type:         UpsertRecord,
-        Data:         []byte("Sample data"),
+        RecordID:     "test_record_" + time.Now().String(),
+        DataStreams: []DataStream{
+            {StreamID: 1, Data: []byte("Sample data")},
+        },
         DatabaseName: dbName,
         Dependencies: []string{dbName},
     }
