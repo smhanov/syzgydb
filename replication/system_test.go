@@ -79,7 +79,9 @@ func TestBufferedUpdates(t *testing.T) {
 			t.Errorf("Node %d: Expected 'newdb' to exist", i)
 		}
 		record, _ := node.storage.GetRecord("newdb", "record1")
-		if len(record) == 0 || string(record[0].Data) != "test data" {
+		if len(record) == 0 {
+			t.Errorf("Node %d: Expected record to exist, but it doesn't", i)
+		} else if string(record[0].Data) != "test data" {
 			t.Errorf("Node %d: Expected record data 'test data', got '%s'", i, string(record[0].Data))
 		}
 	}

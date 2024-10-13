@@ -55,9 +55,9 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 
 // NewPeer creates a new Peer instance.
 func NewPeer(url string) *Peer {
-	// If the URL doesn't start with ws:// or wss://, assume it's a test identifier
+	// For testing, use a dummy URL
 	if !strings.HasPrefix(url, "ws://") && !strings.HasPrefix(url, "wss://") {
-		url = "ws://" + url
+		url = "ws://localhost:8080/" + url
 	}
 	return &Peer{
 		url:        url,
