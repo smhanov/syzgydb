@@ -79,15 +79,26 @@ func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp, maxResults int) (map
 	totalUpdates := 0
 	hasMore := false
 
+	// Helper function to add an update to the result
+	addUpdate := func(dbName string, update Update) bool {
+		if totalUpdates >= maxResults {
+			hasMore = true
+			return false
+		}
+		if _, ok := result[dbName]; !ok {
+			result[dbName] = []Update{}
+		}
+		result[dbName] = append(result[dbName], update)
+		totalUpdates++
+		return true
+	}
+
 	for dbName, updates := range ms.updates {
 		for _, update := range updates {
 			if update.Timestamp.Compare(timestamp) > 0 {
-				if totalUpdates >= maxResults {
-					hasMore = true
+				if !addUpdate(dbName, update) {
 					break
 				}
-				result[dbName] = append(result[dbName], update)
-				totalUpdates++
 			}
 		}
 		if hasMore {
@@ -95,8 +106,48 @@ func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp, maxResults int) (map
 		}
 	}
 
+	// Include CreateDatabase and DropDatabase updates
+	for dbName, exists := range ms.databases {
+		createUpdate, ok := ms.findDatabaseCreateUpdate(dbName)
+		if ok && createUpdate.Timestamp.Compare(timestamp) > 0 {
+			if !addUpdate(dbName, createUpdate) {
+				break
+			}
+		}
+		if !exists {
+			dropUpdate, ok := ms.findDatabaseDropUpdate(dbName)
+			if ok && dropUpdate.Timestamp.Compare(timestamp) > 0 {
+				if !addUpdate(dbName, dropUpdate) {
+					break
+				}
+			}
+		}
+	}
+
 	log.Printf("Updates since %v: %v", timestamp, result)
 	return result, hasMore, nil
+}
+
+// findDatabaseCreateUpdate finds the CreateDatabase update for a given database
+func (ms *MockStorage) findDatabaseCreateUpdate(dbName string) (Update, bool) {
+	updates := ms.updates[dbName]
+	for _, update := range updates {
+		if update.Type == CreateDatabase {
+			return update, true
+		}
+	}
+	return Update{}, false
+}
+
+// findDatabaseDropUpdate finds the DropDatabase update for a given database
+func (ms *MockStorage) findDatabaseDropUpdate(dbName string) (Update, bool) {
+	updates := ms.updates[dbName]
+	for i := len(updates) - 1; i >= 0; i-- {
+		if updates[i].Type == DropDatabase {
+			return updates[i], true
+		}
+	}
+	return Update{}, false
 }
 
 // ResolveConflict determines which of two conflicting updates should be applied.
