@@ -235,10 +235,7 @@ func tearDownTestEnvironment(nodes []*ReplicationEngine) {
 }
 
 func TestBasicReplication(t *testing.T) {
-	nodes, err := setupTestEnvironment(t, 3)
-	if err != nil {
-		t.Fatalf("Failed to set up test environment: %v", err)
-	}
+	nodes := setupTestEnvironment(t, 3)
 	defer tearDownTestEnvironment(nodes)
 
 	// Submit an update to node0
@@ -249,7 +246,7 @@ func TestBasicReplication(t *testing.T) {
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
 		DatabaseName: "testdb",
 	}
-	err = nodes[0].SubmitUpdates([]Update{update})
+	err := nodes[0].SubmitUpdates([]Update{update})
 	if err != nil {
 		t.Fatalf("Failed to submit update: %v", err)
 	}
