@@ -10,6 +10,120 @@ type mockNetwork struct {
 	nodes map[string]*ReplicationEngine
 }
 
+func TestTimestampOrdering(t *testing.T) {
+    _, nodes := setupTestEnvironment(t, 2)
+    defer tearDownTestEnvironment(nodes)
+
+    // Generate updates with out-of-order timestamps
+    update1 := Update{
+        Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 1},
+        Type:         UpsertRecord,
+        RecordID:     "record1",
+        DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data1")}},
+        DatabaseName: "testdb",
+    }
+    update2 := Update{
+        Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 2},
+        Type:         UpsertRecord,
+        RecordID:     "record1",
+        DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data2")}},
+        DatabaseName: "testdb",
+    }
+
+    // Submit updates in reverse order
+    nodes[0].SubmitUpdates([]Update{update2, update1})
+
+    time.Sleep(1 * time.Second)
+
+    // Check if the final state reflects the correct ordering
+    record, _ := nodes[0].storage.GetRecord("testdb", "record1")
+    if string(record[0].Data) != "data2" {
+        t.Errorf("Expected final data to be 'data2', got '%s'", string(record[0].Data))
+    }
+}
+
+func TestBufferedUpdates(t *testing.T) {
+    network, nodes := setupTestEnvironment(t, 2)
+    defer tearDownTestEnvironment(nodes)
+
+    // Disconnect the nodes
+    network.disconnect("node0", "node1")
+
+    // Submit updates to both nodes
+    update1 := Update{
+        Timestamp:    nodes[0].NextTimestamp(),
+        Type:         CreateDatabase,
+        DatabaseName: "newdb",
+    }
+    update2 := Update{
+        Timestamp:    nodes[1].NextTimestamp(),
+        Type:         UpsertRecord,
+        RecordID:     "record1",
+        DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
+        DatabaseName: "newdb",
+    }
+
+    nodes[0].SubmitUpdates([]Update{update1})
+    nodes[1].SubmitUpdates([]Update{update2})
+
+    // Reconnect the nodes
+    network.connect("node0", "node1")
+
+    // Wait for replication and buffered updates to be processed
+    time.Sleep(2 * time.Second)
+
+    // Check if both nodes have the database and the record
+    for i, node := range nodes {
+        if !node.storage.Exists("newdb") {
+            t.Errorf("Node %d: Expected 'newdb' to exist", i)
+        }
+        record, _ := node.storage.GetRecord("newdb", "record1")
+        if len(record) == 0 || string(record[0].Data) != "test data" {
+            t.Errorf("Node %d: Expected record data 'test data', got '%s'", i, string(record[0].Data))
+        }
+    }
+}
+
+func TestScalability(t *testing.T) {
+    nodeCount := 10
+    updateCount := 100
+
+    network, nodes := setupTestEnvironment(t, nodeCount)
+    defer tearDownTestEnvironment(nodes)
+
+    // Submit multiple updates to random nodes
+    for i := 0; i < updateCount; i++ {
+        nodeIndex := i % nodeCount
+        update := Update{
+            Timestamp:    nodes[nodeIndex].NextTimestamp(),
+            Type:         UpsertRecord,
+            RecordID:     fmt.Sprintf("record%d", i),
+            DataStreams:  []DataStream{{StreamID: 1, Data: []byte(fmt.Sprintf("data%d", i))}},
+            DatabaseName: "testdb",
+        }
+        err := nodes[nodeIndex].SubmitUpdates([]Update{update})
+        if err != nil {
+            t.Fatalf("Failed to submit update: %v", err)
+        }
+    }
+
+    // Wait for replication
+    time.Sleep(5 * time.Second)
+
+    // Check if all nodes have all records
+    for i, node := range nodes {
+        for j := 0; j < updateCount; j++ {
+            record, err := node.storage.GetRecord("testdb", fmt.Sprintf("record%d", j))
+            if err != nil {
+                t.Errorf("Node %d: Failed to get record%d: %v", i, j, err)
+            }
+            if len(record) == 0 || string(record[0].Data) != fmt.Sprintf("data%d", j) {
+                t.Errorf("Node %d: Expected record%d data 'data%d', got '%s'", i, j, j, string(record[0].Data))
+            }
+        }
+    }
+}
+
 func newMockNetwork() *mockNetwork {
 	return &mockNetwork{
 		nodes: make(map[string]*ReplicationEngine),
