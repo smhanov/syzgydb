@@ -192,7 +192,7 @@ func (mn *mockNetwork) disconnect(nodeID1, nodeID2 string) {
 	delete(mn.peers, nodeID1)
 }
 
-func setupTestEnvironment(t *testing.T, nodeCount int) ([]*ReplicationEngine, error) {
+func setupTestEnvironment(t *testing.T, nodeCount int) []*ReplicationEngine {
 	nodes := make([]*ReplicationEngine, nodeCount)
 
 	for i := 0; i < nodeCount; i++ {
@@ -204,11 +204,11 @@ func setupTestEnvironment(t *testing.T, nodeCount int) ([]*ReplicationEngine, er
 		}
 		re, err := Init(storage, config, Now())
 		if err != nil {
-			return nil, err
+			t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
 		}
 		err = re.Listen(fmt.Sprintf(":%d", 8080+i))
 		if err != nil {
-			return nil, err
+			t.Fatalf("Failed to start listening: %v", err)
 		}
 		nodes[i] = re
 	}
@@ -225,7 +225,7 @@ func setupTestEnvironment(t *testing.T, nodeCount int) ([]*ReplicationEngine, er
 	// Allow time for connections to be established
 	time.Sleep(1 * time.Second)
 
-	return nodes, nil
+	return nodes
 }
 
 func tearDownTestEnvironment(nodes []*ReplicationEngine) {
@@ -305,10 +305,7 @@ func TestConflictResolution(t *testing.T) {
 }
 
 func TestNetworkPartition(t *testing.T) {
-	nodes, err := setupTestEnvironment(t, 3)
-	if err != nil {
-		t.Fatalf("Failed to set up test environment: %v", err)
-	}
+	nodes := setupTestEnvironment(t, 3)
 	defer tearDownTestEnvironment(nodes)
 
 	// Submit updates to node0 and node2
