@@ -93,15 +93,21 @@ func (re *ReplicationEngine) requestUpdatesFromPeer(peerURL string, since Timest
 
 func (re *ReplicationEngine) fetchUpdatesFromPeer(peerURL string) {
 	for {
-		log.Printf("Fetch updates from peer %s (looping)", peerURL)
 		re.mu.Lock()
-		req := re.updateRequests[peerURL]
+		req, exists := re.updateRequests[peerURL]
+		if !exists {
+			re.mu.Unlock()
+			break
+		}
 		re.mu.Unlock()
 
 		peer := re.peers[peerURL]
-		if peer == nil || !peer.IsConnected() || req == nil {
+		if peer == nil || !peer.IsConnected() {
 			break
 		}
+
+		responseChan := make(chan bool)
+		req.responseChan = responseChan
 
 		err := peer.RequestUpdates(req.since, MaxUpdateResults)
 		if err != nil {
@@ -109,8 +115,11 @@ func (re *ReplicationEngine) fetchUpdatesFromPeer(peerURL string) {
 			break
 		}
 
-		// Wait for the response in handleReceivedBatchUpdate
-		// If no more updates, the loop will be broken there
+		// Wait for the response
+		hasMore := <-responseChan
+		if !hasMore {
+			break
+		}
 	}
 
 	re.mu.Lock()
@@ -138,9 +147,6 @@ func (re *ReplicationEngine) handleReceivedBatchUpdate(peerURL string, batchUpda
 		}
 	}
 
-	if !batchUpdate.HasMore {
-		re.mu.Lock()
-		delete(re.updateRequests, peerURL)
-		re.mu.Unlock()
-	}
+	// Signal the fetchUpdatesFromPeer goroutine
+	req.responseChan <- batchUpdate.HasMore
 }
