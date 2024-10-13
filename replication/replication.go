@@ -10,22 +10,23 @@ import (
 )
 
 type Connection interface {
-    Close() error
-    WriteMessage(int, []byte) error
-    ReadMessage() (int, []byte, error)
+	Close() error
+	WriteMessage(int, []byte) error
+	ReadMessage() (int, []byte, error)
 }
 
 type Peer struct {
-    url        string
-    connection Connection
-    lastActive time.Time
-    mu         sync.Mutex
+	url        string
+	connection Connection
+	lastActive time.Time
+	mu         sync.Mutex
 }
 
+// SetConnection sets the WebSocket connection for the peer.
 func (p *Peer) SetConnection(conn Connection) {
-    p.mu.Lock()
-    defer p.mu.Unlock()
-    p.connection = conn
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.connection = conn
 }
 
 // ReplicationEngine is the core component of the replication system.
