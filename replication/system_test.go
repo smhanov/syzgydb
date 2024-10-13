@@ -189,6 +189,15 @@ func setupTestEnvironment(t *testing.T, nodeCount int) (*mockNetwork, []*Replica
         }
     }
 
+    // Simulate connections for all peers
+    for _, node := range nodes {
+        for _, peer := range node.peers {
+            if mockPeer, ok := peer.(*MockPeer); ok {
+                mockPeer.Connect([]byte("test_secret"))
+            }
+        }
+    }
+
     return network, nodes
 }
 

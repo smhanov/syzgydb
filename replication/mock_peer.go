@@ -20,7 +20,7 @@ func (mp *MockPeer) Connect(jwtSecret []byte) {
     mp.mu.Lock()
     defer mp.mu.Unlock()
     mp.connectCalled = true
-    // Don't actually connect, just simulate it
+    // Simulate a successful connection without actually connecting
     mp.SetConnection(&mockConnection{})
 }
 
@@ -32,6 +32,6 @@ func (mp *MockPeer) WasConnectCalled() bool {
 
 type mockConnection struct{}
 
-func (mc *mockConnection) Close() error                  { return nil }
+func (mc *mockConnection) Close() error                   { return nil }
 func (mc *mockConnection) WriteMessage(int, []byte) error { return nil }
 func (mc *mockConnection) ReadMessage() (int, []byte, error) { return 0, nil, nil }
