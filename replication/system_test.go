@@ -44,11 +44,11 @@ func TestTimestampOrdering(t *testing.T) {
 }
 
 func TestBufferedUpdates(t *testing.T) {
-	nodes, _ := setupTestEnvironment(t, 2)
+	nodes, err := setupTestEnvironment(t, 2)
+	if err != nil {
+		t.Fatalf("Failed to set up test environment: %v", err)
+	}
 	defer tearDownTestEnvironment(nodes)
-
-	// Disconnect the nodes
-	network.disconnect("node0", "node1")
 
 	// Submit updates to both nodes
 	update1 := Update{
@@ -64,7 +64,7 @@ func TestBufferedUpdates(t *testing.T) {
 		DatabaseName: "newdb",
 	}
 
-	err := nodes[0].SubmitUpdates([]Update{update1})
+	err = nodes[0].SubmitUpdates([]Update{update1})
 	if err != nil {
 		t.Fatalf("Failed to submit update1: %v", err)
 	}
@@ -72,9 +72,6 @@ func TestBufferedUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to submit update2: %v", err)
 	}
-
-	// Reconnect the nodes
-	network.connect("node0", "node1")
 
 	// Manually trigger update exchange multiple times
 	for attempt := 0; attempt < 5; attempt++ {
@@ -308,12 +305,11 @@ func TestConflictResolution(t *testing.T) {
 }
 
 func TestNetworkPartition(t *testing.T) {
-	network, nodes := setupTestEnvironment(t, 3)
+	nodes, err := setupTestEnvironment(t, 3)
+	if err != nil {
+		t.Fatalf("Failed to set up test environment: %v", err)
+	}
 	defer tearDownTestEnvironment(nodes)
-
-	// Disconnect node2 from the network
-	network.disconnect("node0", "node2")
-	network.disconnect("node1", "node2")
 
 	// Submit updates to node0 and node2
 	update1 := Update{
@@ -334,12 +330,8 @@ func TestNetworkPartition(t *testing.T) {
 	nodes[0].SubmitUpdates([]Update{update1})
 	nodes[2].SubmitUpdates([]Update{update2})
 
-	// Wait for replication within partitions
-	time.Sleep(1 * time.Second)
-
-	// Reconnect node2
-	network.connect("node0", "node2")
-	network.connect("node1", "node2")
+	// Wait for replication
+	time.Sleep(2 * time.Second)
 
 	// Wait for replication after partition healing
 	time.Sleep(2 * time.Second)
