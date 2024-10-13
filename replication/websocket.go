@@ -55,15 +55,6 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 
 // NewPeer creates a new Peer instance.
 func NewPeer(url string) *Peer {
-	// For testing, use a dummy URL and a mock connection
-	if !strings.HasPrefix(url, "ws://") && !strings.HasPrefix(url, "wss://") {
-		url = "ws://localhost:8080/" + url
-		return &Peer{
-			url:        url,
-			lastActive: time.Now(),
-			connection: &mockConnection{},
-		}
-	}
 	return &Peer{
 		url:        url,
 		lastActive: time.Now(),

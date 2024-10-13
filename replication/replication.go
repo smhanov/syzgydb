@@ -43,6 +43,8 @@ type ReplicationEngine struct {
 	updateRequests  map[string]*updateRequest
 	gossipTicker    *time.Ticker
 	gossipDone      chan bool
+	server          *http.Server
+	listener        net.Listener
 }
 
 type updateRequest struct {
@@ -258,4 +260,30 @@ func (re *ReplicationEngine) NextTimestamp() Timestamp {
 	re.mu.Lock()
 	defer re.mu.Unlock()
 	return re.lastTimestamp.Next()
+}
+// Listen starts the ReplicationEngine's HTTP server on the specified address.
+func (re *ReplicationEngine) Listen(address string) error {
+	var err error
+	re.listener, err = net.Listen("tcp", address)
+	if err != nil {
+		return err
+	}
+
+	re.server = &http.Server{
+		Handler: re.GetHandler(),
+	}
+
+	go re.server.Serve(re.listener)
+	return nil
+}
+
+// Close shuts down the ReplicationEngine's HTTP server and listener.
+func (re *ReplicationEngine) Close() error {
+	if re.server != nil {
+		re.server.Close()
+	}
+	if re.listener != nil {
+		re.listener.Close()
+	}
+	return nil
 }

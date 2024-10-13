@@ -195,47 +195,53 @@ func (mn *mockNetwork) disconnect(nodeID1, nodeID2 string) {
 	delete(mn.peers, nodeID1)
 }
 
-func setupTestEnvironment(t *testing.T, nodeCount int) (*mockNetwork, []*ReplicationEngine) {
-	network := newMockNetwork()
+func setupTestEnvironment(t *testing.T, nodeCount int) ([]*ReplicationEngine, error) {
 	nodes := make([]*ReplicationEngine, nodeCount)
 
 	for i := 0; i < nodeCount; i++ {
-		nodeID := fmt.Sprintf("node%d", i)
 		storage := NewMockStorage()
 		config := ReplicationConfig{
-			OwnURL:    nodeID,
+			OwnURL:    fmt.Sprintf("ws://localhost:%d", 8080+i),
 			PeerURLs:  []string{},
 			JWTSecret: []byte("test_secret"),
 		}
 		re, err := Init(storage, config, Now())
 		if err != nil {
-			t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
+			return nil, err
+		}
+		err = re.Listen(fmt.Sprintf(":%d", 8080+i))
+		if err != nil {
+			return nil, err
 		}
 		nodes[i] = re
-		network.addNode(nodeID, re)
 	}
 
 	// Connect all nodes in a fully connected topology
 	for i := 0; i < nodeCount; i++ {
-		for j := i + 1; j < nodeCount; j++ {
-			network.connect(fmt.Sprintf("node%d", i), fmt.Sprintf("node%d", j))
+		for j := 0; j < nodeCount; j++ {
+			if i != j {
+				nodes[i].peers[fmt.Sprintf("ws://localhost:%d", 8080+j)] = NewPeer(fmt.Sprintf("ws://localhost:%d", 8080+j))
+			}
 		}
 	}
 
-	// Simulate connections for all peers
-	for _, mockPeer := range network.peers {
-		mockPeer.Connect([]byte("test_secret"))
-	}
+	// Allow time for connections to be established
+	time.Sleep(1 * time.Second)
 
-	return network, nodes
+	return nodes, nil
 }
 
 func tearDownTestEnvironment(nodes []*ReplicationEngine) {
-	// Implement any necessary cleanup
+	for _, node := range nodes {
+		node.Close()
+	}
 }
 
 func TestBasicReplication(t *testing.T) {
-	_, nodes := setupTestEnvironment(t, 3)
+	nodes, err := setupTestEnvironment(t, 3)
+	if err != nil {
+		t.Fatalf("Failed to set up test environment: %v", err)
+	}
 	defer tearDownTestEnvironment(nodes)
 
 	// Submit an update to node0
@@ -246,7 +252,7 @@ func TestBasicReplication(t *testing.T) {
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
 		DatabaseName: "testdb",
 	}
-	err := nodes[0].SubmitUpdates([]Update{update})
+	err = nodes[0].SubmitUpdates([]Update{update})
 	if err != nil {
 		t.Fatalf("Failed to submit update: %v", err)
 	}
