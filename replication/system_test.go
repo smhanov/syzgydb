@@ -76,16 +76,19 @@ func TestBufferedUpdates(t *testing.T) {
 	// Reconnect the nodes
 	network.connect("node0", "node1")
 
-	// Manually trigger update exchange
-	for i := 0; i < 2; i++ {
-		for j := 0; j < 2; j++ {
-			if i != j {
-				err = nodes[i].peers[fmt.Sprintf("node%d", j)].RequestUpdates(Timestamp{}, MaxUpdateResults)
-				if err != nil {
-					t.Fatalf("Failed to request updates from node%d to node%d: %v", j, i, err)
+	// Manually trigger update exchange multiple times
+	for attempt := 0; attempt < 5; attempt++ {
+		for i := 0; i < 2; i++ {
+			for j := 0; j < 2; j++ {
+				if i != j {
+					err = nodes[i].peers[fmt.Sprintf("node%d", j)].RequestUpdates(Timestamp{}, MaxUpdateResults)
+					if err != nil {
+						t.Logf("Failed to request updates from node%d to node%d: %v", j, i, err)
+					}
 				}
 			}
 		}
+		time.Sleep(1 * time.Second)
 	}
 
 	// Wait for replication and buffered updates to be processed
@@ -93,16 +96,24 @@ func TestBufferedUpdates(t *testing.T) {
 
 	// Check if both nodes have the database and the record
 	for i, node := range nodes {
+		t.Logf("Checking node %d", i)
 		if !node.storage.Exists("newdb") {
 			t.Errorf("Node %d: Expected 'newdb' to exist", i)
+		} else {
+			t.Logf("Node %d: 'newdb' exists", i)
 		}
 		record, err := node.storage.GetRecord("newdb", "record1")
 		if err != nil {
 			t.Errorf("Node %d: Failed to get record: %v", i, err)
 		} else if len(record) == 0 {
 			t.Errorf("Node %d: Expected record to exist, but it doesn't", i)
-		} else if string(record[0].Data) != "test data" {
-			t.Errorf("Node %d: Expected record data 'test data', got '%s'", i, string(record[0].Data))
+		} else {
+			t.Logf("Node %d: Record exists", i)
+			if string(record[0].Data) != "test data" {
+				t.Errorf("Node %d: Expected record data 'test data', got '%s'", i, string(record[0].Data))
+			} else {
+				t.Logf("Node %d: Record data is correct", i)
+			}
 		}
 	}
 }

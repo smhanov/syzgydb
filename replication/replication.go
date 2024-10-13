@@ -175,16 +175,23 @@ func (re *ReplicationEngine) applyUpdateAndProcessBuffer(update Update) error {
 func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
 	log.Printf("Received update: %+v", update)
 	if update.Type == CreateDatabase {
+		log.Printf("Applying CreateDatabase update for %s", update.DatabaseName)
 		err := re.applyUpdateAndProcessBuffer(update)
 		if err != nil {
 			log.Println("Failed to apply CreateDatabase update:", err)
+		} else {
+			log.Printf("Successfully applied CreateDatabase update for %s", update.DatabaseName)
 		}
 	} else if re.dependenciesSatisfied(update) {
+		log.Printf("Dependencies satisfied for update: %+v", update)
 		err := re.applyUpdateAndProcessBuffer(update)
 		if err != nil {
 			log.Println("Failed to apply update:", err)
+		} else {
+			log.Printf("Successfully applied update: %+v", update)
 		}
 	} else {
+		log.Printf("Buffering update due to unsatisfied dependencies: %+v", update)
 		re.bufferUpdate(update)
 	}
 }
