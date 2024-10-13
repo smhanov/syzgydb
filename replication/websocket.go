@@ -55,9 +55,10 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 // NewPeer creates a new Peer instance.
 func NewPeer(url string, re *ReplicationEngine) *Peer {
 	return &Peer{
-		url:        url,
-		lastActive: time.Now(),
-		re:         re,
+		url:                url,
+		lastActive:         time.Now(),
+		lastKnownTimestamp: Timestamp{},
+		re:                 re,
 	}
 }
 
