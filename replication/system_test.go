@@ -12,10 +12,10 @@ type mockNetwork struct {
 }
 
 func TestTimestampOrdering(t *testing.T) {
-	_, nodes := setupTestEnvironment(t, 2)
+	nodes, _ := setupTestEnvironment(t, 2)
 	defer tearDownTestEnvironment(nodes)
 
-	// Generate updates with out-of-order timestamps
+	// Generdsaate updates with out-of-order timestamps
 	update1 := Update{
 		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 1},
 		Type:         UpsertRecord,
@@ -44,7 +44,7 @@ func TestTimestampOrdering(t *testing.T) {
 }
 
 func TestBufferedUpdates(t *testing.T) {
-	network, nodes := setupTestEnvironment(t, 2)
+	nodes, _ := setupTestEnvironment(t, 2)
 	defer tearDownTestEnvironment(nodes)
 
 	// Disconnect the nodes
