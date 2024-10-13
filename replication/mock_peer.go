@@ -15,10 +15,8 @@ type MockPeer struct {
 
 func NewMockPeer(url string) *MockPeer {
 	return &MockPeer{
-		Peer: NewPeer(url),
-		connection: &mockConnection{
-			writtenMessages: make([][]byte, 0),
-		},
+		Peer:       NewPeer(url),
+		connection: newMockConnection(),
 	}
 }
 
@@ -42,19 +40,28 @@ func (mp *MockPeer) WasConnectCalled() bool {
 
 type mockConnection struct {
 	writtenMessages [][]byte
+	readChan        chan []byte
+	mu              sync.Mutex
+}
+
+func newMockConnection() *mockConnection {
+	return &mockConnection{
+		readChan: make(chan []byte, 100),
+	}
 }
 
 func (mc *mockConnection) Close() error { return nil }
+
 func (mc *mockConnection) WriteMessage(_ int, data []byte) error {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
 	mc.writtenMessages = append(mc.writtenMessages, data)
+	mc.readChan <- data
 	log.Printf("Mock connection: Message written: %v", data)
 	return nil
 }
+
 func (mc *mockConnection) ReadMessage() (int, []byte, error) {
-	if len(mc.writtenMessages) > 0 {
-		msg := mc.writtenMessages[0]
-		mc.writtenMessages = mc.writtenMessages[1:]
-		return 1, msg, nil
-	}
-	return 0, nil, nil
+	msg := <-mc.readChan
+	return 1, msg, nil
 }
