@@ -9,6 +9,25 @@ import (
 	"time"
 )
 
+type Connection interface {
+    Close() error
+    WriteMessage(int, []byte) error
+    ReadMessage() (int, []byte, error)
+}
+
+type Peer struct {
+    url        string
+    connection Connection
+    lastActive time.Time
+    mu         sync.Mutex
+}
+
+func (p *Peer) SetConnection(conn Connection) {
+    p.mu.Lock()
+    defer p.mu.Unlock()
+    p.connection = conn
+}
+
 // ReplicationEngine is the core component of the replication system.
 // It manages peer connections, handles local and remote updates,
 // and coordinates the gossip protocol.

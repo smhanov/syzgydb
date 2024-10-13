@@ -137,7 +137,7 @@ func (mn *mockNetwork) addNode(nodeID string, re *ReplicationEngine) {
     for _, peer := range re.peers {
         mockPeer := NewMockPeer(peer.url)
         mn.peers[peer.url] = mockPeer
-        re.peers[peer.url] = mockPeer
+        re.peers[peer.url] = mockPeer.Peer
     }
 }
 
@@ -148,8 +148,8 @@ func (mn *mockNetwork) connect(nodeID1, nodeID2 string) {
     mockPeer1 := NewMockPeer(nodeID2)
     mockPeer2 := NewMockPeer(nodeID1)
 
-    node1.peers[nodeID2] = mockPeer1
-    node2.peers[nodeID1] = mockPeer2
+    node1.peers[nodeID2] = mockPeer1.Peer
+    node2.peers[nodeID1] = mockPeer2.Peer
 
     mn.peers[nodeID2] = mockPeer1
     mn.peers[nodeID1] = mockPeer2
