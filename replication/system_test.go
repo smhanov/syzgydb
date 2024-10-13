@@ -11,117 +11,117 @@ type mockNetwork struct {
 }
 
 func TestTimestampOrdering(t *testing.T) {
-    _, nodes := setupTestEnvironment(t, 2)
-    defer tearDownTestEnvironment(nodes)
+	_, nodes := setupTestEnvironment(t, 2)
+	defer tearDownTestEnvironment(nodes)
 
-    // Generate updates with out-of-order timestamps
-    update1 := Update{
-        Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 1},
-        Type:         UpsertRecord,
-        RecordID:     "record1",
-        DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data1")}},
-        DatabaseName: "testdb",
-    }
-    update2 := Update{
-        Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 2},
-        Type:         UpsertRecord,
-        RecordID:     "record1",
-        DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data2")}},
-        DatabaseName: "testdb",
-    }
+	// Generate updates with out-of-order timestamps
+	update1 := Update{
+		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 1},
+		Type:         UpsertRecord,
+		RecordID:     "record1",
+		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data1")}},
+		DatabaseName: "testdb",
+	}
+	update2 := Update{
+		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 2},
+		Type:         UpsertRecord,
+		RecordID:     "record1",
+		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data2")}},
+		DatabaseName: "testdb",
+	}
 
-    // Submit updates in reverse order
-    nodes[0].SubmitUpdates([]Update{update2, update1})
+	// Submit updates in reverse order
+	nodes[0].SubmitUpdates([]Update{update2, update1})
 
-    time.Sleep(1 * time.Second)
+	time.Sleep(1 * time.Second)
 
-    // Check if the final state reflects the correct ordering
-    record, _ := nodes[0].storage.GetRecord("testdb", "record1")
-    if string(record[0].Data) != "data2" {
-        t.Errorf("Expected final data to be 'data2', got '%s'", string(record[0].Data))
-    }
+	// Check if the final state reflects the correct ordering
+	record, _ := nodes[0].storage.GetRecord("testdb", "record1")
+	if string(record[0].Data) != "data2" {
+		t.Errorf("Expected final data to be 'data2', got '%s'", string(record[0].Data))
+	}
 }
 
 func TestBufferedUpdates(t *testing.T) {
-    network, nodes := setupTestEnvironment(t, 2)
-    defer tearDownTestEnvironment(nodes)
+	network, nodes := setupTestEnvironment(t, 2)
+	defer tearDownTestEnvironment(nodes)
 
-    // Disconnect the nodes
-    network.disconnect("node0", "node1")
+	// Disconnect the nodes
+	network.disconnect("node0", "node1")
 
-    // Submit updates to both nodes
-    update1 := Update{
-        Timestamp:    nodes[0].NextTimestamp(),
-        Type:         CreateDatabase,
-        DatabaseName: "newdb",
-    }
-    update2 := Update{
-        Timestamp:    nodes[1].NextTimestamp(),
-        Type:         UpsertRecord,
-        RecordID:     "record1",
-        DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
-        DatabaseName: "newdb",
-    }
+	// Submit updates to both nodes
+	update1 := Update{
+		Timestamp:    nodes[0].NextTimestamp(),
+		Type:         CreateDatabase,
+		DatabaseName: "newdb",
+	}
+	update2 := Update{
+		Timestamp:    nodes[1].NextTimestamp(),
+		Type:         UpsertRecord,
+		RecordID:     "record1",
+		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
+		DatabaseName: "newdb",
+	}
 
-    nodes[0].SubmitUpdates([]Update{update1})
-    nodes[1].SubmitUpdates([]Update{update2})
+	nodes[0].SubmitUpdates([]Update{update1})
+	nodes[1].SubmitUpdates([]Update{update2})
 
-    // Reconnect the nodes
-    network.connect("node0", "node1")
+	// Reconnect the nodes
+	network.connect("node0", "node1")
 
-    // Wait for replication and buffered updates to be processed
-    time.Sleep(2 * time.Second)
+	// Wait for replication and buffered updates to be processed
+	time.Sleep(2 * time.Second)
 
-    // Check if both nodes have the database and the record
-    for i, node := range nodes {
-        if !node.storage.Exists("newdb") {
-            t.Errorf("Node %d: Expected 'newdb' to exist", i)
-        }
-        record, _ := node.storage.GetRecord("newdb", "record1")
-        if len(record) == 0 || string(record[0].Data) != "test data" {
-            t.Errorf("Node %d: Expected record data 'test data', got '%s'", i, string(record[0].Data))
-        }
-    }
+	// Check if both nodes have the database and the record
+	for i, node := range nodes {
+		if !node.storage.Exists("newdb") {
+			t.Errorf("Node %d: Expected 'newdb' to exist", i)
+		}
+		record, _ := node.storage.GetRecord("newdb", "record1")
+		if len(record) == 0 || string(record[0].Data) != "test data" {
+			t.Errorf("Node %d: Expected record data 'test data', got '%s'", i, string(record[0].Data))
+		}
+	}
 }
 
 func TestScalability(t *testing.T) {
-    nodeCount := 10
-    updateCount := 100
+	nodeCount := 10
+	updateCount := 100
 
-    network, nodes := setupTestEnvironment(t, nodeCount)
-    defer tearDownTestEnvironment(nodes)
+	_, nodes := setupTestEnvironment(t, nodeCount)
+	defer tearDownTestEnvironment(nodes)
 
-    // Submit multiple updates to random nodes
-    for i := 0; i < updateCount; i++ {
-        nodeIndex := i % nodeCount
-        update := Update{
-            Timestamp:    nodes[nodeIndex].NextTimestamp(),
-            Type:         UpsertRecord,
-            RecordID:     fmt.Sprintf("record%d", i),
-            DataStreams:  []DataStream{{StreamID: 1, Data: []byte(fmt.Sprintf("data%d", i))}},
-            DatabaseName: "testdb",
-        }
-        err := nodes[nodeIndex].SubmitUpdates([]Update{update})
-        if err != nil {
-            t.Fatalf("Failed to submit update: %v", err)
-        }
-    }
+	// Submit multiple updates to random nodes
+	for i := 0; i < updateCount; i++ {
+		nodeIndex := i % nodeCount
+		update := Update{
+			Timestamp:    nodes[nodeIndex].NextTimestamp(),
+			Type:         UpsertRecord,
+			RecordID:     fmt.Sprintf("record%d", i),
+			DataStreams:  []DataStream{{StreamID: 1, Data: []byte(fmt.Sprintf("data%d", i))}},
+			DatabaseName: "testdb",
+		}
+		err := nodes[nodeIndex].SubmitUpdates([]Update{update})
+		if err != nil {
+			t.Fatalf("Failed to submit update: %v", err)
+		}
+	}
 
-    // Wait for replication
-    time.Sleep(5 * time.Second)
+	// Wait for replication
+	time.Sleep(5 * time.Second)
 
-    // Check if all nodes have all records
-    for i, node := range nodes {
-        for j := 0; j < updateCount; j++ {
-            record, err := node.storage.GetRecord("testdb", fmt.Sprintf("record%d", j))
-            if err != nil {
-                t.Errorf("Node %d: Failed to get record%d: %v", i, j, err)
-            }
-            if len(record) == 0 || string(record[0].Data) != fmt.Sprintf("data%d", j) {
-                t.Errorf("Node %d: Expected record%d data 'data%d', got '%s'", i, j, j, string(record[0].Data))
-            }
-        }
-    }
+	// Check if all nodes have all records
+	for i, node := range nodes {
+		for j := 0; j < updateCount; j++ {
+			record, err := node.storage.GetRecord("testdb", fmt.Sprintf("record%d", j))
+			if err != nil {
+				t.Errorf("Node %d: Failed to get record%d: %v", i, j, err)
+			}
+			if len(record) == 0 || string(record[0].Data) != fmt.Sprintf("data%d", j) {
+				t.Errorf("Node %d: Expected record%d data 'data%d', got '%s'", i, j, j, string(record[0].Data))
+			}
+		}
+	}
 }
 
 func newMockNetwork() *mockNetwork {
@@ -137,10 +137,10 @@ func (mn *mockNetwork) addNode(nodeID string, re *ReplicationEngine) {
 func (mn *mockNetwork) connect(nodeID1, nodeID2 string) {
 	node1 := mn.nodes[nodeID1]
 	node2 := mn.nodes[nodeID2]
-	
+
 	node1.peers[nodeID2] = NewPeer(nodeID2)
 	node2.peers[nodeID1] = NewPeer(nodeID1)
-	
+
 	// Override the Connect method to use our mock connection
 	node1.peers[nodeID2].Connect = func(jwtSecret []byte) {}
 	node2.peers[nodeID1].Connect = func(jwtSecret []byte) {}
@@ -186,7 +186,7 @@ func tearDownTestEnvironment(nodes []*ReplicationEngine) {
 }
 
 func TestBasicReplication(t *testing.T) {
-	network, nodes := setupTestEnvironment(t, 3)
+	_, nodes := setupTestEnvironment(t, 3)
 	defer tearDownTestEnvironment(nodes)
 
 	// Submit an update to node0
@@ -218,7 +218,7 @@ func TestBasicReplication(t *testing.T) {
 }
 
 func TestConflictResolution(t *testing.T) {
-	network, nodes := setupTestEnvironment(t, 2)
+	_, nodes := setupTestEnvironment(t, 2)
 	defer tearDownTestEnvironment(nodes)
 
 	// Submit conflicting updates to both nodes
