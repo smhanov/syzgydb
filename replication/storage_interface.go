@@ -1,7 +1,10 @@
 // Package replication defines interfaces and types for the SyzgyDB replication system.
 package replication
 
-import "bytes"
+import (
+    "bytes"
+    "fmt"
+)
 
 // UpdateType represents the type of update operation.
 type UpdateType int32
@@ -34,6 +37,12 @@ func (u Update) Compare(other Update) int {
         return tsComp
     }
     return bytes.Compare([]byte(u.RecordID), []byte(other.RecordID))
+}
+
+// String returns a string representation of the Update.
+func (u Update) String() string {
+    return fmt.Sprintf("Update{Type: %v, DatabaseName: %s, RecordID: %s, Timestamp: %s}",
+        u.Type, u.DatabaseName, u.RecordID, u.Timestamp)
 }
 
 // ReplicationConfig holds the configuration settings for the replication engine.
