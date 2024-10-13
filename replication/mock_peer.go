@@ -1,6 +1,7 @@
 package replication
 
 import (
+	"log"
 	"sync"
 	"time"
 )
@@ -8,6 +9,7 @@ import (
 type MockPeer struct {
 	*Peer
 	connectCalled bool
+	connection    *mockConnection
 	mu            sync.Mutex
 }
 
