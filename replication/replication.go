@@ -173,7 +173,13 @@ func (re *ReplicationEngine) applyUpdateAndProcessBuffer(update Update) error {
 // handleReceivedUpdate processes an update received from a peer.
 // It checks if the database exists and either applies the update or buffers it.
 func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
-	if re.dependenciesSatisfied(update) {
+	log.Printf("Received update: %+v", update)
+	if update.Type == CreateDatabase {
+		err := re.applyUpdateAndProcessBuffer(update)
+		if err != nil {
+			log.Println("Failed to apply CreateDatabase update:", err)
+		}
+	} else if re.dependenciesSatisfied(update) {
 		err := re.applyUpdateAndProcessBuffer(update)
 		if err != nil {
 			log.Println("Failed to apply update:", err)

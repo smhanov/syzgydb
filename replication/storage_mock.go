@@ -36,9 +36,12 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 	})
 
 	for _, update := range updates {
+		log.Printf("Committing update: %+v", update)
 		if update.Type == CreateDatabase {
 			ms.databases[update.DatabaseName] = true
-			ms.records[update.DatabaseName] = make(map[string][]DataStream)
+			if _, ok := ms.records[update.DatabaseName]; !ok {
+				ms.records[update.DatabaseName] = make(map[string][]DataStream)
+			}
 		} else if update.Type == DropDatabase {
 			delete(ms.databases, update.DatabaseName)
 			delete(ms.records, update.DatabaseName)

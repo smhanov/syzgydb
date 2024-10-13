@@ -77,17 +77,19 @@ func TestBufferedUpdates(t *testing.T) {
 	network.connect("node0", "node1")
 
 	// Manually trigger update exchange
-	err = nodes[0].peers["node1"].RequestUpdates(Timestamp{}, MaxUpdateResults)
-	if err != nil {
-		t.Fatalf("Failed to request updates from node1: %v", err)
-	}
-	err = nodes[1].peers["node0"].RequestUpdates(Timestamp{}, MaxUpdateResults)
-	if err != nil {
-		t.Fatalf("Failed to request updates from node0: %v", err)
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 2; j++ {
+			if i != j {
+				err = nodes[i].peers[fmt.Sprintf("node%d", j)].RequestUpdates(Timestamp{}, MaxUpdateResults)
+				if err != nil {
+					t.Fatalf("Failed to request updates from node%d to node%d: %v", j, i, err)
+				}
+			}
+		}
 	}
 
 	// Wait for replication and buffered updates to be processed
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Check if both nodes have the database and the record
 	for i, node := range nodes {
