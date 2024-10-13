@@ -43,20 +43,21 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	}
 
 	peerURL := r.RemoteAddr
-	peer := NewPeer(peerURL)
+	peer := NewPeer(peerURL, re)
 	peer.SetConnection(conn)
 	re.mu.Lock()
 	re.peers[peerURL] = peer
 	re.mu.Unlock()
 
-	go peer.HandleIncomingMessages(re)
+	go peer.HandleIncomingMessages()
 }
 
 // NewPeer creates a new Peer instance.
-func NewPeer(url string) *Peer {
+func NewPeer(url string, re *ReplicationEngine) *Peer {
 	return &Peer{
 		url:        url,
 		lastActive: time.Now(),
+		re:         re,
 	}
 }
 
@@ -80,7 +81,7 @@ func (p *Peer) Connect(jwtSecret []byte) {
 	}
 
 	p.connection = conn
-	go p.HandleIncomingMessages(nil)
+	go p.HandleIncomingMessages()
 }
 
 // IsConnected checks if the peer is currently connected.
@@ -91,7 +92,10 @@ func (p *Peer) IsConnected() bool {
 }
 
 // HandleIncomingMessages processes messages received from the peer.
-func (p *Peer) HandleIncomingMessages(re *ReplicationEngine) {
+func (p *Peer) HandleIncomingMessages() {
+	if p.re == nil {
+		log.Panicf("HandleIncomingMessages called with nil ReplicationEngine")
+	}
 	for {
 		log.Printf("Peer %s waiting for message", p.url)
 		_, message, err := p.connection.ReadMessage()
@@ -105,7 +109,7 @@ func (p *Peer) HandleIncomingMessages(re *ReplicationEngine) {
 		}
 		p.lastActive = time.Now()
 		log.Printf("Peer %s received message: %v", p.url, message)
-		err = p.processMessage(message, re)
+		err = p.processMessage(message)
 		if err != nil {
 			log.Println("Failed to process message:", err)
 		}
@@ -113,7 +117,7 @@ func (p *Peer) HandleIncomingMessages(re *ReplicationEngine) {
 }
 
 // processMessage handles different types of incoming messages.
-func (p *Peer) processMessage(data []byte, re *ReplicationEngine) error {
+func (p *Peer) processMessage(data []byte) error {
 	var msg pb.Message
 	if err := proto.Unmarshal(data, &msg); err != nil {
 		return err
@@ -123,33 +127,26 @@ func (p *Peer) processMessage(data []byte, re *ReplicationEngine) error {
 
 	switch msg.Type {
 	case pb.Message_GOSSIP:
-		if re != nil {
-			re.HandleGossipMessage(msg.GetGossipMessage())
-		}
+		p.re.HandleGossipMessage(msg.GetGossipMessage())
 	case pb.Message_UPDATE:
-		if re != nil {
-			update := fromProtoUpdate(msg.GetUpdate())
-			re.handleReceivedUpdate(update)
-		}
+		update := fromProtoUpdate(msg.GetUpdate())
+		p.re.handleReceivedUpdate(update)
 	case pb.Message_UPDATE_REQUEST:
-		if re != nil {
-			since := fromProtoTimestamp(msg.GetUpdateRequest().Since)
-			maxResults := int(msg.GetUpdateRequest().MaxResults)
-			updates, hasMore, err := re.storage.GetUpdatesSince(since, maxResults)
-			if err != nil {
-				return err
-			}
-			batchUpdate := &pb.BatchUpdate{
-				Updates: toProtoUpdates(flattenUpdates(updates)),
-				HasMore: hasMore,
-			}
-			re.sendBatchUpdate(p, batchUpdate)
+		since := fromProtoTimestamp(msg.GetUpdateRequest().Since)
+		maxResults := int(msg.GetUpdateRequest().MaxResults)
+		updates, hasMore, err := p.re.storage.GetUpdatesSince(since, maxResults)
+		if err != nil {
+			return err
 		}
+		batchUpdate := &pb.BatchUpdate{
+			Updates: toProtoUpdates(flattenUpdates(updates)),
+			HasMore: hasMore,
+		}
+		p.re.sendBatchUpdate(p, batchUpdate)
 	case pb.Message_BATCH_UPDATE:
-		if re != nil {
-			batchUpdate := msg.GetBatchUpdate()
-			re.handleReceivedBatchUpdate(p.url, batchUpdate)
-		}
+		log.Printf("Processing batch update from peer %s re=%v", p.url, p.re)
+		batchUpdate := msg.GetBatchUpdate()
+		p.re.handleReceivedBatchUpdate(p.url, batchUpdate)
 	default:
 		return errors.New("unknown message type")
 	}
