@@ -9,7 +9,7 @@ import (
 
 // MockStorage is an in-memory implementation of the StorageInterface for testing purposes.
 type MockStorage struct {
-	updates      map[string][]Update
+	updates      []Update
 	records      map[string]map[string][]DataStream
 	updatesMutex sync.Mutex
 	subMutex     sync.Mutex
@@ -19,7 +19,7 @@ type MockStorage struct {
 // NewMockStorage creates a new instance of MockStorage.
 func NewMockStorage() *MockStorage {
 	return &MockStorage{
-		updates:   make(map[string][]Update),
+		updates:   make([]Update, 0),
 		records:   make(map[string]map[string][]DataStream),
 		databases: make(map[string]bool),
 	}
@@ -54,7 +54,7 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 				delete(dbRecords, update.RecordID)
 			}
 		}
-		ms.updates[update.DatabaseName] = append(ms.updates[update.DatabaseName], update)
+		ms.updates = append(ms.updates, update)
 	}
 
 	return nil
@@ -69,48 +69,17 @@ func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp, maxResults int) (map
 	totalUpdates := 0
 	hasMore := false
 
-	// Helper function to add an update to the result
-	addUpdate := func(dbName string, update Update) bool {
-		if totalUpdates >= maxResults {
-			hasMore = true
-			return false
-		}
-		if _, ok := result[dbName]; !ok {
-			result[dbName] = []Update{}
-		}
-		result[dbName] = append(result[dbName], update)
-		totalUpdates++
-		return true
-	}
-
-	for dbName, updates := range ms.updates {
-		for _, update := range updates {
-			if update.Timestamp.Compare(timestamp) > 0 {
-				if !addUpdate(dbName, update) {
-					break
-				}
-			}
-		}
-		if hasMore {
-			break
-		}
-	}
-
-	// Include CreateDatabase and DropDatabase updates
-	for dbName, exists := range ms.databases {
-		createUpdate, ok := ms.findDatabaseCreateUpdate(dbName)
-		if ok && createUpdate.Timestamp.Compare(timestamp) > 0 {
-			if !addUpdate(dbName, createUpdate) {
+	for _, update := range ms.updates {
+		if update.Timestamp.Compare(timestamp) > 0 {
+			if totalUpdates >= maxResults {
+				hasMore = true
 				break
 			}
-		}
-		if !exists {
-			dropUpdate, ok := ms.findDatabaseDropUpdate(dbName)
-			if ok && dropUpdate.Timestamp.Compare(timestamp) > 0 {
-				if !addUpdate(dbName, dropUpdate) {
-					break
-				}
+			if _, ok := result[update.DatabaseName]; !ok {
+				result[update.DatabaseName] = []Update{}
 			}
+			result[update.DatabaseName] = append(result[update.DatabaseName], update)
+			totalUpdates++
 		}
 	}
 
@@ -120,9 +89,8 @@ func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp, maxResults int) (map
 
 // findDatabaseCreateUpdate finds the CreateDatabase update for a given database
 func (ms *MockStorage) findDatabaseCreateUpdate(dbName string) (Update, bool) {
-	updates := ms.updates[dbName]
-	for _, update := range updates {
-		if update.Type == CreateDatabase {
+	for _, update := range ms.updates {
+		if update.Type == CreateDatabase && update.DatabaseName == dbName {
 			return update, true
 		}
 	}
@@ -131,10 +99,9 @@ func (ms *MockStorage) findDatabaseCreateUpdate(dbName string) (Update, bool) {
 
 // findDatabaseDropUpdate finds the DropDatabase update for a given database
 func (ms *MockStorage) findDatabaseDropUpdate(dbName string) (Update, bool) {
-	updates := ms.updates[dbName]
-	for i := len(updates) - 1; i >= 0; i-- {
-		if updates[i].Type == DropDatabase {
-			return updates[i], true
+	for i := len(ms.updates) - 1; i >= 0; i-- {
+		if ms.updates[i].Type == DropDatabase && ms.updates[i].DatabaseName == dbName {
+			return ms.updates[i], true
 		}
 	}
 	return Update{}, false
