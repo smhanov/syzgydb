@@ -41,8 +41,21 @@ func (u Update) Compare(other Update) int {
 
 // String returns a string representation of the Update.
 func (u Update) String() string {
-    return fmt.Sprintf("Update{Type: %v, DatabaseName: %s, RecordID: %s, Timestamp: %s}",
-        u.Type, u.DatabaseName, u.RecordID, u.Timestamp)
+    typeStr := ""
+    switch u.Type {
+    case DeleteRecord:
+        typeStr = "DeleteRecord"
+    case UpsertRecord:
+        typeStr = "UpsertRecord"
+    case CreateDatabase:
+        typeStr = "CreateDatabase"
+    case DropDatabase:
+        typeStr = "DropDatabase"
+    default:
+        typeStr = fmt.Sprintf("Unknown(%d)", u.Type)
+    }
+    return fmt.Sprintf("Update{Type: %s, DatabaseName: %s, RecordID: %s, Timestamp: %s}",
+        typeStr, u.DatabaseName, u.RecordID, u.Timestamp)
 }
 
 // ReplicationConfig holds the configuration settings for the replication engine.
