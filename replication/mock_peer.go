@@ -14,6 +14,9 @@ type MockPeer struct {
 func NewMockPeer(url string) *MockPeer {
 	return &MockPeer{
 		Peer: NewPeer(url),
+		connection: &mockConnection{
+			writtenMessages: make([][]byte, 0),
+		},
 	}
 }
 
@@ -35,8 +38,21 @@ func (mp *MockPeer) WasConnectCalled() bool {
 	return mp.connectCalled
 }
 
-type mockConnection struct{}
+type mockConnection struct {
+	writtenMessages [][]byte
+}
 
-func (mc *mockConnection) Close() error                      { return nil }
-func (mc *mockConnection) WriteMessage(int, []byte) error    { return nil }
-func (mc *mockConnection) ReadMessage() (int, []byte, error) { return 0, nil, nil }
+func (mc *mockConnection) Close() error { return nil }
+func (mc *mockConnection) WriteMessage(_ int, data []byte) error {
+	mc.writtenMessages = append(mc.writtenMessages, data)
+	log.Printf("Mock connection: Message written: %v", data)
+	return nil
+}
+func (mc *mockConnection) ReadMessage() (int, []byte, error) {
+	if len(mc.writtenMessages) > 0 {
+		msg := mc.writtenMessages[0]
+		mc.writtenMessages = mc.writtenMessages[1:]
+		return 1, msg, nil
+	}
+	return 0, nil, nil
+}

@@ -113,6 +113,7 @@ func (p *Peer) HandleIncomingMessages(re *ReplicationEngine) {
 			return
 		}
 		p.lastActive = time.Now()
+		log.Printf("Peer %s received message: %v", p.url, message)
 		err = p.processMessage(message, re)
 		if err != nil {
 			log.Println("Failed to process message:", err)
