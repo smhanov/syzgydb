@@ -7,8 +7,8 @@ import (
 )
 
 type mockNetwork struct {
-    nodes map[string]*ReplicationEngine
-    peers map[string]*MockPeer
+	nodes map[string]*ReplicationEngine
+	peers map[string]*MockPeer
 }
 
 func TestTimestampOrdering(t *testing.T) {
@@ -92,7 +92,7 @@ func TestBufferedUpdates(t *testing.T) {
 	}
 
 	// Wait for replication and buffered updates to be processed
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	// Check if both nodes have the database and the record
 	for i, node := range nodes {
@@ -159,75 +159,75 @@ func TestScalability(t *testing.T) {
 }
 
 func newMockNetwork() *mockNetwork {
-    return &mockNetwork{
-        nodes: make(map[string]*ReplicationEngine),
-        peers: make(map[string]*MockPeer),
-    }
+	return &mockNetwork{
+		nodes: make(map[string]*ReplicationEngine),
+		peers: make(map[string]*MockPeer),
+	}
 }
 
 func (mn *mockNetwork) addNode(nodeID string, re *ReplicationEngine) {
-    mn.nodes[nodeID] = re
-    for _, peer := range re.peers {
-        mockPeer := NewMockPeer(peer.url)
-        mn.peers[peer.url] = mockPeer
-        re.peers[peer.url] = mockPeer.Peer
-    }
+	mn.nodes[nodeID] = re
+	for _, peer := range re.peers {
+		mockPeer := NewMockPeer(peer.url)
+		mn.peers[peer.url] = mockPeer
+		re.peers[peer.url] = mockPeer.Peer
+	}
 }
 
 func (mn *mockNetwork) connect(nodeID1, nodeID2 string) {
-    node1 := mn.nodes[nodeID1]
-    node2 := mn.nodes[nodeID2]
+	node1 := mn.nodes[nodeID1]
+	node2 := mn.nodes[nodeID2]
 
-    mockPeer1 := NewMockPeer(nodeID2)
-    mockPeer2 := NewMockPeer(nodeID1)
+	mockPeer1 := NewMockPeer(nodeID2)
+	mockPeer2 := NewMockPeer(nodeID1)
 
-    node1.peers[nodeID2] = mockPeer1.Peer
-    node2.peers[nodeID1] = mockPeer2.Peer
+	node1.peers[nodeID2] = mockPeer1.Peer
+	node2.peers[nodeID1] = mockPeer2.Peer
 
-    mn.peers[nodeID2] = mockPeer1
-    mn.peers[nodeID1] = mockPeer2
+	mn.peers[nodeID2] = mockPeer1
+	mn.peers[nodeID1] = mockPeer2
 }
 
 func (mn *mockNetwork) disconnect(nodeID1, nodeID2 string) {
-    delete(mn.nodes[nodeID1].peers, nodeID2)
-    delete(mn.nodes[nodeID2].peers, nodeID1)
-    delete(mn.peers, nodeID2)
-    delete(mn.peers, nodeID1)
+	delete(mn.nodes[nodeID1].peers, nodeID2)
+	delete(mn.nodes[nodeID2].peers, nodeID1)
+	delete(mn.peers, nodeID2)
+	delete(mn.peers, nodeID1)
 }
 
 func setupTestEnvironment(t *testing.T, nodeCount int) (*mockNetwork, []*ReplicationEngine) {
-    network := newMockNetwork()
-    nodes := make([]*ReplicationEngine, nodeCount)
+	network := newMockNetwork()
+	nodes := make([]*ReplicationEngine, nodeCount)
 
-    for i := 0; i < nodeCount; i++ {
-        nodeID := fmt.Sprintf("node%d", i)
-        storage := NewMockStorage()
-        config := ReplicationConfig{
-            OwnURL:    nodeID,
-            PeerURLs:  []string{},
-            JWTSecret: []byte("test_secret"),
-        }
-        re, err := Init(storage, config, Now())
-        if err != nil {
-            t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
-        }
-        nodes[i] = re
-        network.addNode(nodeID, re)
-    }
+	for i := 0; i < nodeCount; i++ {
+		nodeID := fmt.Sprintf("node%d", i)
+		storage := NewMockStorage()
+		config := ReplicationConfig{
+			OwnURL:    nodeID,
+			PeerURLs:  []string{},
+			JWTSecret: []byte("test_secret"),
+		}
+		re, err := Init(storage, config, Now())
+		if err != nil {
+			t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
+		}
+		nodes[i] = re
+		network.addNode(nodeID, re)
+	}
 
-    // Connect all nodes in a fully connected topology
-    for i := 0; i < nodeCount; i++ {
-        for j := i + 1; j < nodeCount; j++ {
-            network.connect(fmt.Sprintf("node%d", i), fmt.Sprintf("node%d", j))
-        }
-    }
+	// Connect all nodes in a fully connected topology
+	for i := 0; i < nodeCount; i++ {
+		for j := i + 1; j < nodeCount; j++ {
+			network.connect(fmt.Sprintf("node%d", i), fmt.Sprintf("node%d", j))
+		}
+	}
 
-    // Simulate connections for all peers
-    for _, mockPeer := range network.peers {
-        mockPeer.Connect([]byte("test_secret"))
-    }
+	// Simulate connections for all peers
+	for _, mockPeer := range network.peers {
+		mockPeer.Connect([]byte("test_secret"))
+	}
 
-    return network, nodes
+	return network, nodes
 }
 
 func tearDownTestEnvironment(nodes []*ReplicationEngine) {

@@ -1,7 +1,6 @@
 package replication
 
 import (
-	"log"
 	"sync"
 	"time"
 )
@@ -30,6 +29,7 @@ func (mp *MockPeer) Connect(jwtSecret []byte) {
 	mp.Peer.lastActive = time.Now()
 	// Set the peer as connected
 	mp.Peer.connection = &mockConnection{}
+	go mp.Peer.HandleIncomingMessages(nil)
 }
 
 func (mp *MockPeer) WasConnectCalled() bool {
@@ -54,10 +54,9 @@ func (mc *mockConnection) Close() error { return nil }
 
 func (mc *mockConnection) WriteMessage(_ int, data []byte) error {
 	mc.mu.Lock()
-	defer mc.mu.Unlock()
 	mc.writtenMessages = append(mc.writtenMessages, data)
+	mc.mu.Unlock()
 	mc.readChan <- data
-	log.Printf("Mock connection: Message written: %v", data)
 	return nil
 }
 
