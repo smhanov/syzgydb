@@ -12,7 +12,7 @@ type mockNetwork struct {
 }
 
 func TestTimestampOrdering(t *testing.T) {
-	nodes, _ := setupTestEnvironment(t, 2)
+	nodes := setupTestEnvironment(t, 2)
 	defer tearDownTestEnvironment(nodes)
 
 	// Generdsaate updates with out-of-order timestamps
@@ -44,10 +44,7 @@ func TestTimestampOrdering(t *testing.T) {
 }
 
 func TestBufferedUpdates(t *testing.T) {
-	nodes, err := setupTestEnvironment(t, 2)
-	if err != nil {
-		t.Fatalf("Failed to set up test environment: %v", err)
-	}
+	nodes := setupTestEnvironment(t, 2)
 	defer tearDownTestEnvironment(nodes)
 
 	// Submit updates to both nodes
@@ -119,7 +116,7 @@ func TestScalability(t *testing.T) {
 	nodeCount := 10
 	updateCount := 100
 
-	_, nodes := setupTestEnvironment(t, nodeCount)
+	nodes := setupTestEnvironment(t, nodeCount)
 	defer tearDownTestEnvironment(nodes)
 
 	// Submit multiple updates to random nodes
@@ -267,7 +264,7 @@ func TestBasicReplication(t *testing.T) {
 }
 
 func TestConflictResolution(t *testing.T) {
-	_, nodes := setupTestEnvironment(t, 2)
+	nodes := setupTestEnvironment(t, 2)
 	defer tearDownTestEnvironment(nodes)
 
 	// Submit conflicting updates to both nodes
