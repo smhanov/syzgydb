@@ -2,6 +2,7 @@ package replication
 
 import (
 	"bytes"
+	"fmt"
 	"time"
 
 	pb "github.com/smhanov/syzgydb/replication/proto"
@@ -85,4 +86,13 @@ func fromProtoTimestamp(pt *pb.Timestamp) Timestamp {
 		UnixTime:     pt.UnixTime,
 		LamportClock: pt.LamportClock,
 	}
+}
+
+// String returns a string representation of the Timestamp.
+// The format is the lamport clock in hex followed by [YYYY-MM-DD/hh:mm:ss.ms]
+func (t Timestamp) String() string {
+	unixTime := time.Unix(0, t.UnixTime*int64(time.Millisecond))
+	return fmt.Sprintf("%x[%s]",
+		t.LamportClock,
+		unixTime.Format("2006-01-02/15:04:05.000"))
 }
