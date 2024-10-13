@@ -127,6 +127,8 @@ func (p *Peer) processMessage(data []byte, re *ReplicationEngine) error {
 		return err
 	}
 
+	log.Printf("Peer %s received message of type %s", p.url, msg.Type.String())
+
 	switch msg.Type {
 	case pb.Message_GOSSIP:
 		if re != nil {
@@ -223,6 +225,7 @@ func (p *Peer) RequestUpdates(since Timestamp, maxResults int) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("Peer %s requesting updates since %v", p.url, since)
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
