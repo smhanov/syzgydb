@@ -12,7 +12,6 @@ type MockStorage struct {
 	updates      map[string][]Update
 	records      map[string]map[string][]DataStream
 	updatesMutex sync.Mutex
-	subscribers  []chan Update
 	subMutex     sync.Mutex
 	databases    map[string]bool
 }
@@ -20,10 +19,9 @@ type MockStorage struct {
 // NewMockStorage creates a new instance of MockStorage.
 func NewMockStorage() *MockStorage {
 	return &MockStorage{
-		updates:     make(map[string][]Update),
-		records:     make(map[string]map[string][]DataStream),
-		databases:   make(map[string]bool),
-		subscribers: make([]chan Update, 0),
+		updates:   make(map[string][]Update),
+		records:   make(map[string]map[string][]DataStream),
+		databases: make(map[string]bool),
 	}
 }
 
@@ -58,14 +56,6 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 		}
 		ms.updates[update.DatabaseName] = append(ms.updates[update.DatabaseName], update)
 	}
-
-	ms.subMutex.Lock()
-	for _, update := range updates {
-		for _, ch := range ms.subscribers {
-			ch <- update
-		}
-	}
-	ms.subMutex.Unlock()
 
 	return nil
 }
@@ -159,16 +149,6 @@ func (ms *MockStorage) ResolveConflict(update1, update2 Update) (Update, error) 
 	return update2, nil
 }
 
-// SubscribeUpdates returns a channel that receives new updates as they occur.
-func (ms *MockStorage) SubscribeUpdates() (<-chan Update, error) {
-	ms.subMutex.Lock()
-	defer ms.subMutex.Unlock()
-
-	ch := make(chan Update, 100)
-	ms.subscribers = append(ms.subscribers, ch)
-	return ch, nil
-}
-
 // Exists checks if a given dependency (usually a database) exists in the storage.
 func (ms *MockStorage) Exists(dependency string) bool {
 	ms.updatesMutex.Lock()
@@ -207,10 +187,4 @@ func (ms *MockStorage) GenerateUpdate(dbName string) {
 		DatabaseName: dbName,
 	}
 	ms.updates[dbName] = append(ms.updates[dbName], update)
-
-	ms.subMutex.Lock()
-	for _, ch := range ms.subscribers {
-		ch <- update
-	}
-	ms.subMutex.Unlock()
 }
