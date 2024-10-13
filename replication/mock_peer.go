@@ -25,6 +25,8 @@ func (mp *MockPeer) Connect(jwtSecret []byte) {
 	mp.SetConnection(&mockConnection{})
 	// Set lastActive to simulate a recent connection
 	mp.Peer.lastActive = time.Now()
+	// Set the peer as connected
+	mp.Peer.connection = &mockConnection{}
 }
 
 func (mp *MockPeer) WasConnectCalled() bool {
