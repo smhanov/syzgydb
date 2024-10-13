@@ -103,6 +103,7 @@ func (p *Peer) IsConnected() bool {
 // HandleIncomingMessages processes messages received from the peer.
 func (p *Peer) HandleIncomingMessages(re *ReplicationEngine) {
 	for {
+		log.Printf("Peer %s waiting for message", p.url)
 		_, message, err := p.connection.ReadMessage()
 		if err != nil {
 			log.Println("Error reading from peer:", err)
@@ -182,6 +183,7 @@ func (p *Peer) SendGossipMessage(msg *pb.GossipMessage) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("Peer %s sending gossip message", p.url)
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
@@ -202,6 +204,7 @@ func (p *Peer) SendUpdate(update Update) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("Peer %s sending update", p.url)
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
@@ -248,6 +251,7 @@ func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUp
 		log.Println("Failed to marshal batch update:", err)
 		return
 	}
+	log.Printf("Peer %s sending batch update", peer.url)
 	err = peer.connection.WriteMessage(websocket.BinaryMessage, data)
 	if err != nil {
 		log.Println("Failed to send batch update:", err)

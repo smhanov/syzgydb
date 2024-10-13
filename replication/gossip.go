@@ -2,7 +2,6 @@ package replication
 
 import (
 	"log"
-	"time"
 
 	pb "github.com/smhanov/syzgydb/replication/proto"
 )
@@ -72,72 +71,72 @@ func (re *ReplicationEngine) getPeerURLs() []string {
 
 // requestUpdatesFromPeer initiates an update request to a specific peer.
 func (re *ReplicationEngine) requestUpdatesFromPeer(peerURL string, since Timestamp) {
-    re.mu.Lock()
-    defer re.mu.Unlock()
+	re.mu.Lock()
+	defer re.mu.Unlock()
 
-    if re.updateRequests == nil {
-        re.updateRequests = make(map[string]*updateRequest)
-    }
+	if re.updateRequests == nil {
+		re.updateRequests = make(map[string]*updateRequest)
+	}
 
-    if _, exists := re.updateRequests[peerURL]; !exists {
-        re.updateRequests[peerURL] = &updateRequest{
-            peerURL: peerURL,
-            since:   since,
-        }
-    }
+	if _, exists := re.updateRequests[peerURL]; !exists {
+		re.updateRequests[peerURL] = &updateRequest{
+			peerURL: peerURL,
+			since:   since,
+		}
+	}
 
-    if !re.updateRequests[peerURL].inProgress {
-        re.updateRequests[peerURL].inProgress = true
-        go re.fetchUpdatesFromPeer(peerURL)
-    }
+	if !re.updateRequests[peerURL].inProgress {
+		re.updateRequests[peerURL].inProgress = true
+		go re.fetchUpdatesFromPeer(peerURL)
+	}
 }
 
 func (re *ReplicationEngine) fetchUpdatesFromPeer(peerURL string) {
-    for {
-        re.mu.Lock()
-        req := re.updateRequests[peerURL]
-        re.mu.Unlock()
+	for {
+		re.mu.Lock()
+		req := re.updateRequests[peerURL]
+		re.mu.Unlock()
 
-        peer := re.peers[peerURL]
-        if peer == nil || !peer.IsConnected() {
-            break
-        }
+		peer := re.peers[peerURL]
+		if peer == nil || !peer.IsConnected() {
+			break
+		}
 
-        err := peer.RequestUpdates(req.since, MaxUpdateResults)
-        if err != nil {
-            log.Printf("Error requesting updates from peer %s: %v", peerURL, err)
-            break
-        }
+		err := peer.RequestUpdates(req.since, MaxUpdateResults)
+		if err != nil {
+			log.Printf("Error requesting updates from peer %s: %v", peerURL, err)
+			break
+		}
 
-        // Wait for the response in handleReceivedBatchUpdate
-        // If no more updates, the loop will be broken there
-    }
+		// Wait for the response in handleReceivedBatchUpdate
+		// If no more updates, the loop will be broken there
+	}
 
-    re.mu.Lock()
-    delete(re.updateRequests, peerURL)
-    re.mu.Unlock()
+	re.mu.Lock()
+	delete(re.updateRequests, peerURL)
+	re.mu.Unlock()
 }
 
 func (re *ReplicationEngine) handleReceivedBatchUpdate(peerURL string, batchUpdate *pb.BatchUpdate) {
-    re.mu.Lock()
-    req, exists := re.updateRequests[peerURL]
-    re.mu.Unlock()
+	re.mu.Lock()
+	req, exists := re.updateRequests[peerURL]
+	re.mu.Unlock()
 
-    if !exists {
-        return
-    }
+	if !exists {
+		return
+	}
 
-    for _, protoUpdate := range batchUpdate.Updates {
-        update := fromProtoUpdate(protoUpdate)
-        re.handleReceivedUpdate(update)
-        if update.Timestamp.After(req.since) {
-            req.since = update.Timestamp
-        }
-    }
+	for _, protoUpdate := range batchUpdate.Updates {
+		update := fromProtoUpdate(protoUpdate)
+		re.handleReceivedUpdate(update)
+		if update.Timestamp.After(req.since) {
+			req.since = update.Timestamp
+		}
+	}
 
-    if !batchUpdate.HasMore {
-        re.mu.Lock()
-        delete(re.updateRequests, peerURL)
-        re.mu.Unlock()
-    }
+	if !batchUpdate.HasMore {
+		re.mu.Lock()
+		delete(re.updateRequests, peerURL)
+		re.mu.Unlock()
+	}
 }

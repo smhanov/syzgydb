@@ -191,7 +191,7 @@ func TestUpdateBuffering(t *testing.T) {
 	}
 }
 
-func TestConflictResolution(t *testing.T) {
+func TestEngineConflictResolution(t *testing.T) {
 	storage := NewMockStorage()
 
 	update1 := Update{

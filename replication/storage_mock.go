@@ -1,6 +1,7 @@
 package replication
 
 import (
+	"log"
 	"sort"
 	"sync"
 	"time"
@@ -71,29 +72,31 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 
 // GetUpdatesSince retrieves updates that occurred after the given timestamp, up to maxResults.
 func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp, maxResults int) (map[string][]Update, bool, error) {
-    ms.updatesMutex.Lock()
-    defer ms.updatesMutex.Unlock()
+	ms.updatesMutex.Lock()
+	defer ms.updatesMutex.Unlock()
 
-    result := make(map[string][]Update)
-    totalUpdates := 0
-    hasMore := false
+	result := make(map[string][]Update)
+	totalUpdates := 0
+	hasMore := false
 
-    for dbName, updates := range ms.updates {
-        for _, update := range updates {
-            if update.Timestamp.Compare(timestamp) > 0 {
-                if totalUpdates >= maxResults {
-                    hasMore = true
-                    break
-                }
-                result[dbName] = append(result[dbName], update)
-                totalUpdates++
-            }
-        }
-        if hasMore {
-            break
-        }
-    }
-    return result, hasMore, nil
+	for dbName, updates := range ms.updates {
+		for _, update := range updates {
+			if update.Timestamp.Compare(timestamp) > 0 {
+				if totalUpdates >= maxResults {
+					hasMore = true
+					break
+				}
+				result[dbName] = append(result[dbName], update)
+				totalUpdates++
+			}
+		}
+		if hasMore {
+			break
+		}
+	}
+
+	log.Printf("Updates since %v: %v", timestamp, result)
+	return result, hasMore, nil
 }
 
 // ResolveConflict determines which of two conflicting updates should be applied.
