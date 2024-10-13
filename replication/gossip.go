@@ -54,7 +54,7 @@ func (re *ReplicationEngine) updatePeerList(newPeers []string) {
 
 	for _, url := range newPeers {
 		if url != re.config.OwnURL && re.peers[url] == nil {
-			re.peers[url] = NewPeer(url)
+			re.peers[url] = NewPeer(url, re)
 			go re.peers[url].Connect(re.config.JWTSecret)
 		}
 	}
@@ -93,12 +93,13 @@ func (re *ReplicationEngine) requestUpdatesFromPeer(peerURL string, since Timest
 
 func (re *ReplicationEngine) fetchUpdatesFromPeer(peerURL string) {
 	for {
+		log.Printf("Fetch updates from peer %s (looping)", peerURL)
 		re.mu.Lock()
 		req := re.updateRequests[peerURL]
 		re.mu.Unlock()
 
 		peer := re.peers[peerURL]
-		if peer == nil || !peer.IsConnected() {
+		if peer == nil || !peer.IsConnected() || req == nil {
 			break
 		}
 
@@ -122,7 +123,10 @@ func (re *ReplicationEngine) handleReceivedBatchUpdate(peerURL string, batchUpda
 	req, exists := re.updateRequests[peerURL]
 	re.mu.Unlock()
 
+	log.Printf("Received %d updates from peer %s (exists=%v)", len(batchUpdate.Updates), peerURL, exists)
+
 	if !exists {
+		log.Printf("[!] Peer %s is not in the updateRequests map", peerURL)
 		return
 	}
 
