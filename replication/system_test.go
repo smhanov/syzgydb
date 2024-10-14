@@ -13,7 +13,7 @@ const sleepTime = 400 * time.Millisecond
 // Helper function to create a database
 func createDatabase(t *testing.T, node *ReplicationEngine, dbName string) {
 	createDBUpdate := Update{
-		Timestamp:    node.NextTimestamp(true),
+		VectorClock:  node.NextTimestamp(true),
 		Type:         CreateDatabase,
 		DatabaseName: dbName,
 	}
@@ -31,14 +31,14 @@ func TestTimestampOrdering(t *testing.T) {
 	createDatabase(t, nodes[0], "testdb")
 	// Generate updates with out-of-order timestamps
 	update1 := Update{
-		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 1},
+		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: 1000, LamportClock: 1}),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data1")}},
 		DatabaseName: "testdb",
 	}
 	update2 := Update{
-		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 2},
+		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: 1000, LamportClock: 2}),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data2")}},
@@ -116,7 +116,7 @@ func TestScalability(t *testing.T) {
 
 	// Create the "testdb" database on the first node
 	createDBUpdate := Update{
-		Timestamp:    nodes[0].NextTimestamp(true),
+		VectorClock:  nodes[0].NextTimestamp(true),
 		Type:         CreateDatabase,
 		DatabaseName: "testdb",
 	}
@@ -129,7 +129,7 @@ func TestScalability(t *testing.T) {
 	for i := 0; i < updateCount; i++ {
 		nodeIndex := i % nodeCount
 		update := Update{
-			Timestamp:    nodes[nodeIndex].NextTimestamp(true),
+			VectorClock:  nodes[nodeIndex].NextTimestamp(true),
 			Type:         UpsertRecord,
 			RecordID:     fmt.Sprintf("record%d", i),
 			DataStreams:  []DataStream{{StreamID: 1, Data: []byte(fmt.Sprintf("data%d", i))}},
@@ -208,7 +208,7 @@ func TestBasicReplication(t *testing.T) {
 
 	// Submit an update to node0
 	update := Update{
-		Timestamp:    nodes[0].NextTimestamp(true),
+		VectorClock:  nodes[0].NextTimestamp(true),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
