@@ -17,6 +17,7 @@ type ReplicationEngine struct {
 	stateMachine *StateMachine
 	server       *http.Server
 	listener     net.Listener
+	eventChan    chan Event
 }
 
 func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *VectorClock) (*ReplicationEngine, error) {
@@ -30,11 +31,15 @@ func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *
 		return nil, errors.New("config.JWTSecret cannot be empty")
 	}
 
-	sm := NewStateMachine(storage, config, localVectorClock)
+	eventChan := make(chan Event, 1000)
+	sm := NewStateMachine(storage, config, localVectorClock, eventChan)
 
 	re := &ReplicationEngine{
 		stateMachine: sm,
+		eventChan:    eventChan,
 	}
+
+	go sm.eventLoop()
 
 	return re, nil
 }
@@ -77,7 +82,7 @@ func (re *ReplicationEngine) Close() error {
 }
 
 func (re *ReplicationEngine) AddPeer(url string) {
-	re.stateMachine.eventChan <- AddPeerEvent{URL: url}
+	re.eventChan <- AddPeerEvent{URL: url}
 }
 
 func (re *ReplicationEngine) NextTimestamp(local bool) *VectorClock {
@@ -89,5 +94,5 @@ func (re *ReplicationEngine) NextLocalTimestamp() Timestamp {
 }
 
 func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	re.stateMachine.eventChan <- WebSocketConnectionEvent{ResponseWriter: w, Request: r}
+	re.eventChan <- WebSocketConnectionEvent{ResponseWriter: w, Request: r}
 }

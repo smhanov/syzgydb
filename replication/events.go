@@ -60,6 +60,47 @@ func (e AddPeerEvent) process(sm *StateMachine) {
 		peer := NewPeer("a:?", e.URL, sm)
 		sm.peers[e.URL] = peer
 		go peer.Connect(sm.config.JWTSecret)
+		
+		// Schedule a SendGossipEvent for the new peer
+		sm.eventChan <- SendGossipEvent{Peer: peer}
+	}
+}
+
+type WebSocketConnectionEvent struct {
+	ResponseWriter http.ResponseWriter
+	Request        *http.Request
+}
+
+func (e WebSocketConnectionEvent) process(sm *StateMachine) {
+	conn, err := upgradeToWebSocket(e.ResponseWriter, e.Request)
+	if err != nil {
+		log.Printf("Failed to upgrade connection to WebSocket: %v", err)
+		return
+	}
+
+	peer := NewPeer("c:?", e.Request.RemoteAddr, sm)
+	peer.connection = conn
+	sm.peers[e.Request.RemoteAddr] = peer
+
+	// Schedule a SendGossipEvent for the new peer
+	sm.eventChan <- SendGossipEvent{Peer: peer}
+
+	go peer.ReadLoop()
+}
+
+type SendGossipEvent struct {
+	Peer *Peer
+}
+
+func (e SendGossipEvent) process(sm *StateMachine) {
+	msg := &pb.GossipMessage{
+		NodeId:          sm.config.OwnURL,
+		KnownPeers:      sm.getPeerURLs(),
+		LastVectorClock: sm.lastKnownVectorClock.toProto(),
+	}
+	err := e.Peer.SendGossipMessage(msg, sm.NextTimestamp(false))
+	if err != nil {
+		log.Printf("Failed to send gossip message to %s: %v", e.Peer.url, err)
 	}
 }
 
