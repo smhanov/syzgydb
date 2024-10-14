@@ -105,6 +105,20 @@ func TestScalability(t *testing.T) {
 	nodes := setupTestEnvironment(t, nodeCount)
 	defer tearDownTestEnvironment(nodes)
 
+	// Create the "testdb" database on the first node
+	createDBUpdate := Update{
+		Timestamp:    nodes[0].NextTimestamp(),
+		Type:         CreateDatabase,
+		DatabaseName: "testdb",
+	}
+	err := nodes[0].SubmitUpdates([]Update{createDBUpdate})
+	if err != nil {
+		t.Fatalf("Failed to create database: %v", err)
+	}
+
+	// Wait for the database creation to propagate
+	time.Sleep(1000 * time.Millisecond)
+
 	// Submit multiple updates to random nodes
 	for i := 0; i < updateCount; i++ {
 		nodeIndex := i % nodeCount
