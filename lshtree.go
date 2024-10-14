@@ -69,7 +69,10 @@ func distanceToHyperplane(method int, vector []float64, length float64, normal [
 
 	// angular distance of two already-normalized vectors
 	dist = math.Acos(dist/length) / math.Pi
-	right = dist > 0.5
+	if dist > 0.5 {
+		right = true
+		dist = 1 - dist
+	}
 	return
 }
 
@@ -277,7 +280,7 @@ func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64, lengt
 	return node
 }
 
-func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
+func (tree *lshTree) search(vector []float64, radius float64, callback searchCallback) {
 	length := vectorLength(vector)
 	visited := make(map[uint64]bool)
 	const search_k = 200 // how many points do we search beyond what is required in hopes of finding a better result.
@@ -298,6 +301,13 @@ func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
 		node := item.node
 		//log.Printf("Node with priority %v (tau=%v, k=%v) leaf=%v", item.priority, tau, k_counter, node.isLeaf())
 
+		if item.priority < 0 && -item.priority > radius {
+			// This is the "other" side of the hyperplane.
+			// We can stop searching because the distance to the hyperplane is greater than the radius
+			//log.Printf("Early stopping; %v > %v", -item.priority, radius)
+			continue
+		}
+
 		if k_counter >= search_k {
 			break
 		}
@@ -308,7 +318,9 @@ func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
 					continue
 				}
 				visited[id] = true
-				switch callback(id) {
+				var signal int
+				signal, radius = callback(id, radius)
+				switch signal {
 				case StopSearch:
 					return
 				case PointAccepted:
@@ -321,6 +333,7 @@ func (tree *lshTree) search(vector []float64, callback func(docid uint64) int) {
 				case PointIgnored:
 				}
 			}
+			//log.Printf("Search radius now %v k=%v", radius, k_counter)
 		} else {
 			// Calculate the distance to the hyperplane
 			dist, right := distanceToHyperplane(tree.c.DistanceMethod, vector, length, node.normal, node.b)

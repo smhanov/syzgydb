@@ -578,17 +578,17 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 	heap.Init(resultsPQ)
 	pointsSearched := 0
 
-	consider := func(docid uint64) int {
+	consider := func(docid uint64, radius float64) (int, float64) {
 		doc, err := c.getDocument(docid)
 		if err != nil {
-			return StopSearch
+			return StopSearch, radius
 		}
 
 		pointsSearched++
 
 		// Apply filter function if provided
 		if args.Filter != nil && !args.Filter(doc.ID, doc.Metadata) {
-			return PointIgnored
+			return PointIgnored, radius
 		}
 
 		distance := c.distance(args.Vector, doc.Vector)
@@ -598,11 +598,9 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
 				Priority:     distance,
 			})
-			// heuristic: we want the index to stop looking only if we don't get any better ones
-			// for a while.
-			if (*resultsPQ)[0].Priority >= distance {
-				return PointAccepted
-			}
+			return PointAccepted, radius
+		} else if args.Radius > 0 {
+			return PointChecked, radius
 		} else if args.K > 0 {
 			if resultsPQ.Len() <= args.K {
 				if resultsPQ.Len() < args.K || (*resultsPQ)[0].Priority > distance {
@@ -613,7 +611,8 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 					if resultsPQ.Len() > args.K {
 						heap.Pop(resultsPQ)
 					}
-					return PointAccepted
+					radius = (*resultsPQ)[0].Distance
+					return PointAccepted, radius
 				}
 			}
 		} else if args.K == 0 && args.Radius == 0 {
@@ -622,9 +621,9 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
 				Priority:     distance,
 			})
-			return PointAccepted
+			return PointAccepted, radius
 		}
-		return PointChecked
+		return PointChecked, radius
 	}
 
 	if args.Radius == 0 && args.K == 0 || args.Precision == "exact" {
@@ -632,12 +631,16 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		c.spanfile.IterateRecords(func(recordID string, sr *SpanReader) error {
 			id, err := strconv.ParseUint(recordID, 10, 64)
 			if err == nil {
-				consider(id)
+				consider(id, 0)
 			}
 			return nil
 		})
 	} else {
-		c.index.search(args.Vector, consider)
+		radius := math.MaxFloat64
+		if args.Radius > 0 {
+			radius = args.Radius
+		}
+		c.index.search(args.Vector, radius, consider)
 	}
 
 	// Extract results from the priority queue
@@ -778,5 +781,7 @@ func angularDistance(vec1, vec2 []float64) float64 {
 type searchIndex interface {
 	addPoint(docid uint64, vector []float64)
 	removePoint(docid uint64, vector []float64)
-	search(vector []float64, callback func(docid uint64) int)
+	search(vector []float64, radius float64, callback searchCallback)
 }
+
+type searchCallback func(docid uint64, radius float64) (int, float64)
