@@ -120,6 +120,7 @@ func (e WebSocketConnectionEvent) process(sm *StateMachine) {
 	conn, err := upgradeToWebSocket(e.ResponseWriter, e.Request)
 	if err != nil {
 		log.Printf("Failed to upgrade connection to WebSocket: %v", err)
+		http.Error(e.ResponseWriter, "Failed to upgrade connection", http.StatusInternalServerError)
 		return
 	}
 
