@@ -253,5 +253,22 @@ type PeerDisconnectEvent struct {
 }
 
 func (e PeerDisconnectEvent) process(sm *StateMachine) {
-	sm.handlePeerDisconnect(e.Peer)
+	log.Printf("Peer disconnected: %s", e.Peer.url)
+
+	// Close the connection
+	if e.Peer.connection != nil {
+		e.Peer.connection.Close()
+	}
+
+	// Remove the peer from the peers map
+	delete(sm.peers, e.Peer.url)
+
+	// Remove any pending update requests for this peer
+	delete(sm.updateRequests, e.Peer.url)
+
+	// Trigger a reconnection attempt after a delay
+	go func() {
+		time.Sleep(5 * time.Second)
+		sm.eventChan <- ConnectPeerEvent{URL: e.Peer.url}
+	}()
 }
