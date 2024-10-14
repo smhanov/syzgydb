@@ -1,9 +1,9 @@
 package replication
 
 import (
-    "encoding/json"
     "log"
 
+    "google.golang.org/protobuf/proto"
     pb "github.com/smhanov/syzgydb/replication/proto"
 )
 
@@ -16,7 +16,7 @@ func (p *Peer) ReadLoop(eventChan chan<- Event) {
         }
 
         var msg pb.Message
-        err = json.Unmarshal(message, &msg)
+        err = proto.Unmarshal(message, &msg)
         if err != nil {
             log.Printf("Error unmarshaling message from peer %s: %v", p.url, err)
             continue
@@ -24,33 +24,27 @@ func (p *Peer) ReadLoop(eventChan chan<- Event) {
 
         switch msg.Type {
         case pb.Message_GOSSIP:
-            var gossipMsg pb.GossipMessage
-            err = json.Unmarshal(msg.Payload, &gossipMsg)
-            if err != nil {
-                log.Printf("Error unmarshaling gossip message from peer %s: %v", p.url, err)
-                continue
+            if gossipMsg := msg.GetGossipMessage(); gossipMsg != nil {
+                eventChan <- GossipMessageEvent{Peer: p, Message: gossipMsg}
+            } else {
+                log.Printf("Received GOSSIP message with nil content from peer %s", p.url)
             }
-            eventChan <- GossipMessageEvent{Peer: p, Message: &gossipMsg}
         case pb.Message_UPDATE_REQUEST:
-            var updateReq pb.UpdateRequest
-            err = json.Unmarshal(msg.Payload, &updateReq)
-            if err != nil {
-                log.Printf("Error unmarshaling update request from peer %s: %v", p.url, err)
-                continue
-            }
-            eventChan <- UpdateRequestEvent{
-                Peer:       p,
-                Since:      fromProtoVectorClock(updateReq.Since),
-                MaxResults: int(updateReq.MaxResults),
+            if updateReq := msg.GetUpdateRequest(); updateReq != nil {
+                eventChan <- UpdateRequestEvent{
+                    Peer:       p,
+                    Since:      fromProtoVectorClock(updateReq.Since),
+                    MaxResults: int(updateReq.MaxResults),
+                }
+            } else {
+                log.Printf("Received UPDATE_REQUEST message with nil content from peer %s", p.url)
             }
         case pb.Message_BATCH_UPDATE:
-            var batchUpdate pb.BatchUpdate
-            err = json.Unmarshal(msg.Payload, &batchUpdate)
-            if err != nil {
-                log.Printf("Error unmarshaling batch update from peer %s: %v", p.url, err)
-                continue
+            if batchUpdate := msg.GetBatchUpdate(); batchUpdate != nil {
+                eventChan <- BatchUpdateEvent{Peer: p, BatchUpdate: batchUpdate}
+            } else {
+                log.Printf("Received BATCH_UPDATE message with nil content from peer %s", p.url)
             }
-            eventChan <- BatchUpdateEvent{Peer: p, BatchUpdate: &batchUpdate}
         default:
             log.Printf("Unknown message type from peer %s: %v", p.url, msg.Type)
         }
