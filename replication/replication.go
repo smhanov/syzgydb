@@ -85,7 +85,7 @@ func Init(storage StorageInterface, config ReplicationConfig, localTimeStamp Tim
 	}
 
 	for _, url := range config.PeerURLs {
-		re.peers[url] = NewPeer("", url, re)
+		re.peers[url] = NewPeer("c:?", url, re)
 	}
 
 	// Start background processes
@@ -302,7 +302,7 @@ func (re *ReplicationEngine) AddPeer(url string) {
 	defer re.mu.Unlock()
 
 	if _, exists := re.peers[url]; !exists {
-		peer := NewPeer("", url, re)
+		peer := NewPeer("a:?", url, re)
 		re.peers[url] = peer
 		go peer.Connect(re.config.JWTSecret)
 	}
