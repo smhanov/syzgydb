@@ -38,19 +38,19 @@ func (p *Peer) SetConnection(conn Connection) {
 // It manages peer connections, handles local and remote updates,
 // and coordinates the gossip protocol.
 type ReplicationEngine struct {
-	storage         StorageInterface
-	config          ReplicationConfig
-	peers           map[string]*Peer
-	lastTimestamp   Timestamp
-	mu              sync.Mutex
-	bufferedUpdates map[string][]Update
-	bufferMu        sync.Mutex
-	updateRequests  map[string]*updateRequest
-	gossipTicker    *time.Ticker
-	gossipDone      chan bool
-	server          *http.Server
-	listener        net.Listener
-	name            string
+	storage              StorageInterface
+	config               ReplicationConfig
+	peers                map[string]*Peer
+	lastKnownVectorClock *VectorClock
+	mu                   sync.Mutex
+	bufferedUpdates      map[string][]Update
+	bufferMu             sync.Mutex
+	updateRequests       map[string]*updateRequest
+	gossipTicker         *time.Ticker
+	gossipDone           chan bool
+	server               *http.Server
+	listener             net.Listener
+	name                 string
 }
 
 // GetUpdatesSince retrieves updates that occurred after the given timestamp, up to maxResults,
