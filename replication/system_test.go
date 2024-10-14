@@ -68,7 +68,7 @@ func TestBufferedUpdates(t *testing.T) {
 
 	// Node 1 submits a record to the database
 	update := Update{
-		Timestamp:    nodes[1].NextTimestamp(true),
+		VectorClock:  nodes[1].NextTimestamp(true),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
