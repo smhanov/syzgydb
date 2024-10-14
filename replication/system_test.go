@@ -168,7 +168,7 @@ func setupTestEnvironment(t *testing.T, nodeCount int) []*ReplicationEngine {
 			PeerURLs:  []string{},
 			JWTSecret: []byte("test_secret"),
 		}
-		re, err := Init(storage, config, Now())
+		re, err := Init(storage, config, NewVectorClock())
 		if err != nil {
 			t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
 		}
@@ -244,14 +244,14 @@ func TestConflictResolution(t *testing.T) {
 
 	// Submit conflicting updates to both nodes
 	update1 := Update{
-		Timestamp:    nodes[0].NextTimestamp(),
+		VectorClock:  nodes[0].NextTimestamp(true),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data from node0")}},
 		DatabaseName: "testdb",
 	}
 	update2 := Update{
-		Timestamp:    nodes[1].NextTimestamp(),
+		VectorClock:  nodes[1].NextTimestamp(true),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data from node1")}},
