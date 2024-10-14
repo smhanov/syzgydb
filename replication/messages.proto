@@ -49,12 +49,17 @@ message BatchUpdate {
   bool has_more = 2;
 }
 
+message Heartbeat {
+  VectorClock vector_clock = 1;
+}
+
 message Message {
   enum MessageType {
     GOSSIP = 0;
     UPDATE = 1;
     UPDATE_REQUEST = 2;
     BATCH_UPDATE = 3;
+    HEARTBEAT = 4;
   }
   MessageType type = 1;
   VectorClock vector_clock = 6;
@@ -63,5 +68,6 @@ message Message {
     Update update = 3;
     UpdateRequest update_request = 4;
     BatchUpdate batch_update = 5;
+    Heartbeat heartbeat = 7;
   }
 }
