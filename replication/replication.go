@@ -18,7 +18,6 @@ type ReplicationEngine struct {
 	stateMachine *StateMachine
 	server       *http.Server
 	listener     net.Listener
-	name         string
 }
 
 func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *VectorClock) (*ReplicationEngine, error) {
@@ -36,7 +35,6 @@ func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *
 	
 	re := &ReplicationEngine{
 		stateMachine: sm,
-		name:         config.OwnURL,
 	}
 
 	return re, nil
@@ -89,4 +87,8 @@ func (re *ReplicationEngine) NextTimestamp(local bool) *VectorClock {
 
 func (re *ReplicationEngine) NextLocalTimestamp() Timestamp {
 	return re.stateMachine.NextLocalTimestamp()
+}
+
+func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	re.stateMachine.eventChan <- WebSocketConnectionEvent{ResponseWriter: w, Request: r}
 }
