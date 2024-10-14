@@ -52,6 +52,7 @@ message Message {
     BATCH_UPDATE = 3;
   }
   MessageType type = 1;
+  Timestamp timestamp = 6;
   oneof content {
     GossipMessage gossip_message = 2;
     Update update = 3;

@@ -1,6 +1,7 @@
 package replication
 
 import (
+	"fmt"
 	"log"
 	"sort"
 	"sync"
@@ -12,16 +13,17 @@ type MockStorage struct {
 	updates      []Update
 	records      map[string]map[string][]DataStream
 	updatesMutex sync.Mutex
-	subMutex     sync.Mutex
 	databases    map[string]bool
+	nodeID       int
 }
 
 // NewMockStorage creates a new instance of MockStorage.
-func NewMockStorage() *MockStorage {
+func NewMockStorage(peerID int) *MockStorage {
 	return &MockStorage{
 		updates:   make([]Update, 0),
 		records:   make(map[string]map[string][]DataStream),
 		databases: make(map[string]bool),
+		nodeID:    peerID,
 	}
 }
 
@@ -35,7 +37,7 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 	})
 
 	for _, update := range updates {
-		log.Printf("Committing update: %+v", update)
+		log.Printf("[node%d] Committing update: %+v", ms.nodeID, update)
 		if update.Type == CreateDatabase {
 			ms.databases[update.DatabaseName] = true
 			if _, ok := ms.records[update.DatabaseName]; !ok {
@@ -83,28 +85,8 @@ func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp, maxResults int) (map
 		}
 	}
 
-	log.Printf("Updates since %v: %v", timestamp, result)
+	log.Printf("[node%d] Updates since %v: %v", ms.nodeID, timestamp, result)
 	return result, hasMore, nil
-}
-
-// findDatabaseCreateUpdate finds the CreateDatabase update for a given database
-func (ms *MockStorage) findDatabaseCreateUpdate(dbName string) (Update, bool) {
-	for _, update := range ms.updates {
-		if update.Type == CreateDatabase && update.DatabaseName == dbName {
-			return update, true
-		}
-	}
-	return Update{}, false
-}
-
-// findDatabaseDropUpdate finds the DropDatabase update for a given database
-func (ms *MockStorage) findDatabaseDropUpdate(dbName string) (Update, bool) {
-	for i := len(ms.updates) - 1; i >= 0; i-- {
-		if ms.updates[i].Type == DropDatabase && ms.updates[i].DatabaseName == dbName {
-			return ms.updates[i], true
-		}
-	}
-	return Update{}, false
 }
 
 // ResolveConflict determines which of two conflicting updates should be applied.
@@ -133,25 +115,23 @@ func (ms *MockStorage) GetRecord(databaseName, recordID string) ([]DataStream, e
 			return record, nil
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf("record not found")
 }
 
 // GenerateUpdate creates a new update for testing purposes.
-func (ms *MockStorage) GenerateUpdate(dbName string) {
+func (ms *MockStorage) GenerateUpdate(dbName string, ts Timestamp) Update {
 	ms.updatesMutex.Lock()
 	defer ms.updatesMutex.Unlock()
 
 	update := Update{
-		Timestamp: Timestamp{
-			UnixTime:     time.Now().UnixMilli(),
-			LamportClock: int64(len(ms.updates[dbName]) + 1),
-		},
-		Type:     UpsertRecord,
-		RecordID: "test_record_" + time.Now().String(),
+		Timestamp: ts,
+		Type:      UpsertRecord,
+		RecordID:  "test_record_" + time.Now().String(),
 		DataStreams: []DataStream{
 			{StreamID: 1, Data: []byte("Sample data")},
 		},
 		DatabaseName: dbName,
 	}
-	ms.updates[dbName] = append(ms.updates[dbName], update)
+	ms.updates = append(ms.updates, update)
+	return update
 }

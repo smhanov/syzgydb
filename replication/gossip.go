@@ -11,10 +11,11 @@ func (re *ReplicationEngine) GossipLoop() {
 	for {
 		select {
 		case <-re.gossipTicker.C:
+			ts := re.NextTimestamp(false)
 			re.mu.Lock()
 			for _, peer := range re.peers {
 				if peer.IsConnected() {
-					go re.sendGossipMessage(peer)
+					go re.sendGossipMessage(peer, ts)
 				}
 			}
 			re.mu.Unlock()
@@ -26,13 +27,15 @@ func (re *ReplicationEngine) GossipLoop() {
 }
 
 // sendGossipMessage sends a gossip message to a specific peer.
-func (re *ReplicationEngine) sendGossipMessage(peer *Peer) {
+func (re *ReplicationEngine) sendGossipMessage(peer *Peer, ts Timestamp) {
+	re.mu.Lock()
+	defer re.mu.Unlock()
 	msg := &pb.GossipMessage{
-		NodeId:        re.config.OwnURL,
+		NodeId:        re.name,
 		KnownPeers:    re.getPeerURLs(),
-		LastTimestamp: re.lastTimestamp.toProto(),
+		LastTimestamp: ts.toProto(),
 	}
-	err := peer.SendGossipMessage(msg)
+	err := peer.SendGossipMessage(msg, ts)
 	if err != nil {
 		log.Println("Failed to send gossip message:", err)
 	}
@@ -40,23 +43,19 @@ func (re *ReplicationEngine) sendGossipMessage(peer *Peer) {
 
 // HandleGossipMessage processes a received gossip message, updating the peer list
 // and requesting updates if necessary.
-func (re *ReplicationEngine) HandleGossipMessage(msg *pb.GossipMessage) {
+func (re *ReplicationEngine) HandleGossipMessage(peer *Peer, msg *pb.GossipMessage) {
 	re.updatePeerList(msg.KnownPeers)
 	peerTimestamp := fromProtoTimestamp(msg.LastTimestamp)
-	
-	re.mu.Lock()
-	peer, exists := re.peers[msg.NodeId]
-	if exists {
-		peer.mu.Lock()
-		if peerTimestamp.After(peer.lastKnownTimestamp) {
-			peer.lastKnownTimestamp = peerTimestamp
-		}
-		peer.mu.Unlock()
+
+	peer.mu.Lock()
+	if peerTimestamp.After(peer.lastKnownTimestamp) {
+		peer.lastKnownTimestamp = peerTimestamp
 	}
-	re.mu.Unlock()
+	peer.name = msg.NodeId
+	peer.mu.Unlock()
 
 	if re.lastTimestamp.Compare(peerTimestamp) < 0 {
-		go re.requestUpdatesFromPeer(msg.NodeId)
+		go re.requestUpdatesFromPeer(peer.url)
 	}
 }
 
@@ -67,7 +66,7 @@ func (re *ReplicationEngine) updatePeerList(newPeers []string) {
 
 	for _, url := range newPeers {
 		if url != re.config.OwnURL && re.peers[url] == nil {
-			re.peers[url] = NewPeer(url, re)
+			re.peers[url] = NewPeer("o:?", url, re)
 			go re.peers[url].Connect(re.config.JWTSecret)
 		}
 	}
@@ -76,8 +75,8 @@ func (re *ReplicationEngine) updatePeerList(newPeers []string) {
 // getPeerURLs returns a list of all known peer URLs.
 func (re *ReplicationEngine) getPeerURLs() []string {
 	urls := make([]string, 0, len(re.peers))
-	for url := range re.peers {
-		urls = append(urls, url)
+	for _, peer := range re.peers {
+		urls = append(urls, peer.url)
 	}
 	return urls
 }
@@ -87,9 +86,11 @@ func (re *ReplicationEngine) requestUpdatesFromPeer(peerURL string) {
 	re.mu.Lock()
 	defer re.mu.Unlock()
 
+	log.Printf("[%s] requesting updates from peer %s", re.name, peerURL)
+
 	peer, exists := re.peers[peerURL]
 	if !exists {
-		log.Printf("Peer %s not found", peerURL)
+		log.Printf("Peer url:%s not found", peerURL)
 		return
 	}
 
@@ -133,9 +134,9 @@ func (re *ReplicationEngine) fetchUpdatesFromPeer(peerURL string) {
 		responseChan := make(chan bool)
 		req.responseChan = responseChan
 
-		err := peer.RequestUpdates(req.since, MaxUpdateResults)
+		err := peer.RequestUpdates(req.since, MaxUpdateResults, re.NextTimestamp(false))
 		if err != nil {
-			log.Printf("Error requesting updates from peer %s: %v", peerURL, err)
+			log.Printf("Error requesting updates from peer %s: %v", peer.name, err)
 			break
 		}
 
@@ -157,10 +158,10 @@ func (re *ReplicationEngine) handleReceivedBatchUpdate(peerURL string, batchUpda
 	peer, peerExists := re.peers[peerURL]
 	re.mu.Unlock()
 
-	log.Printf("Received %d updates from peer %s (exists=%v)", len(batchUpdate.Updates), peerURL, exists)
+	log.Printf("Received %d updates from peer url:%s (exists=%v)", len(batchUpdate.Updates), peerURL, exists)
 
 	if !exists || !peerExists {
-		log.Printf("[!] Peer %s is not in the updateRequests map or peers map", peerURL)
+		log.Printf("[!] Peer url %s is not in the updateRequests map or peers map", peerURL)
 		return
 	}
 

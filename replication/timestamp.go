@@ -43,9 +43,16 @@ func (t Timestamp) Compare(other Timestamp) int {
 }
 
 // Next returns a new Timestamp with the LamportClock incremented by 1.
-func (t Timestamp) Next() Timestamp {
+func (t Timestamp) Next(local bool) Timestamp {
+	now := time.Now().UnixNano() / int64(time.Millisecond)
+	if local {
+		return Timestamp{
+			UnixTime:     now,
+			LamportClock: t.LamportClock,
+		}
+	}
 	return Timestamp{
-		UnixTime:     t.UnixTime,
+		UnixTime:     now,
 		LamportClock: t.LamportClock + 1,
 	}
 }

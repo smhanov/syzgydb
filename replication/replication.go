@@ -170,12 +170,13 @@ func (re *ReplicationEngine) SubmitUpdates(updates []Update) error {
 
 // broadcastUpdate sends an update to all connected peers.
 func (re *ReplicationEngine) broadcastUpdate(update Update) {
+	ts := re.NextTimestamp(false)
 	re.mu.Lock()
 	defer re.mu.Unlock()
 
 	for _, peer := range re.peers {
 		if peer.IsConnected() {
-			go peer.SendUpdate(update)
+			go peer.SendUpdate(update, ts)
 		}
 	}
 }
@@ -187,8 +188,6 @@ func (re *ReplicationEngine) dependenciesSatisfied(update Update) bool {
 
 // bufferUpdate stores an update that can't be applied immediately due to unmet dependencies.
 func (re *ReplicationEngine) bufferUpdate(update Update) {
-	log.Printf("Buffer update %+v", update)
-
 	re.bufferMu.Lock()
 	defer re.bufferMu.Unlock()
 	re.bufferedUpdates[update.DatabaseName] = append(re.bufferedUpdates[update.DatabaseName], update)
@@ -306,10 +305,18 @@ func (re *ReplicationEngine) startBufferedUpdatesProcessor() {
 }
 
 // NextTimestamp generates and returns the next logical timestamp.
-func (re *ReplicationEngine) NextTimestamp() Timestamp {
+func (re *ReplicationEngine) NextTimestamp(local bool) Timestamp {
 	re.mu.Lock()
 	defer re.mu.Unlock()
-	return re.lastTimestamp.Next()
+	re.lastTimestamp = re.lastTimestamp.Next(local)
+	return re.lastTimestamp
+}
+
+// NextTimestamp generates and returns the next logical timestamp.
+func (re *ReplicationEngine) handleReceivedTimestamp(ts Timestamp) {
+	re.mu.Lock()
+	defer re.mu.Unlock()
+	re.lastTimestamp.LamportClock = max(re.lastTimestamp.LamportClock, ts.LamportClock)
 }
 
 // Listen starts the ReplicationEngine's HTTP server on the specified address.

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -30,7 +31,7 @@ func (re *ReplicationEngine) ConnectToPeers() {
 // HandleWebSocket upgrades an HTTP connection to a WebSocket and handles the peer connection.
 func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	tokenString := r.Header.Get("Authorization")
-	peerURL, nodeID, err := ValidateToken(tokenString, re.config.JWTSecret)
+	nodeID, peerURL, err := ValidateToken(tokenString, re.config.JWTSecret)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -51,11 +52,14 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	go peer.HandleIncomingMessages()
 
 	// Trigger a gossip message to the new peer
-	go re.sendGossipMessage(peer)
+	go re.sendGossipMessage(peer, re.NextTimestamp(false))
 }
 
 // NewPeer creates a new Peer instance.
 func NewPeer(name string, url string, re *ReplicationEngine) *Peer {
+	if !strings.HasPrefix(url, "ws://") && !strings.HasPrefix(url, "wss://") {
+		log.Panicf("Bad url: %s", url)
+	}
 	return &Peer{
 		url:                url,
 		lastActive:         time.Now(),
@@ -80,7 +84,7 @@ func (p *Peer) Connect(jwtSecret []byte) {
 	header.Add("Authorization", token)
 	conn, _, err := dialer.Dial(p.url, header)
 	if err != nil {
-		log.Println("Failed to connect to peer:", err)
+		log.Printf("Failed to connect to peer url:%v: %v", p.url, err)
 		return
 	}
 
@@ -88,7 +92,7 @@ func (p *Peer) Connect(jwtSecret []byte) {
 	go p.HandleIncomingMessages()
 
 	// Trigger a gossip message to the newly connected peer
-	go p.re.sendGossipMessage(p)
+	go p.re.sendGossipMessage(p, p.re.NextTimestamp(false))
 }
 
 // IsConnected checks if the peer is currently connected.
@@ -128,11 +132,13 @@ func (p *Peer) processMessage(data []byte) error {
 		return err
 	}
 
-	log.Printf("Peer %s received message of type %s", p.url, msg.Type.String())
+	ts := fromProtoTimestamp(msg.Timestamp)
+	log.Printf("[%s] received  %s from %s ts=%s", p.re.name, msg.Type.String(), p.name, ts)
+	p.re.handleReceivedTimestamp(ts)
 
 	switch msg.Type {
 	case pb.Message_GOSSIP:
-		p.re.HandleGossipMessage(msg.GetGossipMessage())
+		p.re.HandleGossipMessage(p, msg.GetGossipMessage())
 	case pb.Message_UPDATE:
 		update := fromProtoUpdate(msg.GetUpdate())
 		p.re.handleReceivedUpdate(update)
@@ -147,9 +153,9 @@ func (p *Peer) processMessage(data []byte) error {
 			Updates: toProtoUpdates(flattenUpdates(updates)),
 			HasMore: hasMore,
 		}
-		p.re.sendBatchUpdate(p, batchUpdate)
+		p.re.sendBatchUpdate(p, batchUpdate, p.re.NextTimestamp(false))
 	case pb.Message_BATCH_UPDATE:
-		log.Printf("Processing batch update from peer %s re=%v", p.url, p.re)
+		log.Printf("[%s] Processing batch update from peer %s", p.re.name, p.name)
 		batchUpdate := msg.GetBatchUpdate()
 		p.re.handleReceivedBatchUpdate(p.url, batchUpdate)
 	default:
@@ -159,14 +165,15 @@ func (p *Peer) processMessage(data []byte) error {
 }
 
 // SendGossipMessage sends a gossip message to the peer.
-func (p *Peer) SendGossipMessage(msg *pb.GossipMessage) error {
+func (p *Peer) SendGossipMessage(msg *pb.GossipMessage, ts Timestamp) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.connection == nil {
 		return errors.New("not connected")
 	}
 	message := &pb.Message{
-		Type: pb.Message_GOSSIP,
+		Type:      pb.Message_GOSSIP,
+		Timestamp: ts.toProto(),
 		Content: &pb.Message_GossipMessage{
 			GossipMessage: msg,
 		},
@@ -175,19 +182,20 @@ func (p *Peer) SendGossipMessage(msg *pb.GossipMessage) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Peer %s sending gossip message", p.url)
+	log.Printf("[%s] sending gossip message to %s", p.re.name, p.name)
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
 // SendUpdate sends an update message to the peer.
-func (p *Peer) SendUpdate(update Update) error {
+func (p *Peer) SendUpdate(update Update, ts Timestamp) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.connection == nil {
 		return errors.New("not connected")
 	}
 	message := &pb.Message{
-		Type: pb.Message_UPDATE,
+		Type:      pb.Message_UPDATE,
+		Timestamp: ts.toProto(),
 		Content: &pb.Message_Update{
 			Update: update.toProto(),
 		},
@@ -196,12 +204,12 @@ func (p *Peer) SendUpdate(update Update) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Peer %s sending update", p.url)
+	log.Printf("[%s] sending update to %s", p.re.name, p.name)
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
 // RequestUpdates sends an update request to the peer.
-func (p *Peer) RequestUpdates(since Timestamp, maxResults int) error {
+func (p *Peer) RequestUpdates(since Timestamp, maxResults int, ts Timestamp) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.connection == nil {
@@ -212,7 +220,8 @@ func (p *Peer) RequestUpdates(since Timestamp, maxResults int) error {
 		MaxResults: int32(maxResults),
 	}
 	message := &pb.Message{
-		Type: pb.Message_UPDATE_REQUEST,
+		Type:      pb.Message_UPDATE_REQUEST,
+		Timestamp: ts.toProto(),
 		Content: &pb.Message_UpdateRequest{
 			UpdateRequest: request,
 		},
@@ -221,19 +230,20 @@ func (p *Peer) RequestUpdates(since Timestamp, maxResults int) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Peer %s requesting updates since %v", p.url, since)
+	log.Printf("[%s] requesting updates since %v from %s", p.re.name, since, p.name)
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
 // sendBatchUpdate sends a batch update to the peer.
-func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUpdate) {
+func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUpdate, ts Timestamp) {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 	if peer.connection == nil {
 		return
 	}
 	message := &pb.Message{
-		Type: pb.Message_BATCH_UPDATE,
+		Type:      pb.Message_BATCH_UPDATE,
+		Timestamp: ts.toProto(),
 		Content: &pb.Message_BatchUpdate{
 			BatchUpdate: batchUpdate,
 		},
@@ -243,7 +253,7 @@ func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUp
 		log.Println("Failed to marshal batch update:", err)
 		return
 	}
-	log.Printf("Peer %s sending batch update", peer.url)
+	log.Printf("[%s] Reply to %s with batch update", re.name, peer.name)
 	err = peer.connection.WriteMessage(websocket.BinaryMessage, data)
 	if err != nil {
 		log.Println("Failed to send batch update:", err)

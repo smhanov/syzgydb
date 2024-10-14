@@ -49,7 +49,7 @@ const minSpanLength = 16
 func (db *SpanFile) NextTimestamp() replication.Timestamp {
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
-	db.latestTimestamp = db.latestTimestamp.Next()
+	db.latestTimestamp = db.latestTimestamp.Next(true)
 	return db.latestTimestamp
 }
 

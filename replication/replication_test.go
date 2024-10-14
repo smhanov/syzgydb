@@ -13,41 +13,8 @@ func TestTimestampComparison(t *testing.T) {
 	}
 }
 
-func TestMockStorage(t *testing.T) {
-	storage := NewMockStorage()
-
-	// Create a database
-	storage.CommitUpdates([]Update{
-		{
-			Timestamp:    Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 1},
-			Type:         CreateDatabase,
-			RecordID:     "",
-			DataStreams:  []DataStream{{StreamID: 0, Data: []byte("test_db")}},
-			DatabaseName: "test_db",
-		},
-	})
-
-	// Subscribe to updates
-	ch, err := storage.SubscribeUpdates()
-	if err != nil {
-		t.Fatal("Failed to subscribe to updates:", err)
-	}
-
-	// Generate an update
-	storage.GenerateUpdate("test_db")
-
-	select {
-	case update := <-ch:
-		if update.Type != UpsertRecord {
-			t.Error("Expected UpsertRecord update type")
-		}
-	case <-time.After(1 * time.Second):
-		t.Error("Timeout waiting for update")
-	}
-}
-
 func TestBasicOperations(t *testing.T) {
-	storage := NewMockStorage()
+	storage := NewMockStorage(0)
 
 	// Test creating a database
 	createDB := Update{
@@ -98,7 +65,7 @@ func TestBasicOperations(t *testing.T) {
 }
 
 func TestUpdateOrdering(t *testing.T) {
-	storage := NewMockStorage()
+	storage := NewMockStorage(0)
 
 	updates := []Update{
 		{
@@ -134,7 +101,7 @@ func TestUpdateOrdering(t *testing.T) {
 
 func TestUpdateBuffering(t *testing.T) {
 	re := &ReplicationEngine{
-		storage:         NewMockStorage(),
+		storage:         NewMockStorage(0),
 		bufferedUpdates: make(map[string][]Update),
 	}
 
@@ -192,7 +159,7 @@ func TestUpdateBuffering(t *testing.T) {
 }
 
 func TestEngineConflictResolution(t *testing.T) {
-	storage := NewMockStorage()
+	storage := NewMockStorage(0)
 
 	update1 := Update{
 		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 1},
