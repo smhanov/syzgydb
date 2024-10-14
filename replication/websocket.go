@@ -69,7 +69,6 @@ func NewPeer(name string, url string, re *ReplicationEngine) *Peer {
 	}
 }
 
-// Connect establishes a WebSocket connection with the peer.
 func (p *Peer) Connect(jwtSecret []byte) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -92,7 +91,7 @@ func (p *Peer) Connect(jwtSecret []byte) {
 	go p.HandleIncomingMessages()
 
 	// Trigger a gossip message to the newly connected peer
-	go p.re.sendGossipMessage(p, p.re.NextTimestamp(false))
+	p.stateMachine.eventChan <- SendGossipEvent{Peer: p}
 }
 
 // IsConnected checks if the peer is currently connected.
@@ -102,11 +101,7 @@ func (p *Peer) IsConnected() bool {
 	return p.connection != nil
 }
 
-// HandleIncomingMessages processes messages received from the peer.
 func (p *Peer) HandleIncomingMessages() {
-	if p.re == nil {
-		log.Panicf("HandleIncomingMessages called with nil ReplicationEngine")
-	}
 	for {
 		_, message, err := p.connection.ReadMessage()
 		if err != nil {
@@ -118,50 +113,40 @@ func (p *Peer) HandleIncomingMessages() {
 			return
 		}
 		p.lastActive = time.Now()
-		err = p.processMessage(message)
-		if err != nil {
-			log.Println("Failed to process message:", err)
-		}
+		p.processMessage(message)
 	}
 }
 
-// processMessage handles different types of incoming messages.
-func (p *Peer) processMessage(data []byte) error {
+func (p *Peer) processMessage(data []byte) {
 	var msg pb.Message
 	if err := proto.Unmarshal(data, &msg); err != nil {
-		return err
+		log.Println("Failed to unmarshal message:", err)
+		return
 	}
 
 	vc := fromProtoVectorClock(msg.VectorClock)
-	log.Printf("[%s] received  %s from %s vc=%s", p.re.name, msg.Type.String(), p.name, vc)
-	p.re.handleReceivedVectorClock(vc)
+	log.Printf("[%s] received %s from %s vc=%s", p.stateMachine.config.OwnURL, msg.Type.String(), p.name, vc)
 
 	switch msg.Type {
 	case pb.Message_GOSSIP:
-		p.re.HandleGossipMessage(p, msg.GetGossipMessage())
+		p.stateMachine.eventChan <- GossipMessageEvent{Peer: p, Message: msg.GetGossipMessage()}
 	case pb.Message_UPDATE:
 		update := fromProtoUpdate(msg.GetUpdate())
-		p.re.handleReceivedUpdate(update)
+		p.stateMachine.eventChan <- ReceivedUpdateEvent{Update: update}
 	case pb.Message_UPDATE_REQUEST:
-		since := fromProtoVectorClock(msg.GetUpdateRequest().Since)
-		maxResults := int(msg.GetUpdateRequest().MaxResults)
-		updates, hasMore, err := p.re.storage.GetUpdatesSince(since, maxResults)
-		if err != nil {
-			return err
+		p.stateMachine.eventChan <- UpdateRequestEvent{
+			Peer:       p,
+			Since:      fromProtoVectorClock(msg.GetUpdateRequest().Since),
+			MaxResults: int(msg.GetUpdateRequest().MaxResults),
 		}
-		batchUpdate := &pb.BatchUpdate{
-			Updates: toProtoUpdates(flattenUpdates(updates)),
-			HasMore: hasMore,
-		}
-		p.re.sendBatchUpdate(p, batchUpdate, p.re.NextTimestamp(false))
 	case pb.Message_BATCH_UPDATE:
-		log.Printf("[%s] Processing batch update from peer %s", p.re.name, p.name)
-		batchUpdate := msg.GetBatchUpdate()
-		p.re.handleReceivedBatchUpdate(p.url, batchUpdate)
+		p.stateMachine.eventChan <- BatchUpdateEvent{
+			Peer:        p,
+			BatchUpdate: msg.GetBatchUpdate(),
+		}
 	default:
-		return errors.New("unknown message type")
+		log.Println("Unknown message type:", msg.Type)
 	}
-	return nil
 }
 
 // SendGossipMessage sends a gossip message to the peer.
@@ -234,12 +219,11 @@ func (p *Peer) RequestUpdates(since *VectorClock, maxResults int, vc *VectorCloc
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
-// sendBatchUpdate sends a batch update to the peer.
-func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUpdate, vc *VectorClock) {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
-	if peer.connection == nil {
-		return
+func (p *Peer) SendBatchUpdate(batchUpdate *pb.BatchUpdate, vc *VectorClock) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.connection == nil {
+		return errors.New("not connected")
 	}
 	message := &pb.Message{
 		Type:        pb.Message_BATCH_UPDATE,
@@ -250,14 +234,10 @@ func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUp
 	}
 	data, err := proto.Marshal(message)
 	if err != nil {
-		log.Println("Failed to marshal batch update:", err)
-		return
+		return err
 	}
-	log.Printf("[%s] Reply to %s with batch update", re.name, peer.name)
-	err = peer.connection.WriteMessage(websocket.BinaryMessage, data)
-	if err != nil {
-		log.Println("Failed to send batch update:", err)
-	}
+	log.Printf("[%s] sending batch update to %s", p.stateMachine.config.OwnURL, p.name)
+	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
 // toProtoUpdates converts a slice of Updates to a slice of protobuf Updates.
