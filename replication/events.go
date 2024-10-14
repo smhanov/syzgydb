@@ -77,7 +77,7 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 		Updates: toProtoUpdates(flattenUpdates(updates)),
 		HasMore: hasMore,
 	}
-	e.Peer.SendBatchUpdate(batchUpdate, sm.NextTimestamp(false))
+
 }
 
 type BatchUpdateEvent struct {

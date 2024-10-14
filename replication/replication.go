@@ -17,7 +17,6 @@ type ReplicationEngine struct {
 	stateMachine *StateMachine
 	server       *http.Server
 	listener     net.Listener
-	eventChan    chan Event
 }
 
 func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *VectorClock) (*ReplicationEngine, error) {
@@ -31,29 +30,13 @@ func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *
 		return nil, errors.New("config.JWTSecret cannot be empty")
 	}
 
-	eventChan := make(chan Event, 1000)
-	sm := NewStateMachine(storage, config, localVectorClock, eventChan)
+	sm := NewStateMachine(storage, config, localVectorClock)
 
 	re := &ReplicationEngine{
 		stateMachine: sm,
-		eventChan:    eventChan,
 	}
-
-	go re.eventLoop()
 
 	return re, nil
-}
-
-func (re *ReplicationEngine) eventLoop() {
-	for event := range re.eventChan {
-		switch e := event.(type) {
-		case AddPeerEvent:
-			re.handleAddPeerEvent(e)
-		// Add other event types here
-		default:
-			re.stateMachine.eventChan <- event
-		}
-	}
 }
 
 func (re *ReplicationEngine) GetHandler() http.Handler {
@@ -94,18 +77,7 @@ func (re *ReplicationEngine) Close() error {
 }
 
 func (re *ReplicationEngine) AddPeer(url string) {
-	re.eventChan <- AddPeerEvent{URL: url}
-}
-
-func (re *ReplicationEngine) handleAddPeerEvent(event AddPeerEvent) {
-	if _, exists := re.stateMachine.peers[event.URL]; !exists {
-		re.stateMachine.peers[event.URL] = &Peer{
-			url:                  event.URL,
-			lastKnownVectorClock: NewVectorClock(),
-			stateMachine:         re.stateMachine,
-		}
-		re.eventChan <- ConnectPeerEvent{URL: event.URL}
-	}
+	re.stateMachine.eventChan <- AddPeerEvent{URL: url}
 }
 
 func (re *ReplicationEngine) NextTimestamp(local bool) *VectorClock {
@@ -117,5 +89,5 @@ func (re *ReplicationEngine) NextLocalTimestamp() Timestamp {
 }
 
 func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	re.eventChan <- WebSocketConnectionEvent{ResponseWriter: w, Request: r}
+	re.stateMachine.eventChan <- WebSocketConnectionEvent{ResponseWriter: w, Request: r}
 }
