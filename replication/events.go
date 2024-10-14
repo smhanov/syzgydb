@@ -286,7 +286,37 @@ func (e LocalUpdatesEvent) process(sm *StateMachine) {
 	log.Printf("[%d] Processing LocalUpdatesEvent", sm.config.NodeID)
 	sm.storage.CommitUpdates(e.Updates)
 
-	// TODO: broadcast to other peers.
+	// Create a BatchUpdate message
+	batchUpdate := &pb.BatchUpdate{
+		Updates: toProtoUpdates(e.Updates),
+		HasMore: false,
+	}
+
+	// Create a Message containing the BatchUpdate
+	msg := &pb.Message{
+		Type:        pb.Message_BATCH_UPDATE,
+		VectorClock: sm.lastKnownVectorClock.toProto(),
+		Content: &pb.Message_BatchUpdate{
+			BatchUpdate: batchUpdate,
+		},
+	}
+
+	// Marshal the message
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		log.Printf("[%d] Error marshaling BatchUpdate message: %v", sm.config.NodeID, err)
+		return
+	}
+
+	// Send the BatchUpdate to all connected peers
+	for _, peer := range sm.peers {
+		if peer.connection != nil {
+			err := peer.connection.WriteMessage(websocket.BinaryMessage, data)
+			if err != nil {
+				log.Printf("[%d] Error sending BatchUpdate to peer %s: %v", sm.config.NodeID, peer.url, err)
+			}
+		}
+	}
 }
 
 type PeerDisconnectEvent struct {
