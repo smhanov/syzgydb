@@ -500,6 +500,7 @@ func TestGetAllCollections(t *testing.T) {
 		DistanceMethod: Cosine,
 		DimensionCount: 128,
 		Quantization:   64,
+		FileMode:       CreateAndOverwrite,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create collection1: %v", err)
@@ -510,6 +511,7 @@ func TestGetAllCollections(t *testing.T) {
 		DistanceMethod: Euclidean,
 		DimensionCount: 64,
 		Quantization:   32,
+		FileMode:       CreateAndOverwrite,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create collection2: %v", err)

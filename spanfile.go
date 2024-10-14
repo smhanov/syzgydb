@@ -6,6 +6,8 @@ Span ::= MagicNumber (4)
          SpanLength (4)
          Time (7code)
 				 LamportTime (7code)
+				 SiteID (7code)
+				 Unused (7code)
          RecordIDLength (7code)
          RecordID (...bytes)
          DataStreamCount (byte)
@@ -19,7 +21,7 @@ DataStream ::= StreamID (1)
 
 Padding is placed in a span if it is placed before another record,
 and there is not enough space to fit in at least an empty span.
-(4+4+1+1+1+1+4 = 16 bytes)
+(4+4+1+1+1+1+1+1+4 = 17 bytes)
 */
 
 package syzgydb
@@ -43,7 +45,7 @@ const (
 	deletedMagic = 0x44454C45 // 'DELE'
 )
 
-const minSpanLength = 16
+const minSpanLength = 18
 
 // NextTimestamp updates the internal latest timestamp by incrementing the lamport time and returns it
 func (db *SpanFile) NextTimestamp() replication.Timestamp {
@@ -97,6 +99,18 @@ func (sr *SpanReader) getStream(id uint8) ([]byte, error) {
 	}
 
 	// skip LamportTime
+	_, at, err = read7Code(sr.data, at)
+	if err != nil {
+		return nil, err
+	}
+
+	// skip siteID
+	_, at, err = read7Code(sr.data, at)
+	if err != nil {
+		return nil, err
+	}
+
+	// skip Unused byte
 	_, at, err = read7Code(sr.data, at)
 	if err != nil {
 		return nil, err
@@ -779,6 +793,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 		lengthOf7Code(uint64(span.Timestamp.UnixTime)) +
 		lengthOf7Code(uint64(span.Timestamp.LamportClock)) +
 		lengthOf7Code(span.SiteID) +
+		1 + // future use
 		lengthOf7Code(uint64(len(recordIDBytes))) +
 		uint64(len(recordIDBytes)) +
 		1 + // DataStreamCount
@@ -802,6 +817,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 	buf = write7Code(buf, uint64(span.Timestamp.UnixTime))
 	buf = write7Code(buf, uint64(span.Timestamp.LamportClock))
 	buf = write7Code(buf, span.SiteID)
+	buf = append(buf, 0) // Unused
 
 	// Serialize RecordID Length and RecordID
 	buf = write7Code(buf, uint64(len(recordIDBytes)))
@@ -879,6 +895,11 @@ func parseSpan(data []byte) (*Span, error) {
 		LamportClock: int64(lamportClock),
 	}
 	span.SiteID = siteID
+
+	_, at, err = read7Code(data, at) // Skip unused byte
+	if err != nil {
+		return nil, err
+	}
 
 	// Parse RecordID
 	var idlength uint64
