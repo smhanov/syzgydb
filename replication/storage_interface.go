@@ -4,7 +4,6 @@ package replication
 import (
 	"bytes"
 	"fmt"
-	"time"
 )
 
 // UpdateType represents the type of update operation.
@@ -89,25 +88,3 @@ type StorageInterface interface {
 }
 
 const MaxUpdateResults = 100
-
-// Peer represents a connected peer in the replication system.
-type Peer struct {
-	url                  string
-	connection           Connection
-	lastActive           time.Time
-	lastKnownVectorClock *VectorClock
-	stateMachine         *StateMachine
-}
-
-type PeerConnection struct {
-    URL        string
-    Connection Connection
-}
-
-// updateRequest represents a pending update request to a peer.
-type updateRequest struct {
-	peerURL      string
-	since        *VectorClock
-	inProgress   bool
-	responseChan chan bool
-}

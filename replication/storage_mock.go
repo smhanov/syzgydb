@@ -37,7 +37,7 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 	})
 
 	for _, update := range updates {
-		log.Printf("[node%d] Committing update: %+v", ms.nodeID, update)
+		log.Printf("[%d] Committing update: %+v", ms.nodeID, update)
 		if update.Type == CreateDatabase {
 			ms.databases[update.DatabaseName] = true
 			if _, ok := ms.records[update.DatabaseName]; !ok {

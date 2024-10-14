@@ -169,6 +169,7 @@ func setupTestEnvironment(t *testing.T, nodeCount int) []*ReplicationEngine {
 			OwnURL:    fmt.Sprintf("ws://localhost:%d", testPort+i),
 			PeerURLs:  []string{},
 			JWTSecret: []byte("test_secret"),
+			NodeID:    uint64(i),
 		}
 		re, err := Init(storage, config, NewVectorClock().Update(uint64(i), Now()))
 		if err != nil {
@@ -178,7 +179,6 @@ func setupTestEnvironment(t *testing.T, nodeCount int) []*ReplicationEngine {
 		if err != nil {
 			t.Fatalf("Failed to start listening: %v", err)
 		}
-		re.name = fmt.Sprintf("node%d", i)
 		nodes[i] = re
 	}
 

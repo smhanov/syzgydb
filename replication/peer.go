@@ -34,14 +34,6 @@ type PeerConnection struct {
 	Connection Connection
 }
 
-// updateRequest represents a pending update request to a peer.
-type updateRequest struct {
-	peerURL      string
-	since        *VectorClock
-	inProgress   bool
-	responseChan chan bool
-}
-
 func (p *Peer) ReadLoop(eventChan chan<- Event) {
 	for {
 		_, message, err := p.connection.ReadMessage()
