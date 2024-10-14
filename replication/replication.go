@@ -36,6 +36,8 @@ func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *
 		stateMachine: sm,
 	}
 
+	re.startHeartbeatTimer()
+
 	return re, nil
 }
 
@@ -90,4 +92,19 @@ func (re *ReplicationEngine) NextLocalTimestamp() Timestamp {
 
 func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	re.stateMachine.eventChan <- WebSocketConnectionEvent{ResponseWriter: w, Request: r}
+}
+
+func (re *ReplicationEngine) startHeartbeatTimer() {
+	ticker := time.NewTicker(30 * time.Second) // Adjust the interval as needed
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				re.stateMachine.eventChan <- PeerHeartbeatEvent{Peers: re.stateMachine.getPeerList()}
+			case <-re.stateMachine.done:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
 }

@@ -177,3 +177,39 @@ func (sm *StateMachine) NextLocalTimestamp() Timestamp {
 	sm.lastKnownVectorClock.Update(uint64(sm.config.NodeID), cur)
 	return cur
 }
+
+func (sm *StateMachine) handlePeerHeartbeat(peers []*Peer) {
+	for _, peer := range peers {
+		err := sm.sendHeartbeatToPeer(peer)
+		if err != nil {
+			log.Printf("Error sending heartbeat to peer %s: %v", peer.url, err)
+			sm.eventChan <- PeerDisconnectedEvent{Peer: peer}
+		}
+	}
+}
+
+func (sm *StateMachine) sendHeartbeatToPeer(peer *Peer) error {
+	heartbeat := &pb.Heartbeat{
+		VectorClock: sm.lastKnownVectorClock.toProto(),
+	}
+
+	msg := &pb.Message{
+		Type:        pb.Message_HEARTBEAT,
+		VectorClock: sm.lastKnownVectorClock.toProto(),
+		Content: &pb.Message_Heartbeat{
+			Heartbeat: heartbeat,
+		},
+	}
+
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("error marshaling heartbeat: %w", err)
+	}
+
+	err = peer.connection.WriteMessage(websocket.BinaryMessage, data)
+	if err != nil {
+		return fmt.Errorf("error sending heartbeat to peer %s: %w", peer.url, err)
+	}
+
+	return nil
+}

@@ -215,3 +215,11 @@ func flattenUpdates(updates map[string][]Update) []Update {
 	}
 	return flattened
 }
+
+type PeerHeartbeatEvent struct {
+	Peers []*Peer
+}
+
+func (e PeerHeartbeatEvent) process(sm *StateMachine) {
+	sm.handlePeerHeartbeat(e.Peers)
+}
