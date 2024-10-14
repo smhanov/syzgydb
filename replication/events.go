@@ -129,6 +129,24 @@ func (e SendGossipEvent) process(sm *StateMachine) {
 		LastVectorClock: sm.lastKnownVectorClock.toProto(),
 	}
 
+	protoMsg := &pb.Message{
+		Type:        pb.Message_GOSSIP,
+		VectorClock: sm.lastKnownVectorClock.toProto(),
+		Content: &pb.Message_GossipMessage{
+			GossipMessage: msg,
+		},
+	}
+
+	data, err := proto.Marshal(protoMsg)
+	if err != nil {
+		log.Printf("Error marshaling gossip message: %v", err)
+		return
+	}
+
+	err = e.Peer.connection.WriteMessage(websocket.BinaryMessage, data)
+	if err != nil {
+		log.Printf("Error sending gossip message to peer %s: %v", e.Peer.url, err)
+	}
 }
 
 func toProtoUpdates(updates []Update) []*pb.Update {
