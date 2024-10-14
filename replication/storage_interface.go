@@ -23,7 +23,7 @@ type DataStream struct {
 
 // Update represents a single update operation in the replication system.
 type Update struct {
-	Timestamp    Timestamp    `json:"timestamp"`
+	VectorClock  *VectorClock `json:"vector_clock"`
 	Type         UpdateType   `json:"type"`
 	RecordID     string       `json:"record_id"`
 	DataStreams  []DataStream `json:"data_streams"`

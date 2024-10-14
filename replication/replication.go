@@ -22,7 +22,7 @@ type Peer struct {
 	name               string
 	connection         Connection
 	lastActive         time.Time
-	lastKnownTimestamp Timestamp
+	lastKnownVectorClock *VectorClock
 	mu                 sync.Mutex
 	re                 *ReplicationEngine
 }
@@ -202,8 +202,8 @@ func (re *ReplicationEngine) applyUpdate(update Update) error {
 	}
 
 	re.mu.Lock()
-	if update.Timestamp.Compare(re.lastTimestamp) > 0 {
-		re.lastTimestamp = update.Timestamp
+	if update.VectorClock.After(re.lastKnownVectorClock) {
+		re.lastKnownVectorClock = update.VectorClock.Clone()
 	}
 	re.mu.Unlock()
 
@@ -323,10 +323,10 @@ func (re *ReplicationEngine) NextTimestamp(local bool) *VectorClock {
 }
 
 // NextTimestamp generates and returns the next logical timestamp.
-func (re *ReplicationEngine) handleReceivedTimestamp(ts Timestamp) {
+func (re *ReplicationEngine) handleReceivedVectorClock(vc *VectorClock) {
 	re.mu.Lock()
 	defer re.mu.Unlock()
-	re.lastTimestamp.LamportClock = max(re.lastTimestamp.LamportClock, ts.LamportClock)
+	re.lastKnownVectorClock.Merge(vc)
 }
 
 // Listen starts the ReplicationEngine's HTTP server on the specified address.

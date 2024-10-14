@@ -132,9 +132,9 @@ func (p *Peer) processMessage(data []byte) error {
 		return err
 	}
 
-	ts := fromProtoTimestamp(msg.Timestamp)
-	log.Printf("[%s] received  %s from %s ts=%s", p.re.name, msg.Type.String(), p.name, ts)
-	p.re.handleReceivedTimestamp(ts)
+	vc := fromProtoVectorClock(msg.VectorClock)
+	log.Printf("[%s] received  %s from %s vc=%s", p.re.name, msg.Type.String(), p.name, vc)
+	p.re.handleReceivedVectorClock(vc)
 
 	switch msg.Type {
 	case pb.Message_GOSSIP:
@@ -165,7 +165,7 @@ func (p *Peer) processMessage(data []byte) error {
 }
 
 // SendGossipMessage sends a gossip message to the peer.
-func (p *Peer) SendGossipMessage(msg *pb.GossipMessage, ts Timestamp) error {
+func (p *Peer) SendGossipMessage(msg *pb.GossipMessage, vc *VectorClock) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.connection == nil {
@@ -173,7 +173,7 @@ func (p *Peer) SendGossipMessage(msg *pb.GossipMessage, ts Timestamp) error {
 	}
 	message := &pb.Message{
 		Type:      pb.Message_GOSSIP,
-		Timestamp: ts.toProto(),
+		VectorClock: vc.toProto(),
 		Content: &pb.Message_GossipMessage{
 			GossipMessage: msg,
 		},
@@ -235,7 +235,7 @@ func (p *Peer) RequestUpdates(since *VectorClock, maxResults int, vc *VectorCloc
 }
 
 // sendBatchUpdate sends a batch update to the peer.
-func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUpdate, ts Timestamp) {
+func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUpdate, vc *VectorClock) {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 	if peer.connection == nil {
@@ -243,7 +243,7 @@ func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUp
 	}
 	message := &pb.Message{
 		Type:      pb.Message_BATCH_UPDATE,
-		Timestamp: ts.toProto(),
+		VectorClock: vc.toProto(),
 		Content: &pb.Message_BatchUpdate{
 			BatchUpdate: batchUpdate,
 		},

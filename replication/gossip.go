@@ -95,7 +95,7 @@ func (re *ReplicationEngine) requestUpdatesFromPeer(peerURL string) {
 	}
 
 	peer.mu.Lock()
-	since := peer.lastKnownTimestamp
+	since := peer.lastKnownVectorClock
 	peer.mu.Unlock()
 
 	if re.updateRequests == nil {
@@ -165,22 +165,20 @@ func (re *ReplicationEngine) handleReceivedBatchUpdate(peerURL string, batchUpda
 		return
 	}
 
-	var latestTimestamp Timestamp
+	latestVectorClock := NewVectorClock()
 	for _, protoUpdate := range batchUpdate.Updates {
 		update := fromProtoUpdate(protoUpdate)
 		re.handleReceivedUpdate(update)
-		if update.Timestamp.After(latestTimestamp) {
-			latestTimestamp = update.Timestamp
-		}
+		latestVectorClock.Merge(update.VectorClock)
 	}
 
 	peer.mu.Lock()
-	if latestTimestamp.After(peer.lastKnownTimestamp) {
-		peer.lastKnownTimestamp = latestTimestamp
+	if latestVectorClock.After(peer.lastKnownVectorClock) {
+		peer.lastKnownVectorClock = latestVectorClock.Clone()
 	}
 	peer.mu.Unlock()
 
-	req.since = latestTimestamp
+	req.since = latestVectorClock.Clone()
 
 	// Signal the fetchUpdatesFromPeer goroutine
 	req.responseChan <- batchUpdate.HasMore
