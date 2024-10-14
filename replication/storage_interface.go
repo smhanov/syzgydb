@@ -92,12 +92,16 @@ const MaxUpdateResults = 100
 
 // Peer represents a connected peer in the replication system.
 type Peer struct {
-	name                 string
 	url                  string
 	connection           Connection
 	lastActive           time.Time
 	lastKnownVectorClock *VectorClock
 	stateMachine         *StateMachine
+}
+
+type PeerConnection struct {
+    URL        string
+    Connection Connection
 }
 
 // updateRequest represents a pending update request to a peer.
