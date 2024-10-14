@@ -56,7 +56,7 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 }
 
 // NewPeer creates a new Peer instance.
-func NewPeer(name string, url string, re *ReplicationEngine) *Peer {
+func NewPeer(name string, url string, sm *StateMachine) *Peer {
 	if !strings.HasPrefix(url, "ws://") && !strings.HasPrefix(url, "wss://") {
 		log.Panicf("Bad url: %s", url)
 	}
@@ -64,7 +64,7 @@ func NewPeer(name string, url string, re *ReplicationEngine) *Peer {
 		url:                  url,
 		lastActive:           time.Now(),
 		lastKnownVectorClock: NewVectorClock(),
-		re:                   re,
+		stateMachine:         sm,
 		name:                 name,
 	}
 }
