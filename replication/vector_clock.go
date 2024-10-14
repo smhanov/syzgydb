@@ -3,6 +3,7 @@ package replication
 import (
 	"fmt"
 	"sort"
+	pb "github.com/smhanov/syzgydb/replication/proto"
 )
 
 // VectorClock represents a vector clock for distributed systems.
@@ -70,6 +71,20 @@ func (vc *VectorClock) Equal(other *VectorClock) bool {
 	}
 
 	return true
+}
+
+// Compare compares two VectorClocks and returns:
+//   -1 if vc < other
+//    0 if vc == other
+//    1 if vc > other
+func (vc *VectorClock) Compare(other *VectorClock) int {
+	if vc.Equal(other) {
+		return 0
+	}
+	if vc.Before(other) {
+		return -1
+	}
+	return 1
 }
 
 // Clone returns a deep copy of the VectorClock.

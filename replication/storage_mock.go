@@ -33,7 +33,7 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 	defer ms.updatesMutex.Unlock()
 
 	sort.Slice(updates, func(i, j int) bool {
-		return updates[i].Timestamp.Compare(updates[j].Timestamp) < 0
+		return updates[i].VectorClock.Compare(updates[j].VectorClock) < 0
 	})
 
 	for _, update := range updates {
@@ -62,8 +62,8 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 	return nil
 }
 
-// GetUpdatesSince retrieves updates that occurred after the given timestamp, up to maxResults.
-func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp, maxResults int) (map[string][]Update, bool, error) {
+// GetUpdatesSince retrieves updates that occurred after the given vector clock, up to maxResults.
+func (ms *MockStorage) GetUpdatesSince(vectorClock *VectorClock, maxResults int) (map[string][]Update, bool, error) {
 	ms.updatesMutex.Lock()
 	defer ms.updatesMutex.Unlock()
 
@@ -72,7 +72,7 @@ func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp, maxResults int) (map
 	hasMore := false
 
 	for _, update := range ms.updates {
-		if update.Timestamp.Compare(timestamp) > 0 {
+		if update.VectorClock.After(vectorClock) {
 			if totalUpdates >= maxResults {
 				hasMore = true
 				break
@@ -85,13 +85,13 @@ func (ms *MockStorage) GetUpdatesSince(timestamp Timestamp, maxResults int) (map
 		}
 	}
 
-	log.Printf("[node%d] Updates since %v: %v", ms.nodeID, timestamp, result)
+	log.Printf("[node%d] Updates since %v: %v", ms.nodeID, vectorClock, result)
 	return result, hasMore, nil
 }
 
 // ResolveConflict determines which of two conflicting updates should be applied.
 func (ms *MockStorage) ResolveConflict(update1, update2 Update) (Update, error) {
-	comp := update1.Compare(update2)
+	comp := update1.VectorClock.Compare(update2.VectorClock)
 	if comp >= 0 {
 		return update1, nil
 	}
@@ -119,14 +119,14 @@ func (ms *MockStorage) GetRecord(databaseName, recordID string) ([]DataStream, e
 }
 
 // GenerateUpdate creates a new update for testing purposes.
-func (ms *MockStorage) GenerateUpdate(dbName string, ts Timestamp) Update {
+func (ms *MockStorage) GenerateUpdate(dbName string, vc *VectorClock) Update {
 	ms.updatesMutex.Lock()
 	defer ms.updatesMutex.Unlock()
 
 	update := Update{
-		Timestamp: ts,
-		Type:      UpsertRecord,
-		RecordID:  "test_record_" + time.Now().String(),
+		VectorClock: vc,
+		Type:        UpsertRecord,
+		RecordID:    "test_record_" + time.Now().String(),
 		DataStreams: []DataStream{
 			{StreamID: 1, Data: []byte("Sample data")},
 		},

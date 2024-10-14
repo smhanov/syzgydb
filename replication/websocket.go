@@ -61,11 +61,11 @@ func NewPeer(name string, url string, re *ReplicationEngine) *Peer {
 		log.Panicf("Bad url: %s", url)
 	}
 	return &Peer{
-		url:                url,
-		lastActive:         time.Now(),
-		lastKnownTimestamp: Timestamp{},
-		re:                 re,
-		name:               name,
+		url:                  url,
+		lastActive:           time.Now(),
+		lastKnownVectorClock: NewVectorClock(),
+		re:                   re,
+		name:                 name,
 	}
 }
 
