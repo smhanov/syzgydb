@@ -49,6 +49,9 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	re.mu.Unlock()
 
 	go peer.HandleIncomingMessages()
+
+	// Trigger a gossip message to the new peer
+	go re.sendGossipMessage(peer)
 }
 
 // NewPeer creates a new Peer instance.
@@ -83,6 +86,9 @@ func (p *Peer) Connect(jwtSecret []byte) {
 
 	p.connection = conn
 	go p.HandleIncomingMessages()
+
+	// Trigger a gossip message to the newly connected peer
+	go p.re.sendGossipMessage(p)
 }
 
 // IsConnected checks if the peer is currently connected.
