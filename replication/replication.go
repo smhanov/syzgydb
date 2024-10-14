@@ -4,6 +4,7 @@ package replication
 import (
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -16,10 +17,13 @@ type Connection interface {
 }
 
 type Peer struct {
-	url        string
-	connection Connection
-	lastActive time.Time
-	mu         sync.Mutex
+	url                string
+	name               string
+	connection         Connection
+	lastActive         time.Time
+	lastKnownTimestamp Timestamp
+	mu                 sync.Mutex
+	re                 *ReplicationEngine
 }
 
 // SetConnection sets the WebSocket connection for the peer.
@@ -45,12 +49,14 @@ type ReplicationEngine struct {
 	gossipDone      chan bool
 	server          *http.Server
 	listener        net.Listener
+	name            string
 }
 
 type updateRequest struct {
-	peerURL    string
-	since      Timestamp
-	inProgress bool
+	peerURL      string
+	since        Timestamp
+	inProgress   bool
+	responseChan chan bool
 }
 
 // Init initializes a new ReplicationEngine with the given parameters.
@@ -75,10 +81,11 @@ func Init(storage StorageInterface, config ReplicationConfig, localTimeStamp Tim
 		bufferedUpdates: make(map[string][]Update),
 		gossipTicker:    time.NewTicker(5 * time.Second),
 		gossipDone:      make(chan bool),
+		name:            config.OwnURL,
 	}
 
 	for _, url := range config.PeerURLs {
-		re.peers[url] = NewPeer(url)
+		re.peers[url] = NewPeer("", url, re)
 	}
 
 	// Start background processes
@@ -261,6 +268,7 @@ func (re *ReplicationEngine) NextTimestamp() Timestamp {
 	defer re.mu.Unlock()
 	return re.lastTimestamp.Next()
 }
+
 // Listen starts the ReplicationEngine's HTTP server on the specified address.
 func (re *ReplicationEngine) Listen(address string) error {
 	var err error
