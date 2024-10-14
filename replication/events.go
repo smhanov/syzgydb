@@ -3,6 +3,7 @@ package replication
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 	pb "github.com/smhanov/syzgydb/replication/proto"
