@@ -79,6 +79,24 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 		HasMore: hasMore,
 	}
 
+	msg := &pb.Message{
+		Type:        pb.Message_BATCH_UPDATE,
+		VectorClock: sm.lastKnownVectorClock.toProto(),
+		Content: &pb.Message_BatchUpdate{
+			BatchUpdate: batchUpdate,
+		},
+	}
+
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		log.Printf("Error marshaling batch update: %v", err)
+		return
+	}
+
+	err = e.Peer.connection.WriteMessage(websocket.BinaryMessage, data)
+	if err != nil {
+		log.Printf("Error sending batch update to peer %s: %v", e.Peer.url, err)
+	}
 }
 
 type BatchUpdateEvent struct {
