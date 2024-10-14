@@ -137,17 +137,6 @@ func (sm *StateMachine) processBufferedUpdates() {
     }
 }
 
-func (sm *StateMachine) handleGossipMessage(peer *Peer, msg *pb.GossipMessage) {
-    sm.updatePeerList(msg.KnownPeers)
-    peerVectorClock := fromProtoVectorClock(msg.LastVectorClock)
-
-    peer.lastKnownVectorClock = peerVectorClock
-    peer.name = msg.NodeId
-
-    if sm.lastKnownVectorClock.Before(peerVectorClock) {
-        sm.requestUpdatesFromPeer(peer.url)
-    }
-}
 
 func (sm *StateMachine) updatePeerList(newPeers []string) {
     for _, url := range newPeers {

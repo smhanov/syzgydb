@@ -23,7 +23,15 @@ type GossipMessageEvent struct {
 }
 
 func (e GossipMessageEvent) process(sm *StateMachine) {
-	sm.handleGossipMessage(e.Peer, e.Message)
+	sm.updatePeerList(e.Message.KnownPeers)
+	peerVectorClock := fromProtoVectorClock(e.Message.LastVectorClock)
+
+	e.Peer.lastKnownVectorClock = peerVectorClock
+	e.Peer.name = e.Message.NodeId
+
+	if sm.lastKnownVectorClock.Before(peerVectorClock) {
+		sm.requestUpdatesFromPeer(e.Peer.url)
+	}
 }
 
 type UpdateRequestEvent struct {
