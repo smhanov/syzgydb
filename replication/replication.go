@@ -53,6 +53,48 @@ type ReplicationEngine struct {
 	name            string
 }
 
+// GetUpdatesSince retrieves updates that occurred after the given timestamp, up to maxResults,
+// and combines them with any buffered updates that have unmet dependencies.
+func (re *ReplicationEngine) GetUpdatesSince(timestamp Timestamp, maxResults int) (map[string][]Update, bool, error) {
+	// Get updates from storage
+	updates, hasMore, err := re.storage.GetUpdatesSince(timestamp, maxResults)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// Combine with buffered updates
+	re.bufferMu.Lock()
+	defer re.bufferMu.Unlock()
+
+	for dbName, bufferedUpdates := range re.bufferedUpdates {
+		for _, update := range bufferedUpdates {
+			if update.Timestamp.After(timestamp) {
+				if updates[dbName] == nil {
+					updates[dbName] = []Update{}
+				}
+				updates[dbName] = append(updates[dbName], update)
+			}
+		}
+	}
+
+	// Sort and limit the combined updates
+	for dbName := range updates {
+		sortAndLimitUpdates(updates[dbName], maxResults)
+	}
+
+	return updates, hasMore, nil
+}
+
+// sortAndLimitUpdates sorts the updates by timestamp and limits them to maxResults
+func sortAndLimitUpdates(updates []Update, maxResults int) {
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].Timestamp.Before(updates[j].Timestamp)
+	})
+	if len(updates) > maxResults {
+		updates = updates[:maxResults]
+	}
+}
+
 type updateRequest struct {
 	peerURL      string
 	since        Timestamp
