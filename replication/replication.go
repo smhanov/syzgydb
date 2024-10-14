@@ -53,11 +53,11 @@ type ReplicationEngine struct {
 	name                 string
 }
 
-// GetUpdatesSince retrieves updates that occurred after the given timestamp, up to maxResults,
+// GetUpdatesSince retrieves updates that occurred after the given vector clock, up to maxResults,
 // and combines them with any buffered updates that have unmet dependencies.
-func (re *ReplicationEngine) GetUpdatesSince(timestamp Timestamp, maxResults int) (map[string][]Update, bool, error) {
+func (re *ReplicationEngine) GetUpdatesSince(vectorClock *VectorClock, maxResults int) (map[string][]Update, bool, error) {
 	// Get updates from storage
-	updates, hasMore, err := re.storage.GetUpdatesSince(timestamp, maxResults)
+	updates, hasMore, err := re.storage.GetUpdatesSince(vectorClock, maxResults)
 	if err != nil {
 		return nil, false, err
 	}
@@ -68,7 +68,7 @@ func (re *ReplicationEngine) GetUpdatesSince(timestamp Timestamp, maxResults int
 
 	for dbName, bufferedUpdates := range re.bufferedUpdates {
 		for _, update := range bufferedUpdates {
-			if update.Timestamp.After(timestamp) {
+			if update.VectorClock.After(vectorClock) {
 				if updates[dbName] == nil {
 					updates[dbName] = []Update{}
 				}
@@ -85,10 +85,10 @@ func (re *ReplicationEngine) GetUpdatesSince(timestamp Timestamp, maxResults int
 	return updates, hasMore, nil
 }
 
-// sortAndLimitUpdates sorts the updates by timestamp and limits them to maxResults
+// sortAndLimitUpdates sorts the updates by vector clock and limits them to maxResults
 func sortAndLimitUpdates(updates []Update, maxResults int) {
 	sort.Slice(updates, func(i, j int) bool {
-		return updates[i].Timestamp.Before(updates[j].Timestamp)
+		return updates[i].VectorClock.Before(updates[j].VectorClock)
 	})
 	if len(updates) > maxResults {
 		updates = updates[:maxResults]
@@ -153,10 +153,10 @@ func (re *ReplicationEngine) SubmitUpdates(updates []Update) error {
 		return err
 	}
 
-	// Update lastTimestamp
+	// Update lastKnownVectorClock
 	re.mu.Lock()
-	if len(updates) > 0 && updates[len(updates)-1].Timestamp.After(re.lastTimestamp) {
-		re.lastTimestamp = updates[len(updates)-1].Timestamp
+	if len(updates) > 0 && updates[len(updates)-1].VectorClock.After(re.lastKnownVectorClock) {
+		re.lastKnownVectorClock = updates[len(updates)-1].VectorClock.Clone()
 	}
 	re.mu.Unlock()
 

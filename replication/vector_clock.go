@@ -108,3 +108,21 @@ func (vc *VectorClock) String() string {
 	result += "}"
 	return result
 }
+
+func (vc *VectorClock) toProto() *pb.VectorClock {
+	protoVC := &pb.VectorClock{
+		Clock: make(map[uint64]*pb.Timestamp),
+	}
+	for nodeID, ts := range vc.clock {
+		protoVC.Clock[nodeID] = ts.toProto()
+	}
+	return protoVC
+}
+
+func fromProtoVectorClock(pvc *pb.VectorClock) *VectorClock {
+	vc := NewVectorClock()
+	for nodeID, pts := range pvc.Clock {
+		vc.clock[nodeID] = fromProtoTimestamp(pts)
+	}
+	return vc
+}
