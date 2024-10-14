@@ -28,32 +28,6 @@ func (re *ReplicationEngine) ConnectToPeers() {
 	}
 }
 
-// HandleWebSocket upgrades an HTTP connection to a WebSocket and handles the peer connection.
-func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	tokenString := r.Header.Get("Authorization")
-	nodeID, peerURL, err := ValidateToken(tokenString, re.config.JWTSecret)
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("WebSocket upgrade failed:", err)
-		return
-	}
-
-	peer := NewPeer(nodeID, peerURL, re)
-	peer.SetConnection(conn)
-	re.mu.Lock()
-	re.peers[peerURL] = peer
-	re.mu.Unlock()
-
-	go peer.HandleIncomingMessages()
-
-	// Trigger a gossip message to the new peer
-	go re.sendGossipMessage(peer, re.NextTimestamp(false))
-}
 
 // NewPeer creates a new Peer instance.
 func NewPeer(name string, url string, sm *StateMachine) *Peer {
@@ -240,18 +214,3 @@ func (p *Peer) SendBatchUpdate(batchUpdate *pb.BatchUpdate, vc *VectorClock) err
 	return p.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
-// toProtoUpdates converts a slice of Updates to a slice of protobuf Updates.
-func toProtoUpdates(updates []Update) []*pb.Update {
-	var protoUpdates []*pb.Update
-	for _, update := range updates {
-		protoUpdates = append(protoUpdates, update.toProto())
-	}
-	return protoUpdates
-}
-func flattenUpdates(updates map[string][]Update) []Update {
-	var flattened []Update
-	for _, dbUpdates := range updates {
-		flattened = append(flattened, dbUpdates...)
-	}
-	return flattened
-}
