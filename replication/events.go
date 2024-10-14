@@ -2,6 +2,7 @@ package replication
 
 import (
 	"log"
+	"net/http"
 
 	pb "github.com/smhanov/syzgydb/replication/proto"
 )
@@ -52,47 +53,47 @@ func (e BatchUpdateEvent) process(sm *StateMachine) {
 }
 
 type AddPeerEvent struct {
-    URL string
+	URL string
 }
 
 func (e AddPeerEvent) process(sm *StateMachine) {
-    if _, exists := sm.peers[e.URL]; !exists {
-        sm.peers[e.URL] = &Peer{
-            url:                  e.URL,
-            lastKnownVectorClock: NewVectorClock(),
-            stateMachine:         sm,
-        }
-        // Schedule a ConnectPeerEvent instead of directly connecting
-        sm.eventChan <- ConnectPeerEvent{URL: e.URL}
-    }
+	if _, exists := sm.peers[e.URL]; !exists {
+		sm.peers[e.URL] = &Peer{
+			url:                  e.URL,
+			lastKnownVectorClock: NewVectorClock(),
+			stateMachine:         sm,
+		}
+		// Schedule a ConnectPeerEvent instead of directly connecting
+		sm.eventChan <- ConnectPeerEvent{URL: e.URL}
+	}
 }
 
 type ConnectPeerEvent struct {
-    URL string
+	URL string
 }
 
 func (e ConnectPeerEvent) process(sm *StateMachine) {
-    peer, exists := sm.peers[e.URL]
-    if !exists {
-        log.Printf("Peer %s not found for connection", e.URL)
-        return
-    }
+	peer, exists := sm.peers[e.URL]
+	if !exists {
+		log.Printf("Peer %s not found for connection", e.URL)
+		return
+	}
 
-    conn, err := dialWebSocket(e.URL, sm.config.JWTSecret)
-    if err != nil {
-        log.Printf("Failed to connect to peer %s: %v", e.URL, err)
-        // Optionally, schedule a retry after some time
-        // time.AfterFunc(5*time.Second, func() { sm.eventChan <- ConnectPeerEvent{URL: e.URL} })
-        return
-    }
+	conn, err := dialWebSocket(e.URL, sm.config.JWTSecret)
+	if err != nil {
+		log.Printf("Failed to connect to peer %s: %v", e.URL, err)
+		// Optionally, schedule a retry after some time
+		// time.AfterFunc(5*time.Second, func() { sm.eventChan <- ConnectPeerEvent{URL: e.URL} })
+		return
+	}
 
-    peer.connection = conn
-    
-    // Schedule a SendGossipEvent for the new peer
-    sm.eventChan <- SendGossipEvent{Peer: peer}
+	peer.connection = conn
 
-    // Start reading messages from this peer
-    go peer.ReadLoop(sm.eventChan)
+	// Schedule a SendGossipEvent for the new peer
+	sm.eventChan <- SendGossipEvent{Peer: peer}
+
+	// Start reading messages from this peer
+	go peer.ReadLoop(sm.eventChan)
 }
 
 type WebSocketConnectionEvent struct {
@@ -127,26 +128,7 @@ func (e SendGossipEvent) process(sm *StateMachine) {
 		KnownPeers:      sm.getPeerURLs(),
 		LastVectorClock: sm.lastKnownVectorClock.toProto(),
 	}
-	err := e.Peer.SendGossipMessage(msg, sm.NextTimestamp(false))
-	if err != nil {
-		log.Printf("Failed to send gossip message to %s: %v", e.Peer.url, err)
-	}
-}
 
-type SendGossipEvent struct {
-	Peer *Peer
-}
-
-func (e SendGossipEvent) process(sm *StateMachine) {
-	msg := &pb.GossipMessage{
-		NodeId:          sm.config.OwnURL,
-		KnownPeers:      sm.getPeerURLs(),
-		LastVectorClock: sm.lastKnownVectorClock.toProto(),
-	}
-	err := e.Peer.SendGossipMessage(msg, sm.NextTimestamp(false))
-	if err != nil {
-		log.Println("Failed to send gossip message:", err)
-	}
 }
 
 func toProtoUpdates(updates []Update) []*pb.Update {
