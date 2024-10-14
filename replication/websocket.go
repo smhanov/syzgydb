@@ -30,7 +30,7 @@ func (re *ReplicationEngine) ConnectToPeers() {
 // HandleWebSocket upgrades an HTTP connection to a WebSocket and handles the peer connection.
 func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	tokenString := r.Header.Get("Authorization")
-	_, err := ValidateToken(tokenString, re.config.JWTSecret)
+	peerURL, nodeID, err := ValidateToken(tokenString, re.config.JWTSecret)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -42,8 +42,7 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	peerURL := r.RemoteAddr
-	peer := NewPeer(peerURL, re)
+	peer := NewPeer(nodeID, peerURL, re)
 	peer.SetConnection(conn)
 	re.mu.Lock()
 	re.peers[peerURL] = peer
@@ -53,12 +52,13 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 }
 
 // NewPeer creates a new Peer instance.
-func NewPeer(url string, re *ReplicationEngine) *Peer {
+func NewPeer(name string, url string, re *ReplicationEngine) *Peer {
 	return &Peer{
 		url:                url,
 		lastActive:         time.Now(),
 		lastKnownTimestamp: Timestamp{},
 		re:                 re,
+		name:               name,
 	}
 }
 
@@ -73,7 +73,7 @@ func (p *Peer) Connect(jwtSecret []byte) {
 
 	dialer := websocket.Dialer{}
 	header := http.Header{}
-	token, _ := GenerateToken(p.url, jwtSecret)
+	token, _ := GenerateToken(p.name, p.url, jwtSecret)
 	header.Add("Authorization", token)
 	conn, _, err := dialer.Dial(p.url, header)
 	if err != nil {
@@ -98,7 +98,6 @@ func (p *Peer) HandleIncomingMessages() {
 		log.Panicf("HandleIncomingMessages called with nil ReplicationEngine")
 	}
 	for {
-		log.Printf("Peer %s waiting for message", p.url)
 		_, message, err := p.connection.ReadMessage()
 		if err != nil {
 			log.Println("Error reading from peer:", err)
@@ -109,7 +108,6 @@ func (p *Peer) HandleIncomingMessages() {
 			return
 		}
 		p.lastActive = time.Now()
-		log.Printf("Peer %s received message: %v", p.url, message)
 		err = p.processMessage(message)
 		if err != nil {
 			log.Println("Failed to process message:", err)
