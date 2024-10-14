@@ -47,26 +47,10 @@ func (re *ReplicationEngine) GetHandler() http.Handler {
 }
 
 func (re *ReplicationEngine) SubmitUpdates(updates []Update) error {
-	// Commit updates to storage
-	err := re.stateMachine.storage.CommitUpdates(updates)
-	if err != nil {
-		return err
-	}
-
-	// Update lastKnownVectorClock and broadcast updates
 	for _, update := range updates {
 		re.stateMachine.eventChan <- ReceivedUpdateEvent{Update: update}
 	}
-
 	return nil
-}
-
-func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
-	re.stateMachine.eventChan <- ReceivedUpdateEvent{Update: update}
-}
-
-func (re *ReplicationEngine) HandleGossipMessage(peer *Peer, msg *pb.GossipMessage) {
-	re.stateMachine.eventChan <- GossipMessageEvent{Peer: peer, Message: msg}
 }
 
 func (re *ReplicationEngine) Listen(address string) error {
