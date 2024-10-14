@@ -35,7 +35,29 @@ func (e GossipMessageEvent) process(sm *StateMachine) {
 	}
 
 	if sm.lastKnownVectorClock.Before(peerVectorClock) {
-		sm.requestUpdatesFromPeer(e.Peer.url)
+		updateRequest := &pb.UpdateRequest{
+			Since:      sm.lastKnownVectorClock.toProto(),
+			MaxResults: MaxUpdateResults,
+		}
+
+		msg := &pb.Message{
+			Type:        pb.Message_UPDATE_REQUEST,
+			VectorClock: sm.lastKnownVectorClock.toProto(),
+			Content: &pb.Message_UpdateRequest{
+				UpdateRequest: updateRequest,
+			},
+		}
+
+		data, err := proto.Marshal(msg)
+		if err != nil {
+			log.Printf("Error marshaling update request: %v", err)
+			return
+		}
+
+		err = e.Peer.connection.WriteMessage(websocket.BinaryMessage, data)
+		if err != nil {
+			log.Printf("Error sending update request to peer %s: %v", e.Peer.url, err)
+		}
 	}
 }
 
