@@ -15,6 +15,7 @@ type ReceivedUpdateEvent struct {
 }
 
 func (e ReceivedUpdateEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing ReceivedUpdateEvent", sm.config.NodeID)
 	sm.handleReceivedUpdate(e.Update)
 }
 
@@ -24,6 +25,7 @@ type GossipMessageEvent struct {
 }
 
 func (e GossipMessageEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing GossipMessageEvent", sm.config.NodeID)
 	peerVectorClock := fromProtoVectorClock(e.Message.LastVectorClock)
 
 	e.Peer.lastKnownVectorClock = peerVectorClock
@@ -69,6 +71,7 @@ type UpdateRequestEvent struct {
 }
 
 func (e UpdateRequestEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing UpdateRequestEvent", sm.config.NodeID)
 	updates, hasMore, err := sm.storage.GetUpdatesSince(e.Since, e.MaxResults)
 	if err != nil {
 		log.Println("Failed to get updates:", err)
@@ -105,6 +108,7 @@ type BatchUpdateEvent struct {
 }
 
 func (e BatchUpdateEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing BatchUpdateEvent", sm.config.NodeID)
 	sm.handleReceivedBatchUpdate(e.Peer.url, e.BatchUpdate)
 }
 
@@ -113,6 +117,7 @@ type AddPeerEvent struct {
 }
 
 func (e AddPeerEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing AddPeerEvent", sm.config.NodeID)
 	if _, exists := sm.peers[e.URL]; !exists {
 		sm.peers[e.URL] = &Peer{
 			url:                  e.URL,
@@ -129,6 +134,7 @@ type ConnectPeerEvent struct {
 }
 
 func (e ConnectPeerEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing ConnectPeerEvent", sm.config.NodeID)
 	peer, exists := sm.peers[e.URL]
 	if !exists {
 		log.Printf("Peer %s not found for connection", e.URL)
@@ -158,6 +164,7 @@ type WebSocketConnectionEvent struct {
 }
 
 func (e WebSocketConnectionEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing WebSocketConnectionEvent", sm.config.NodeID)
 	tokenString := e.Request.Header.Get("Authorization")
 	if tokenString == "" || len(tokenString) <= 7 || tokenString[:7] != "Bearer " {
 		http.Error(e.ResponseWriter, "Missing or invalid Authorization header", http.StatusUnauthorized)
@@ -193,6 +200,7 @@ type SendGossipEvent struct {
 }
 
 func (e SendGossipEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing SendGossipEvent", sm.config.NodeID)
 	msg := &pb.GossipMessage{
 		NodeId:          sm.config.OwnURL,
 		KnownPeers:      sm.getPeerURLs(),
@@ -240,6 +248,7 @@ type PeerHeartbeatEvent struct {
 }
 
 func (e PeerHeartbeatEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing PeerHeartbeatEvent", sm.config.NodeID)
 	for _, peer := range e.Peers {
 		heartbeat := &pb.Heartbeat{
 			VectorClock: sm.lastKnownVectorClock.toProto(),
@@ -272,6 +281,7 @@ type PeerDisconnectEvent struct {
 }
 
 func (e PeerDisconnectEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing PeerDisconnectEvent", sm.config.NodeID)
 	log.Printf("Peer disconnected: %s", e.Peer.url)
 
 	// Close the connection
