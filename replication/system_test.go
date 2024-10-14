@@ -2,9 +2,13 @@ package replication
 
 import (
 	"fmt"
+	"log"
 	"testing"
 	"time"
 )
+
+const testPort = 8100
+const sleepTime = 100 * time.Millisecond
 
 func TestTimestampOrdering(t *testing.T) {
 	nodes := setupTestEnvironment(t, 2)
@@ -29,20 +33,22 @@ func TestTimestampOrdering(t *testing.T) {
 	// Submit updates in reverse order
 	nodes[0].SubmitUpdates([]Update{update2, update1})
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(sleepTime)
 
 	// Check if the final state reflects the correct ordering
 	record, _ := nodes[0].storage.GetRecord("testdb", "record1")
 	if string(record[0].Data) != "data2" {
 		t.Errorf("Expected final data to be 'data2', got '%s'", string(record[0].Data))
 	}
+	log.Printf("Shutdown test")
 }
 
 func TestBufferedUpdates(t *testing.T) {
 	nodes := setupTestEnvironment(t, 2)
 	defer tearDownTestEnvironment(nodes)
 
-	// Submit updates to both nodes
+	// node 0 creates the database
+	// node 1 just submits a record to it (mock storage doesn't care about database existence)
 	update1 := Update{
 		Timestamp:    nodes[0].NextTimestamp(),
 		Type:         CreateDatabase,
@@ -65,23 +71,8 @@ func TestBufferedUpdates(t *testing.T) {
 		t.Fatalf("Failed to submit update2: %v", err)
 	}
 
-	// Manually trigger update exchange multiple times
-	for attempt := 0; attempt < 5; attempt++ {
-		for i := 0; i < 2; i++ {
-			for j := 0; j < 2; j++ {
-				if i != j {
-					err = nodes[i].peers[fmt.Sprintf("node%d", j)].RequestUpdates(Timestamp{}, MaxUpdateResults)
-					if err != nil {
-						t.Logf("Failed to request updates from node%d to node%d: %v", j, i, err)
-					}
-				}
-			}
-		}
-		time.Sleep(1 * time.Second)
-	}
-
 	// Wait for replication and buffered updates to be processed
-	time.Sleep(2 * time.Second)
+	time.Sleep(sleepTime)
 
 	// Check if both nodes have the database and the record
 	for i, node := range nodes {
@@ -131,16 +122,16 @@ func TestScalability(t *testing.T) {
 	}
 
 	// Wait for replication
-	time.Sleep(5 * time.Second)
+	time.Sleep(5000 * time.Millisecond)
 
 	// Check if all nodes have all records
 	for i, node := range nodes {
 		for j := 0; j < updateCount; j++ {
 			record, err := node.storage.GetRecord("testdb", fmt.Sprintf("record%d", j))
 			if err != nil {
-				t.Errorf("Node %d: Failed to get record%d: %v", i, j, err)
+				t.Fatalf("Node %d: Failed to get record%d: %v", i, j, err)
 			}
-			if len(record) == 0 || string(record[0].Data) != fmt.Sprintf("data%d", j) {
+			if string(record[0].Data) != fmt.Sprintf("data%d", j) {
 				t.Errorf("Node %d: Expected record%d data 'data%d', got '%s'", i, j, j, string(record[0].Data))
 			}
 		}
@@ -151,9 +142,9 @@ func setupTestEnvironment(t *testing.T, nodeCount int) []*ReplicationEngine {
 	nodes := make([]*ReplicationEngine, nodeCount)
 
 	for i := 0; i < nodeCount; i++ {
-		storage := NewMockStorage()
+		storage := NewMockStorage(i)
 		config := ReplicationConfig{
-			OwnURL:    fmt.Sprintf("ws://localhost:%d", 8080+i),
+			OwnURL:    fmt.Sprintf("ws://localhost:%d", testPort+i),
 			PeerURLs:  []string{},
 			JWTSecret: []byte("test_secret"),
 		}
@@ -161,24 +152,23 @@ func setupTestEnvironment(t *testing.T, nodeCount int) []*ReplicationEngine {
 		if err != nil {
 			t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
 		}
-		err = re.Listen(fmt.Sprintf(":%d", 8080+i))
+		err = re.Listen(fmt.Sprintf(":%d", testPort+i))
 		if err != nil {
 			t.Fatalf("Failed to start listening: %v", err)
 		}
+		re.name = fmt.Sprintf("node%d", i)
 		nodes[i] = re
 	}
 
 	// Connect all nodes in a fully connected topology
 	for i := 0; i < nodeCount; i++ {
-		for j := 0; j < nodeCount; j++ {
-			if i != j {
-				nodes[i].peers[fmt.Sprintf("ws://localhost:%d", 8080+j)] = NewPeer(fmt.Sprintf("ws://localhost:%d", 8080+j))
-			}
+		for j := i + 1; j < nodeCount; j++ {
+			nodes[i].AddPeer(fmt.Sprintf("ws://localhost:%d", testPort+j))
 		}
 	}
 
 	// Allow time for connections to be established
-	time.Sleep(1 * time.Second)
+	time.Sleep(sleepTime)
 
 	return nodes
 }
@@ -207,7 +197,7 @@ func TestBasicReplication(t *testing.T) {
 	}
 
 	// Wait for replication
-	time.Sleep(1 * time.Second)
+	time.Sleep(sleepTime)
 
 	// Check if the update is replicated to all nodes
 	for i, node := range nodes {
@@ -245,7 +235,7 @@ func TestConflictResolution(t *testing.T) {
 	nodes[1].SubmitUpdates([]Update{update2})
 
 	// Wait for replication and conflict resolution
-	time.Sleep(2 * time.Second)
+	time.Sleep(sleepTime)
 
 	// Check if both nodes have the same final state
 	record0, _ := nodes[0].storage.GetRecord("testdb", "record1")
@@ -280,10 +270,7 @@ func TestNetworkPartition(t *testing.T) {
 	nodes[2].SubmitUpdates([]Update{update2})
 
 	// Wait for replication
-	time.Sleep(2 * time.Second)
-
-	// Wait for replication after partition healing
-	time.Sleep(2 * time.Second)
+	time.Sleep(sleepTime)
 
 	// Check if all nodes have both records
 	for i, node := range nodes {
