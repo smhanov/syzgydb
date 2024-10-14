@@ -104,7 +104,7 @@ func (e BatchUpdateEvent) process(sm *StateMachine) {
 	for _, protoUpdate := range e.BatchUpdate.Updates {
 		update := fromProtoUpdate(protoUpdate)
 		updates = append(updates, update)
-		//TODO: update the leer's last received update state
+		//TODO: update the peer's last received update state
 	}
 
 	sm.storage.CommitUpdates(updates)
