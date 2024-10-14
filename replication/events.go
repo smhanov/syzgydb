@@ -161,10 +161,13 @@ func (e ConnectPeerEvent) process(sm *StateMachine) {
 type WebSocketConnectionEvent struct {
 	ResponseWriter http.ResponseWriter
 	Request        *http.Request
+	ReplyChan      chan<- struct{}
 }
 
 func (e WebSocketConnectionEvent) process(sm *StateMachine) {
 	log.Printf("[%d] Processing WebSocketConnectionEvent", sm.config.NodeID)
+	defer close(e.ReplyChan) // Signal that the event has been processed
+
 	tokenString := e.Request.Header.Get("Authorization")
 	if tokenString == "" || len(tokenString) <= 7 || tokenString[:7] != "Bearer " {
 		http.Error(e.ResponseWriter, "Missing or invalid Authorization header", http.StatusUnauthorized)

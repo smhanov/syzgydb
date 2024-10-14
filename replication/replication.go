@@ -92,7 +92,9 @@ func (re *ReplicationEngine) NextLocalTimestamp() Timestamp {
 }
 
 func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	re.stateMachine.eventChan <- WebSocketConnectionEvent{ResponseWriter: w, Request: r}
+	replyChan := make(chan struct{})
+	re.stateMachine.eventChan <- WebSocketConnectionEvent{ResponseWriter: w, Request: r, ReplyChan: replyChan}
+	<-replyChan // Wait for the event to be processed
 }
 
 func (re *ReplicationEngine) startHeartbeatTimer() {
