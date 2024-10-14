@@ -22,6 +22,14 @@ type StateMachine struct {
     done                 chan struct{}
 }
 
+func (sm *StateMachine) getPeerURLs() []string {
+    urls := make([]string, 0, len(sm.peers))
+    for url := range sm.peers {
+        urls = append(urls, url)
+    }
+    return urls
+}
+
 func NewStateMachine(storage StorageInterface, config ReplicationConfig, localVectorClock *VectorClock) *StateMachine {
     sm := &StateMachine{
         storage:              storage,
