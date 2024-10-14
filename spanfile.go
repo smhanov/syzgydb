@@ -801,6 +801,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 	// Timestamp
 	buf = write7Code(buf, uint64(span.Timestamp.UnixTime))
 	buf = write7Code(buf, uint64(span.Timestamp.LamportClock))
+	buf = write7Code(buf, span.SiteID)
 
 	// Serialize RecordID Length and RecordID
 	buf = write7Code(buf, uint64(len(recordIDBytes)))
