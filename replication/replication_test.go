@@ -100,9 +100,16 @@ func TestUpdateOrdering(t *testing.T) {
 }
 
 func TestUpdateBuffering(t *testing.T) {
-	re := &ReplicationEngine{
-		storage:         NewMockStorage(0),
-		bufferedUpdates: make(map[string][]Update),
+	storage := NewMockStorage(0)
+	config := ReplicationConfig{
+		OwnURL:    "ws://localhost:8080",
+		PeerURLs:  []string{},
+		JWTSecret: []byte("test_secret"),
+		NodeID:    0,
+	}
+	re, err := Init(storage, config, NewVectorClock())
+	if err != nil {
+		t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
 	}
 
 	// Try to apply an update for a non-existent database
@@ -117,9 +124,11 @@ func TestUpdateBuffering(t *testing.T) {
 	re.handleReceivedUpdate(update)
 
 	// Check if the update was buffered
+	re.bufferMu.Lock()
 	if len(re.bufferedUpdates["non_existent_db"]) != 1 {
 		t.Error("Expected update to be buffered")
 	}
+	re.bufferMu.Unlock()
 
 	// Create the database
 	createDB := Update{
@@ -136,7 +145,13 @@ func TestUpdateBuffering(t *testing.T) {
 
 	go func() {
 		// Check if the buffered update was applied
-		for len(re.bufferedUpdates["non_existent_db"]) != 0 {
+		for {
+			re.bufferMu.Lock()
+			bufferedUpdatesLen := len(re.bufferedUpdates["non_existent_db"])
+			re.bufferMu.Unlock()
+			if bufferedUpdatesLen == 0 {
+				break
+			}
 			time.Sleep(100 * time.Millisecond)
 		}
 
