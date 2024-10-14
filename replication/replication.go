@@ -39,9 +39,21 @@ func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *
 		eventChan:    eventChan,
 	}
 
-	go sm.eventLoop()
+	go re.eventLoop()
 
 	return re, nil
+}
+
+func (re *ReplicationEngine) eventLoop() {
+	for event := range re.eventChan {
+		switch e := event.(type) {
+		case AddPeerEvent:
+			re.handleAddPeerEvent(e)
+		// Add other event types here
+		default:
+			re.stateMachine.eventChan <- event
+		}
+	}
 }
 
 func (re *ReplicationEngine) GetHandler() http.Handler {
@@ -83,6 +95,17 @@ func (re *ReplicationEngine) Close() error {
 
 func (re *ReplicationEngine) AddPeer(url string) {
 	re.eventChan <- AddPeerEvent{URL: url}
+}
+
+func (re *ReplicationEngine) handleAddPeerEvent(event AddPeerEvent) {
+	if _, exists := re.stateMachine.peers[event.URL]; !exists {
+		re.stateMachine.peers[event.URL] = &Peer{
+			url:                  event.URL,
+			lastKnownVectorClock: NewVectorClock(),
+			stateMachine:         re.stateMachine,
+		}
+		re.eventChan <- ConnectPeerEvent{URL: event.URL}
+	}
 }
 
 func (re *ReplicationEngine) NextTimestamp(local bool) *VectorClock {
