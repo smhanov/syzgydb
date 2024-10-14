@@ -295,3 +295,15 @@ func (re *ReplicationEngine) Close() error {
 	}
 	return nil
 }
+
+// AddPeer adds a new peer to the ReplicationEngine and immediately triggers a connection request.
+func (re *ReplicationEngine) AddPeer(url string) {
+	re.mu.Lock()
+	defer re.mu.Unlock()
+
+	if _, exists := re.peers[url]; !exists {
+		peer := NewPeer("", url, re)
+		re.peers[url] = peer
+		go peer.Connect(re.config.JWTSecret)
+	}
+}
