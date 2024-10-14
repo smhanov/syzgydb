@@ -63,6 +63,7 @@ type ReplicationConfig struct {
 	OwnURL    string   `json:"own_url"`
 	PeerURLs  []string `json:"peer_urls"`
 	JWTSecret []byte   `json:"jwt_secret"`
+	NodeID    uint64   `json:"node_id"`
 }
 
 // StorageInterface defines the methods that must be implemented by any storage backend

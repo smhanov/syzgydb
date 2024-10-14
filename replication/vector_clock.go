@@ -71,6 +71,15 @@ func (vc *VectorClock) Equal(other *VectorClock) bool {
 	return true
 }
 
+// Clone returns a deep copy of the VectorClock.
+func (vc *VectorClock) Clone() *VectorClock {
+	clone := NewVectorClock()
+	for nodeID, ts := range vc.clock {
+		clone.clock[nodeID] = ts
+	}
+	return clone
+}
+
 // Merge merges another VectorClock into the current one, taking the maximum Timestamp for each nodeID.
 func (vc *VectorClock) Merge(other *VectorClock) {
 	for nodeID, otherTS := range other.clock {

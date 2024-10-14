@@ -304,12 +304,22 @@ func (re *ReplicationEngine) startBufferedUpdatesProcessor() {
 	}()
 }
 
-// NextTimestamp generates and returns the next logical timestamp.
-func (re *ReplicationEngine) NextTimestamp(local bool) Timestamp {
+// NextTimestamp increments the lastKnownVectorClock and returns a copy of it.
+func (re *ReplicationEngine) NextTimestamp(local bool) *VectorClock {
 	re.mu.Lock()
 	defer re.mu.Unlock()
-	re.lastTimestamp = re.lastTimestamp.Next(local)
-	return re.lastTimestamp
+	
+	// Increment the vector clock for this node
+	nodeID := uint64(re.config.NodeID) // Assuming NodeID is added to ReplicationConfig
+	currentTimestamp, exists := re.lastKnownVectorClock.Get(nodeID)
+	if !exists {
+		currentTimestamp = Timestamp{}
+	}
+	newTimestamp := currentTimestamp.Next(local)
+	re.lastKnownVectorClock.Update(nodeID, newTimestamp)
+
+	// Return a copy of the updated vector clock
+	return re.lastKnownVectorClock.Clone()
 }
 
 // NextTimestamp generates and returns the next logical timestamp.
