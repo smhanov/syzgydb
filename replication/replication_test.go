@@ -18,7 +18,7 @@ func TestBasicOperations(t *testing.T) {
 
 	// Test creating a database
 	createDB := Update{
-		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 1}),
+		Timestamp:    Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 1},
 		Type:         CreateDatabase,
 		DatabaseName: "test_db",
 	}
@@ -29,7 +29,7 @@ func TestBasicOperations(t *testing.T) {
 
 	// Test upserting a record
 	upsertRecord := Update{
-		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 2}),
+		Timestamp:    Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 2},
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
@@ -42,7 +42,7 @@ func TestBasicOperations(t *testing.T) {
 
 	// Test deleting a record
 	deleteRecord := Update{
-		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 3}),
+		Timestamp:    Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 3},
 		Type:         DeleteRecord,
 		RecordID:     "record1",
 		DatabaseName: "test_db",
@@ -54,7 +54,7 @@ func TestBasicOperations(t *testing.T) {
 
 	// Test dropping a database
 	dropDB := Update{
-		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 4}),
+		Timestamp:    Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 4},
 		Type:         DropDatabase,
 		DatabaseName: "test_db",
 	}
@@ -69,14 +69,14 @@ func TestUpdateOrdering(t *testing.T) {
 
 	updates := []Update{
 		{
-			VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: 1000, LamportClock: 2}),
+			Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 2},
 			Type:         UpsertRecord,
 			RecordID:     "record1",
 			DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data2")}},
 			DatabaseName: "test_db",
 		},
 		{
-			VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: 1000, LamportClock: 1}),
+			Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 1},
 			Type:         UpsertRecord,
 			RecordID:     "record1",
 			DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data1")}},
@@ -111,10 +111,11 @@ func TestUpdateBuffering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
 	}
+	defer re.Close()
 
 	// Try to apply an update for a non-existent database
 	update := Update{
-		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 1}),
+		Timestamp:    Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 1},
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
@@ -132,7 +133,7 @@ func TestUpdateBuffering(t *testing.T) {
 
 	// Create the database
 	createDB := Update{
-		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 2}),
+		Timestamp:    Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 2},
 		Type:         CreateDatabase,
 		DatabaseName: "non_existent_db",
 	}
@@ -177,7 +178,7 @@ func TestEngineConflictResolution(t *testing.T) {
 	storage := NewMockStorage(0)
 
 	update1 := Update{
-		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: 1000, LamportClock: 1}),
+		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 1},
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data1")}},
@@ -185,7 +186,7 @@ func TestEngineConflictResolution(t *testing.T) {
 	}
 
 	update2 := Update{
-		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: 1000, LamportClock: 2}),
+		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 2},
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data2")}},

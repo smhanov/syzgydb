@@ -13,7 +13,7 @@ const sleepTime = 400 * time.Millisecond
 // Helper function to create a database
 func createDatabase(t *testing.T, node *ReplicationEngine, dbName string) {
 	createDBUpdate := Update{
-		VectorClock:  node.NextTimestamp(true),
+		Timestamp:    node.NextLocalTimestamp(),
 		Type:         CreateDatabase,
 		DatabaseName: dbName,
 	}
@@ -31,14 +31,14 @@ func TestTimestampOrdering(t *testing.T) {
 	createDatabase(t, nodes[0], "testdb")
 	// Generate updates with out-of-order timestamps
 	update1 := Update{
-		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: 1000, LamportClock: 1}),
+		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 1},
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data1")}},
 		DatabaseName: "testdb",
 	}
 	update2 := Update{
-		VectorClock:  NewVectorClock().Update(0, Timestamp{UnixTime: 1000, LamportClock: 2}),
+		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 2},
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data2")}},
@@ -68,7 +68,8 @@ func TestBufferedUpdates(t *testing.T) {
 
 	// Node 1 submits a record to the database
 	update := Update{
-		VectorClock:  nodes[1].NextTimestamp(true),
+		NodeID:       1,
+		Timestamp:    nodes[1].NextLocalTimestamp(),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
@@ -116,7 +117,7 @@ func TestScalability(t *testing.T) {
 
 	// Create the "testdb" database on the first node
 	createDBUpdate := Update{
-		VectorClock:  nodes[0].NextTimestamp(true),
+		Timestamp:    nodes[0].NextLocalTimestamp(),
 		Type:         CreateDatabase,
 		DatabaseName: "testdb",
 	}
@@ -129,7 +130,8 @@ func TestScalability(t *testing.T) {
 	for i := 0; i < updateCount; i++ {
 		nodeIndex := i % nodeCount
 		update := Update{
-			VectorClock:  nodes[nodeIndex].NextTimestamp(true),
+			NodeID:       uint64(nodeIndex),
+			Timestamp:    nodes[nodeIndex].NextLocalTimestamp(),
 			Type:         UpsertRecord,
 			RecordID:     fmt.Sprintf("record%d", i),
 			DataStreams:  []DataStream{{StreamID: 1, Data: []byte(fmt.Sprintf("data%d", i))}},
@@ -168,7 +170,7 @@ func setupTestEnvironment(t *testing.T, nodeCount int) []*ReplicationEngine {
 			PeerURLs:  []string{},
 			JWTSecret: []byte("test_secret"),
 		}
-		re, err := Init(storage, config, NewVectorClock())
+		re, err := Init(storage, config, NewVectorClock().Update(uint64(i), Now()))
 		if err != nil {
 			t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
 		}
@@ -183,6 +185,7 @@ func setupTestEnvironment(t *testing.T, nodeCount int) []*ReplicationEngine {
 	// Connect all nodes in a fully connected topology
 	for i := 0; i < nodeCount; i++ {
 		for j := i + 1; j < nodeCount; j++ {
+			log.Printf("Connect node%d to node%d", i, j)
 			nodes[i].AddPeer(fmt.Sprintf("ws://localhost:%d", testPort+j))
 		}
 	}
@@ -208,7 +211,7 @@ func TestBasicReplication(t *testing.T) {
 
 	// Submit an update to node0
 	update := Update{
-		VectorClock:  nodes[0].NextTimestamp(true),
+		Timestamp:    nodes[0].NextLocalTimestamp(),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
@@ -244,7 +247,7 @@ func TestConflictResolution(t *testing.T) {
 
 	// Submit conflicting updates to both nodes
 	update1 := Update{
-		VectorClock:  nodes[0].NextTimestamp(true),
+		Timestamp: nodes[0].NextLocalTimestamp(),,
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data from node0")}},
@@ -289,14 +292,15 @@ func TestNetworkPartition(t *testing.T) {
 
 	// Submit updates to node0 and node2
 	update1 := Update{
-		VectorClock:  nodes[0].NextTimestamp(true),
+		Timestamp:    nodes[0].NextLocalTimestamp(),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data from node0")}},
 		DatabaseName: "testdb",
 	}
 	update2 := Update{
-		VectorClock:  nodes[2].NextTimestamp(true),
+		NodeID:       2,
+		Timestamp:    nodes[2].NextLocalTimestamp(),
 		Type:         UpsertRecord,
 		RecordID:     "record2",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data from node2")}},
@@ -313,7 +317,7 @@ func TestNetworkPartition(t *testing.T) {
 	}
 
 	// Wait for replication
-	time.Sleep(800 * time.Millisecond)
+	time.Sleep(5800 * time.Millisecond)
 
 	// Check if all nodes have both records
 	for i, node := range nodes {

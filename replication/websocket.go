@@ -143,7 +143,7 @@ func (p *Peer) processMessage(data []byte) error {
 		update := fromProtoUpdate(msg.GetUpdate())
 		p.re.handleReceivedUpdate(update)
 	case pb.Message_UPDATE_REQUEST:
-		since := fromProtoTimestamp(msg.GetUpdateRequest().Since)
+		since := fromProtoVectorClock(msg.GetUpdateRequest().Since)
 		maxResults := int(msg.GetUpdateRequest().MaxResults)
 		updates, hasMore, err := p.re.storage.GetUpdatesSince(since, maxResults)
 		if err != nil {
@@ -172,7 +172,7 @@ func (p *Peer) SendGossipMessage(msg *pb.GossipMessage, vc *VectorClock) error {
 		return errors.New("not connected")
 	}
 	message := &pb.Message{
-		Type:      pb.Message_GOSSIP,
+		Type:        pb.Message_GOSSIP,
 		VectorClock: vc.toProto(),
 		Content: &pb.Message_GossipMessage{
 			GossipMessage: msg,
@@ -242,7 +242,7 @@ func (re *ReplicationEngine) sendBatchUpdate(peer *Peer, batchUpdate *pb.BatchUp
 		return
 	}
 	message := &pb.Message{
-		Type:      pb.Message_BATCH_UPDATE,
+		Type:        pb.Message_BATCH_UPDATE,
 		VectorClock: vc.toProto(),
 		Content: &pb.Message_BatchUpdate{
 			BatchUpdate: batchUpdate,

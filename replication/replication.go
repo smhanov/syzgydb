@@ -18,13 +18,13 @@ type Connection interface {
 }
 
 type Peer struct {
-	url                string
-	name               string
-	connection         Connection
-	lastActive         time.Time
+	url                  string
+	name                 string
+	connection           Connection
+	lastActive           time.Time
 	lastKnownVectorClock *VectorClock
-	mu                 sync.Mutex
-	re                 *ReplicationEngine
+	mu                   sync.Mutex
+	re                   *ReplicationEngine
 }
 
 // SetConnection sets the WebSocket connection for the peer.
@@ -68,7 +68,7 @@ func (re *ReplicationEngine) GetUpdatesSince(vectorClock *VectorClock, maxResult
 
 	for dbName, bufferedUpdates := range re.bufferedUpdates {
 		for _, update := range bufferedUpdates {
-			if update.VectorClock.After(vectorClock) {
+			if vectorClock.BeforeTimestamp(update.NodeID, update.Timestamp) {
 				if updates[dbName] == nil {
 					updates[dbName] = []Update{}
 				}
@@ -88,7 +88,7 @@ func (re *ReplicationEngine) GetUpdatesSince(vectorClock *VectorClock, maxResult
 // sortAndLimitUpdates sorts the updates by vector clock and limits them to maxResults
 func sortAndLimitUpdates(updates []Update, maxResults int) {
 	sort.Slice(updates, func(i, j int) bool {
-		return updates[i].VectorClock.Before(updates[j].VectorClock)
+		return updates[i].Timestamp.Before(updates[j].Timestamp)
 	})
 	if len(updates) > maxResults {
 		updates = updates[:maxResults]
@@ -120,11 +120,15 @@ func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *
 		storage:              storage,
 		config:               config,
 		peers:                make(map[string]*Peer),
-		lastKnownVectorClock: localVectorClock,
+		lastKnownVectorClock: localVectorClock.Clone(),
 		bufferedUpdates:      make(map[string][]Update),
 		gossipTicker:         time.NewTicker(5 * time.Second),
 		gossipDone:           make(chan bool),
 		name:                 config.OwnURL,
+	}
+
+	if re.lastKnownVectorClock == nil {
+		log.Panicf("nil vector clock given")
 	}
 
 	for _, url := range config.PeerURLs {
@@ -155,8 +159,9 @@ func (re *ReplicationEngine) SubmitUpdates(updates []Update) error {
 
 	// Update lastKnownVectorClock
 	re.mu.Lock()
-	if len(updates) > 0 && updates[len(updates)-1].VectorClock.After(re.lastKnownVectorClock) {
-		re.lastKnownVectorClock = updates[len(updates)-1].VectorClock.Clone()
+	if len(updates) > 0 {
+		last := updates[len(updates)-1]
+		re.lastKnownVectorClock.Update(last.NodeID, last.Timestamp)
 	}
 	re.mu.Unlock()
 
@@ -195,16 +200,13 @@ func (re *ReplicationEngine) bufferUpdate(update Update) {
 
 // applyUpdate commits an update to storage.
 func (re *ReplicationEngine) applyUpdate(update Update) error {
-	log.Printf("Apply update %+v", update)
 	err := re.storage.CommitUpdates([]Update{update})
 	if err != nil {
 		return err
 	}
 
 	re.mu.Lock()
-	if update.VectorClock.After(re.lastKnownVectorClock) {
-		re.lastKnownVectorClock = update.VectorClock.Clone()
-	}
+	re.lastKnownVectorClock.Update(update.NodeID, update.Timestamp)
 	re.mu.Unlock()
 
 	return nil
@@ -224,9 +226,9 @@ func (re *ReplicationEngine) applyUpdateAndProcessBuffer(update Update) error {
 // handleReceivedUpdate processes an update received from a peer.
 // It checks if the database exists and either applies the update or buffers it.
 func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
-	log.Printf("Received update: %+v", update)
+	log.Printf("[%s] Received update: %+v", re.name, update)
 	if update.Type == CreateDatabase {
-		log.Printf("Applying CreateDatabase update for %s", update.DatabaseName)
+		//log.Printf("Applying CreateDatabase update for %s", update.DatabaseName)
 		err := re.applyUpdateAndProcessBuffer(update)
 		if err != nil {
 			log.Println("Failed to apply CreateDatabase update:", err)
@@ -234,7 +236,7 @@ func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
 			log.Printf("Successfully applied CreateDatabase update for %s", update.DatabaseName)
 		}
 	} else if re.dependenciesSatisfied(update) {
-		log.Printf("Dependencies satisfied for update: %+v", update)
+		//log.Printf("Dependencies satisfied for update: %+v", update)
 		err := re.applyUpdateAndProcessBuffer(update)
 		if err != nil {
 			log.Println("Failed to apply update:", err)
@@ -242,7 +244,7 @@ func (re *ReplicationEngine) handleReceivedUpdate(update Update) {
 			log.Printf("Successfully applied update: %+v", update)
 		}
 	} else {
-		log.Printf("Buffering update due to unsatisfied dependencies: %+v", update)
+		//log.Printf("Buffering update due to unsatisfied dependencies: %+v", update)
 		re.bufferUpdate(update)
 	}
 }
@@ -308,7 +310,7 @@ func (re *ReplicationEngine) startBufferedUpdatesProcessor() {
 func (re *ReplicationEngine) NextTimestamp(local bool) *VectorClock {
 	re.mu.Lock()
 	defer re.mu.Unlock()
-	
+
 	// Increment the vector clock for this node
 	nodeID := uint64(re.config.NodeID) // Assuming NodeID is added to ReplicationConfig
 	currentTimestamp, exists := re.lastKnownVectorClock.Get(nodeID)
@@ -320,6 +322,15 @@ func (re *ReplicationEngine) NextTimestamp(local bool) *VectorClock {
 
 	// Return a copy of the updated vector clock
 	return re.lastKnownVectorClock.Clone()
+}
+
+func (re *ReplicationEngine) NextLocalTimestamp() Timestamp {
+	re.mu.Lock()
+	defer re.mu.Unlock()
+	cur, _ := re.lastKnownVectorClock.Get(uint64(re.config.NodeID))
+	cur = cur.Next(true)
+	re.lastKnownVectorClock.Update(uint64(re.config.NodeID), cur)
+	return cur
 }
 
 // NextTimestamp generates and returns the next logical timestamp.

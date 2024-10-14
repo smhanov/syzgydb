@@ -23,7 +23,8 @@ type DataStream struct {
 
 // Update represents a single update operation in the replication system.
 type Update struct {
-	VectorClock  *VectorClock `json:"vector_clock"`
+	NodeID       uint64       `json:"node_id"`
+	Timestamp    Timestamp    `json:"timestamp"`
 	Type         UpdateType   `json:"type"`
 	RecordID     string       `json:"record_id"`
 	DataStreams  []DataStream `json:"data_streams"`
@@ -32,7 +33,7 @@ type Update struct {
 
 // Compare compares two Updates based on their vector clocks and record IDs.
 func (u Update) Compare(other Update) int {
-	vcComp := u.VectorClock.Compare(other.VectorClock)
+	vcComp := u.Timestamp.Compare(other.Timestamp)
 	if vcComp != 0 {
 		return vcComp
 	}
@@ -54,8 +55,8 @@ func (u Update) String() string {
 	default:
 		typeStr = fmt.Sprintf("Unknown(%d)", u.Type)
 	}
-	return fmt.Sprintf("Update{%s %s/%s @%s}",
-		typeStr, u.DatabaseName, u.RecordID, u.VectorClock)
+	return fmt.Sprintf("Update{%s %s/%s %d@%s}",
+		typeStr, u.DatabaseName, u.RecordID, u.NodeID, u.Timestamp)
 }
 
 // ReplicationConfig holds the configuration settings for the replication engine.

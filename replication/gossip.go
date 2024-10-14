@@ -31,9 +31,9 @@ func (re *ReplicationEngine) sendGossipMessage(peer *Peer, vc *VectorClock) {
 	re.mu.Lock()
 	defer re.mu.Unlock()
 	msg := &pb.GossipMessage{
-		NodeId:           re.name,
-		KnownPeers:       re.getPeerURLs(),
-		LastVectorClock:  vc.toProto(),
+		NodeId:          re.name,
+		KnownPeers:      re.getPeerURLs(),
+		LastVectorClock: vc.toProto(),
 	}
 	err := peer.SendGossipMessage(msg, vc)
 	if err != nil {
@@ -54,9 +54,11 @@ func (re *ReplicationEngine) HandleGossipMessage(peer *Peer, msg *pb.GossipMessa
 	peer.name = msg.NodeId
 	peer.mu.Unlock()
 
+	re.mu.Lock()
 	if re.lastKnownVectorClock.Before(peerVectorClock) {
 		go re.requestUpdatesFromPeer(peer.url)
 	}
+	re.mu.Unlock()
 }
 
 // updatePeerList adds new peers to the ReplicationEngine's peer list.
@@ -169,7 +171,7 @@ func (re *ReplicationEngine) handleReceivedBatchUpdate(peerURL string, batchUpda
 	for _, protoUpdate := range batchUpdate.Updates {
 		update := fromProtoUpdate(protoUpdate)
 		re.handleReceivedUpdate(update)
-		latestVectorClock.Merge(update.VectorClock)
+		latestVectorClock.Update(update.NodeID, update.Timestamp)
 	}
 
 	peer.mu.Lock()

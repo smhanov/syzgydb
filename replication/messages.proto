@@ -19,7 +19,8 @@ message DataStream {
 }
 
 message Update {
-  VectorClock vector_clock = 1;
+  uint64 node_id = 6;
+  Timestamp timestamp = 1;
   enum UpdateType {
     DELETE_RECORD = 0;
     UPSERT_RECORD = 1;

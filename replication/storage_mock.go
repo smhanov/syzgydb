@@ -33,7 +33,7 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 	defer ms.updatesMutex.Unlock()
 
 	sort.Slice(updates, func(i, j int) bool {
-		return updates[i].VectorClock.Compare(updates[j].VectorClock) < 0
+		return updates[i].Timestamp.Compare(updates[j].Timestamp) < 0
 	})
 
 	for _, update := range updates {
@@ -72,7 +72,7 @@ func (ms *MockStorage) GetUpdatesSince(vectorClock *VectorClock, maxResults int)
 	hasMore := false
 
 	for _, update := range ms.updates {
-		if update.VectorClock.After(vectorClock) {
+		if vectorClock.BeforeTimestamp(update.NodeID, update.Timestamp) {
 			if totalUpdates >= maxResults {
 				hasMore = true
 				break
@@ -91,8 +91,12 @@ func (ms *MockStorage) GetUpdatesSince(vectorClock *VectorClock, maxResults int)
 
 // ResolveConflict determines which of two conflicting updates should be applied.
 func (ms *MockStorage) ResolveConflict(update1, update2 Update) (Update, error) {
-	comp := update1.VectorClock.Compare(update2.VectorClock)
-	if comp >= 0 {
+	comp := update1.Timestamp.Compare(update2.Timestamp)
+	if comp > 0 {
+		return update1, nil
+	} else if comp < 0 {
+		return update2, nil
+	} else if update1.NodeID < update2.NodeID {
 		return update1, nil
 	}
 	return update2, nil
@@ -119,14 +123,14 @@ func (ms *MockStorage) GetRecord(databaseName, recordID string) ([]DataStream, e
 }
 
 // GenerateUpdate creates a new update for testing purposes.
-func (ms *MockStorage) GenerateUpdate(dbName string, vc *VectorClock) Update {
+func (ms *MockStorage) GenerateUpdate(dbName string, ts Timestamp) Update {
 	ms.updatesMutex.Lock()
 	defer ms.updatesMutex.Unlock()
 
 	update := Update{
-		VectorClock: vc,
-		Type:        UpsertRecord,
-		RecordID:    "test_record_" + time.Now().String(),
+		Timestamp: ts,
+		Type:      UpsertRecord,
+		RecordID:  "test_record_" + time.Now().String(),
 		DataStreams: []DataStream{
 			{StreamID: 1, Data: []byte("Sample data")},
 		},

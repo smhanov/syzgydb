@@ -3,6 +3,7 @@ package replication
 import (
 	"fmt"
 	"sort"
+
 	pb "github.com/smhanov/syzgydb/replication/proto"
 )
 
@@ -20,7 +21,9 @@ func NewVectorClock() *VectorClock {
 
 // Update updates the vector clock for a given nodeID with a new Timestamp.
 func (vc *VectorClock) Update(nodeID uint64, timestamp Timestamp) *VectorClock {
-	vc.clock[nodeID] = timestamp
+	if ts, exists := vc.clock[nodeID]; exists && ts.Before(timestamp) || !exists {
+		vc.clock[nodeID] = timestamp
+	}
 	return vc
 }
 
@@ -28,6 +31,14 @@ func (vc *VectorClock) Update(nodeID uint64, timestamp Timestamp) *VectorClock {
 func (vc *VectorClock) Get(nodeID uint64) (Timestamp, bool) {
 	ts, ok := vc.clock[nodeID]
 	return ts, ok
+}
+
+func (vc *VectorClock) BeforeTimestamp(nodeID uint64, ts Timestamp) bool {
+	if currentTS, ok := vc.clock[nodeID]; ok {
+		return currentTS.Before(ts)
+	}
+
+	return true
 }
 
 // Contains checks if the vector clock contains a particular nodeID.
@@ -74,9 +85,10 @@ func (vc *VectorClock) Equal(other *VectorClock) bool {
 }
 
 // Compare compares two VectorClocks and returns:
-//   -1 if vc < other
-//    0 if vc == other
-//    1 if vc > other
+//
+//	-1 if vc < other
+//	 0 if vc == other
+//	 1 if vc > other
 func (vc *VectorClock) Compare(other *VectorClock) int {
 	if vc.Equal(other) {
 		return 0
