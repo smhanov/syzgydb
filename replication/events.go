@@ -52,18 +52,47 @@ func (e BatchUpdateEvent) process(sm *StateMachine) {
 }
 
 type AddPeerEvent struct {
-	URL string
+    URL string
 }
 
 func (e AddPeerEvent) process(sm *StateMachine) {
-	if _, exists := sm.peers[e.URL]; !exists {
-		peer := NewPeer("a:?", e.URL, sm)
-		sm.peers[e.URL] = peer
-		go peer.Connect(sm.config.JWTSecret)
-		
-		// Schedule a SendGossipEvent for the new peer
-		sm.eventChan <- SendGossipEvent{Peer: peer}
-	}
+    if _, exists := sm.peers[e.URL]; !exists {
+        sm.peers[e.URL] = &Peer{
+            url:                  e.URL,
+            lastKnownVectorClock: NewVectorClock(),
+            stateMachine:         sm,
+        }
+        // Schedule a ConnectPeerEvent instead of directly connecting
+        sm.eventChan <- ConnectPeerEvent{URL: e.URL}
+    }
+}
+
+type ConnectPeerEvent struct {
+    URL string
+}
+
+func (e ConnectPeerEvent) process(sm *StateMachine) {
+    peer, exists := sm.peers[e.URL]
+    if !exists {
+        log.Printf("Peer %s not found for connection", e.URL)
+        return
+    }
+
+    conn, err := dialWebSocket(e.URL, sm.config.JWTSecret)
+    if err != nil {
+        log.Printf("Failed to connect to peer %s: %v", e.URL, err)
+        // Optionally, schedule a retry after some time
+        // time.AfterFunc(5*time.Second, func() { sm.eventChan <- ConnectPeerEvent{URL: e.URL} })
+        return
+    }
+
+    peer.connection = conn
+    
+    // Schedule a SendGossipEvent for the new peer
+    sm.eventChan <- SendGossipEvent{Peer: peer}
+
+    // Start reading messages from this peer
+    go peer.ReadLoop(sm.eventChan)
 }
 
 type WebSocketConnectionEvent struct {
