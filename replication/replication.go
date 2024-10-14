@@ -97,7 +97,7 @@ func sortAndLimitUpdates(updates []Update, maxResults int) {
 
 type updateRequest struct {
 	peerURL      string
-	since        Timestamp
+	since        *VectorClock
 	inProgress   bool
 	responseChan chan bool
 }
@@ -105,7 +105,7 @@ type updateRequest struct {
 // Init initializes a new ReplicationEngine with the given parameters.
 // It sets up the necessary structures, starts background processes,
 // and prepares the engine for operation.
-func Init(storage StorageInterface, config ReplicationConfig, localTimeStamp Timestamp) (*ReplicationEngine, error) {
+func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *VectorClock) (*ReplicationEngine, error) {
 	if storage == nil {
 		return nil, errors.New("storage cannot be nil")
 	}
@@ -117,14 +117,14 @@ func Init(storage StorageInterface, config ReplicationConfig, localTimeStamp Tim
 	}
 
 	re := &ReplicationEngine{
-		storage:         storage,
-		config:          config,
-		peers:           make(map[string]*Peer),
-		lastTimestamp:   localTimeStamp,
-		bufferedUpdates: make(map[string][]Update),
-		gossipTicker:    time.NewTicker(5 * time.Second),
-		gossipDone:      make(chan bool),
-		name:            config.OwnURL,
+		storage:              storage,
+		config:               config,
+		peers:                make(map[string]*Peer),
+		lastKnownVectorClock: localVectorClock,
+		bufferedUpdates:      make(map[string][]Update),
+		gossipTicker:         time.NewTicker(5 * time.Second),
+		gossipDone:           make(chan bool),
+		name:                 config.OwnURL,
 	}
 
 	for _, url := range config.PeerURLs {
