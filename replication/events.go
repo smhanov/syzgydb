@@ -221,5 +221,29 @@ type PeerHeartbeatEvent struct {
 }
 
 func (e PeerHeartbeatEvent) process(sm *StateMachine) {
-	sm.handlePeerHeartbeat(e.Peers)
+	for _, peer := range e.Peers {
+		heartbeat := &pb.Heartbeat{
+			VectorClock: sm.lastKnownVectorClock.toProto(),
+		}
+
+		msg := &pb.Message{
+			Type:        pb.Message_HEARTBEAT,
+			VectorClock: sm.lastKnownVectorClock.toProto(),
+			Content: &pb.Message_Heartbeat{
+				Heartbeat: heartbeat,
+			},
+		}
+
+		data, err := proto.Marshal(msg)
+		if err != nil {
+			log.Printf("Error marshaling heartbeat for peer %s: %v", peer.url, err)
+			continue
+		}
+
+		err = peer.connection.WriteMessage(websocket.BinaryMessage, data)
+		if err != nil {
+			log.Printf("Error sending heartbeat to peer %s: %v", peer.url, err)
+			sm.eventChan <- PeerDisconnectedEvent{Peer: peer}
+		}
+	}
 }
