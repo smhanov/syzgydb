@@ -10,11 +10,28 @@ import (
 const testPort = 8100
 const sleepTime = 100 * time.Millisecond
 
+// Helper function to create a database
+func createDatabase(t *testing.T, node *ReplicationEngine, dbName string) {
+	createDBUpdate := Update{
+		Timestamp:    node.NextTimestamp(),
+		Type:         CreateDatabase,
+		DatabaseName: dbName,
+	}
+	err := node.SubmitUpdates([]Update{createDBUpdate})
+	if err != nil {
+		t.Fatalf("Failed to create database: %v", err)
+	}
+	time.Sleep(sleepTime) // Wait for the database creation to propagate
+}
+
 func TestTimestampOrdering(t *testing.T) {
 	nodes := setupTestEnvironment(t, 2)
 	defer tearDownTestEnvironment(nodes)
 
-	// Generdsaate updates with out-of-order timestamps
+	// Create the database first
+	createDatabase(t, nodes[0], "testdb")
+
+	// Generate updates with out-of-order timestamps
 	update1 := Update{
 		Timestamp:    Timestamp{UnixTime: 1000, LamportClock: 1},
 		Type:         UpsertRecord,
@@ -31,7 +48,10 @@ func TestTimestampOrdering(t *testing.T) {
 	}
 
 	// Submit updates in reverse order
-	nodes[0].SubmitUpdates([]Update{update2, update1})
+	err := nodes[0].SubmitUpdates([]Update{update2, update1})
+	if err != nil {
+		t.Fatalf("Failed to submit updates: %v", err)
+	}
 
 	time.Sleep(sleepTime)
 
@@ -47,14 +67,11 @@ func TestBufferedUpdates(t *testing.T) {
 	nodes := setupTestEnvironment(t, 2)
 	defer tearDownTestEnvironment(nodes)
 
-	// node 0 creates the database
-	// node 1 just submits a record to it (mock storage doesn't care about database existence)
-	update1 := Update{
-		Timestamp:    nodes[0].NextTimestamp(),
-		Type:         CreateDatabase,
-		DatabaseName: "newdb",
-	}
-	update2 := Update{
+	// Create the database using the helper function
+	createDatabase(t, nodes[0], "newdb")
+
+	// Node 1 submits a record to the database
+	update := Update{
 		Timestamp:    nodes[1].NextTimestamp(),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
@@ -62,13 +79,9 @@ func TestBufferedUpdates(t *testing.T) {
 		DatabaseName: "newdb",
 	}
 
-	err := nodes[0].SubmitUpdates([]Update{update1})
+	err := nodes[1].SubmitUpdates([]Update{update})
 	if err != nil {
-		t.Fatalf("Failed to submit update1: %v", err)
-	}
-	err = nodes[1].SubmitUpdates([]Update{update2})
-	if err != nil {
-		t.Fatalf("Failed to submit update2: %v", err)
+		t.Fatalf("Failed to submit update: %v", err)
 	}
 
 	// Wait for replication and buffered updates to be processed
@@ -197,6 +210,9 @@ func TestBasicReplication(t *testing.T) {
 	nodes := setupTestEnvironment(t, 3)
 	defer tearDownTestEnvironment(nodes)
 
+	// Create the database first
+	createDatabase(t, nodes[0], "testdb")
+
 	// Submit an update to node0
 	update := Update{
 		Timestamp:    nodes[0].NextTimestamp(),
@@ -229,6 +245,9 @@ func TestConflictResolution(t *testing.T) {
 	nodes := setupTestEnvironment(t, 2)
 	defer tearDownTestEnvironment(nodes)
 
+	// Create the database first
+	createDatabase(t, nodes[0], "testdb")
+
 	// Submit conflicting updates to both nodes
 	update1 := Update{
 		Timestamp:    nodes[0].NextTimestamp(),
@@ -245,8 +264,14 @@ func TestConflictResolution(t *testing.T) {
 		DatabaseName: "testdb",
 	}
 
-	nodes[0].SubmitUpdates([]Update{update1})
-	nodes[1].SubmitUpdates([]Update{update2})
+	err := nodes[0].SubmitUpdates([]Update{update1})
+	if err != nil {
+		t.Fatalf("Failed to submit update1: %v", err)
+	}
+	err = nodes[1].SubmitUpdates([]Update{update2})
+	if err != nil {
+		t.Fatalf("Failed to submit update2: %v", err)
+	}
 
 	// Wait for replication and conflict resolution
 	time.Sleep(sleepTime)
@@ -264,6 +289,9 @@ func TestNetworkPartition(t *testing.T) {
 	nodes := setupTestEnvironment(t, 3)
 	defer tearDownTestEnvironment(nodes)
 
+	// Create the database first
+	createDatabase(t, nodes[0], "testdb")
+
 	// Submit updates to node0 and node2
 	update1 := Update{
 		Timestamp:    nodes[0].NextTimestamp(),
@@ -280,8 +308,14 @@ func TestNetworkPartition(t *testing.T) {
 		DatabaseName: "testdb",
 	}
 
-	nodes[0].SubmitUpdates([]Update{update1})
-	nodes[2].SubmitUpdates([]Update{update2})
+	err := nodes[0].SubmitUpdates([]Update{update1})
+	if err != nil {
+		t.Fatalf("Failed to submit update1: %v", err)
+	}
+	err = nodes[2].SubmitUpdates([]Update{update2})
+	if err != nil {
+		t.Fatalf("Failed to submit update2: %v", err)
+	}
 
 	// Wait for replication
 	time.Sleep(sleepTime)
