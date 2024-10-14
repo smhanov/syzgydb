@@ -243,7 +243,15 @@ func (e PeerHeartbeatEvent) process(sm *StateMachine) {
 		err = peer.connection.WriteMessage(websocket.BinaryMessage, data)
 		if err != nil {
 			log.Printf("Error sending heartbeat to peer %s: %v", peer.url, err)
-			sm.eventChan <- PeerDisconnectedEvent{Peer: peer}
+			sm.eventChan <- PeerDisconnectEvent{Peer: peer}
 		}
 	}
+}
+
+type PeerDisconnectEvent struct {
+	Peer *Peer
+}
+
+func (e PeerDisconnectEvent) process(sm *StateMachine) {
+	sm.handlePeerDisconnect(e.Peer)
 }

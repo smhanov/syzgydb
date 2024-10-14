@@ -178,4 +178,26 @@ func (sm *StateMachine) NextLocalTimestamp() Timestamp {
 	return cur
 }
 
+func (sm *StateMachine) handlePeerDisconnect(peer *Peer) {
+	log.Printf("Peer disconnected: %s", peer.url)
+
+	// Close the connection
+	if peer.connection != nil {
+		peer.connection.Close()
+	}
+
+	// Remove the peer from the peers map
+	delete(sm.peers, peer.url)
+
+	// Remove any pending update requests for this peer
+	delete(sm.updateRequests, peer.url)
+
+	// Optionally, you can trigger a reconnection attempt after a delay
+	// This depends on your reconnection strategy
+	go func() {
+		time.Sleep(5 * time.Second)
+		sm.eventChan <- ConnectPeerEvent{URL: peer.url}
+	}()
+}
+
 // Removed handlePeerHeartbeat and sendHeartbeatToPeer functions
