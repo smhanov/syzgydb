@@ -289,14 +289,14 @@ func TestNetworkPartition(t *testing.T) {
 
 	// Submit updates to node0 and node2
 	update1 := Update{
-		Timestamp:    nodes[0].NextTimestamp(true),
+		VectorClock:  nodes[0].NextTimestamp(true),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data from node0")}},
 		DatabaseName: "testdb",
 	}
 	update2 := Update{
-		Timestamp:    nodes[2].NextTimestamp(true),
+		VectorClock:  nodes[2].NextTimestamp(true),
 		Type:         UpsertRecord,
 		RecordID:     "record2",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data from node2")}},
