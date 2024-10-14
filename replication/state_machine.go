@@ -141,14 +141,6 @@ func (sm *StateMachine) handleGossipMessage(peer *Peer, msg *pb.GossipMessage) {
 	}
 }
 
-func (sm *StateMachine) updatePeerList(newPeers []string) {
-	for _, url := range newPeers {
-		if url != sm.config.OwnURL && sm.peers[url] == nil {
-			sm.peers[url] = NewPeer("c:?", url, sm)
-			go sm.peers[url].Connect(sm.config.JWTSecret)
-		}
-	}
-}
 
 func (sm *StateMachine) requestUpdatesFromPeer(peerURL string) {
 	log.Printf("[%s] requesting updates from peer %s", sm.config.OwnURL, peerURL)

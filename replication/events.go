@@ -23,11 +23,16 @@ type GossipMessageEvent struct {
 }
 
 func (e GossipMessageEvent) process(sm *StateMachine) {
-	sm.updatePeerList(e.Message.KnownPeers)
 	peerVectorClock := fromProtoVectorClock(e.Message.LastVectorClock)
 
 	e.Peer.lastKnownVectorClock = peerVectorClock
 	e.Peer.name = e.Message.NodeId
+
+	for _, peerURL := range e.Message.KnownPeers {
+		if _, exists := sm.peers[peerURL]; !exists && peerURL != sm.config.OwnURL {
+			sm.eventChan <- AddPeerEvent{URL: peerURL}
+		}
+	}
 
 	if sm.lastKnownVectorClock.Before(peerVectorClock) {
 		sm.requestUpdatesFromPeer(e.Peer.url)
