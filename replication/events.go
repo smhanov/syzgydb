@@ -4,7 +4,9 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/websocket"
 	pb "github.com/smhanov/syzgydb/replication/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 type ReceivedUpdateEvent struct {
