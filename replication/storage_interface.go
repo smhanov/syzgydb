@@ -4,6 +4,7 @@ package replication
 import (
 	"bytes"
 	"fmt"
+	"time"
 )
 
 // UpdateType represents the type of update operation.

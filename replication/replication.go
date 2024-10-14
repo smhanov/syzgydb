@@ -3,7 +3,6 @@ package replication
 
 import (
 	"errors"
-	"log"
 	"net"
 	"net/http"
 )
@@ -32,7 +31,7 @@ func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *
 	}
 
 	sm := NewStateMachine(storage, config, localVectorClock)
-	
+
 	re := &ReplicationEngine{
 		stateMachine: sm,
 	}

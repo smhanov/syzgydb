@@ -1,6 +1,10 @@
 package replication
 
-import pb "github.com/smhanov/syzgydb/replication/proto"
+import (
+	"log"
+
+	pb "github.com/smhanov/syzgydb/replication/proto"
+)
 
 type ReceivedUpdateEvent struct {
 	Update Update
