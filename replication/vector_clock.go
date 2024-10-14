@@ -18,8 +18,9 @@ func NewVectorClock() *VectorClock {
 }
 
 // Update updates the vector clock for a given nodeID with a new Timestamp.
-func (vc *VectorClock) Update(nodeID uint64, timestamp Timestamp) {
+func (vc *VectorClock) Update(nodeID uint64, timestamp Timestamp) *VectorClock {
 	vc.clock[nodeID] = timestamp
+	return vc
 }
 
 // Get retrieves the Timestamp for a given nodeID.
