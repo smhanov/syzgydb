@@ -170,6 +170,7 @@ type Span struct {
 	MagicNumber uint32
 	Length      uint64
 	Timestamp   replication.Timestamp
+	SiteID      uint64
 	RecordID    string
 	DataStreams []DataStream
 	Checksum    uint32
@@ -777,6 +778,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 	length := 4 + 4 + // magic + length
 		lengthOf7Code(uint64(span.Timestamp.UnixTime)) +
 		lengthOf7Code(uint64(span.Timestamp.LamportClock)) +
+		lengthOf7Code(span.SiteID) +
 		lengthOf7Code(uint64(len(recordIDBytes))) +
 		uint64(len(recordIDBytes)) +
 		1 + // DataStreamCount
@@ -858,7 +860,7 @@ func parseSpan(data []byte) (*Span, error) {
 	}
 
 	// Parse Timestamp
-	var unixTime, lamportClock uint64
+	var unixTime, lamportClock, siteID uint64
 	unixTime, at, err = read7Code(data, at)
 	if err != nil {
 		return nil, err
@@ -867,10 +869,15 @@ func parseSpan(data []byte) (*Span, error) {
 	if err != nil {
 		return nil, err
 	}
+	siteID, at, err = read7Code(data, at)
+	if err != nil {
+		return nil, err
+	}
 	span.Timestamp = replication.Timestamp{
 		UnixTime:     int64(unixTime),
 		LamportClock: int64(lamportClock),
 	}
+	span.SiteID = siteID
 
 	// Parse RecordID
 	var idlength uint64
