@@ -30,11 +30,11 @@ type Update struct {
 	DatabaseName string       `json:"database_name"`
 }
 
-// Compare compares two Updates based on their timestamps and record IDs.
+// Compare compares two Updates based on their vector clocks and record IDs.
 func (u Update) Compare(other Update) int {
-	tsComp := u.Timestamp.Compare(other.Timestamp)
-	if tsComp != 0 {
-		return tsComp
+	vcComp := u.VectorClock.Compare(other.VectorClock)
+	if vcComp != 0 {
+		return vcComp
 	}
 	return bytes.Compare([]byte(u.RecordID), []byte(other.RecordID))
 }
@@ -55,7 +55,7 @@ func (u Update) String() string {
 		typeStr = fmt.Sprintf("Unknown(%d)", u.Type)
 	}
 	return fmt.Sprintf("Update{%s %s/%s @%s}",
-		typeStr, u.DatabaseName, u.RecordID, u.Timestamp)
+		typeStr, u.DatabaseName, u.RecordID, u.VectorClock)
 }
 
 // ReplicationConfig holds the configuration settings for the replication engine.
