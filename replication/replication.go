@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"time"
 )
 
 type Connection interface {
@@ -17,6 +18,7 @@ type ReplicationEngine struct {
 	stateMachine *StateMachine
 	server       *http.Server
 	listener     net.Listener
+	storage      StorageInterface
 }
 
 func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *VectorClock) (*ReplicationEngine, error) {
@@ -34,6 +36,7 @@ func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *
 
 	re := &ReplicationEngine{
 		stateMachine: sm,
+		storage:      storage,
 	}
 
 	re.startHeartbeatTimer()
@@ -46,9 +49,7 @@ func (re *ReplicationEngine) GetHandler() http.Handler {
 }
 
 func (re *ReplicationEngine) SubmitUpdates(updates []Update) error {
-	for _, update := range updates {
-		re.stateMachine.eventChan <- ReceivedUpdateEvent{Update: update}
-	}
+	re.stateMachine.eventChan <- LocalUpdatesEvent{Updates: updates}
 	return nil
 }
 
@@ -100,7 +101,7 @@ func (re *ReplicationEngine) startHeartbeatTimer() {
 		for {
 			select {
 			case <-ticker.C:
-				re.stateMachine.eventChan <- PeerHeartbeatEvent{Peers: re.stateMachine.getPeerList()}
+				re.stateMachine.eventChan <- PeerHeartbeatEvent{}
 			case <-re.stateMachine.done:
 				ticker.Stop()
 				return

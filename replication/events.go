@@ -10,15 +10,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type ReceivedUpdateEvent struct {
-	Update Update
-}
-
-func (e ReceivedUpdateEvent) process(sm *StateMachine) {
-	log.Printf("[%d] Processing ReceivedUpdateEvent", sm.config.NodeID)
-	sm.handleReceivedUpdate(e.Update)
-}
-
 type GossipMessageEvent struct {
 	Peer    *Peer
 	Message *pb.GossipMessage
@@ -109,7 +100,16 @@ type BatchUpdateEvent struct {
 
 func (e BatchUpdateEvent) process(sm *StateMachine) {
 	log.Printf("[%d] Processing BatchUpdateEvent", sm.config.NodeID)
-	sm.handleReceivedBatchUpdate(e.Peer.url, e.BatchUpdate)
+	updates := make([]Update, 0, len(e.BatchUpdate.Updates))
+	for _, protoUpdate := range e.BatchUpdate.Updates {
+		update := fromProtoUpdate(protoUpdate)
+		updates = append(updates, update)
+		//TODO: update the leer's last received update state
+	}
+
+	sm.storage.CommitUpdates(updates)
+
+	// TODO: If there were more updates, request them
 }
 
 type AddPeerEvent struct {
@@ -244,12 +244,11 @@ func flattenUpdates(updates map[string][]Update) []Update {
 }
 
 type PeerHeartbeatEvent struct {
-	Peers []*Peer
 }
 
 func (e PeerHeartbeatEvent) process(sm *StateMachine) {
 	log.Printf("[%d] Processing PeerHeartbeatEvent", sm.config.NodeID)
-	for _, peer := range e.Peers {
+	for _, peer := range sm.peers {
 		heartbeat := &pb.Heartbeat{
 			VectorClock: sm.lastKnownVectorClock.toProto(),
 		}
@@ -276,13 +275,23 @@ func (e PeerHeartbeatEvent) process(sm *StateMachine) {
 	}
 }
 
+type LocalUpdatesEvent struct {
+	Updates []Update
+}
+
+func (e LocalUpdatesEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing LocalUpdatesEvent", sm.config.NodeID)
+	sm.storage.CommitUpdates(e.Updates)
+
+	// TODO: broadcast to other peers.
+}
+
 type PeerDisconnectEvent struct {
 	Peer *Peer
 }
 
 func (e PeerDisconnectEvent) process(sm *StateMachine) {
-	log.Printf("[%d] Processing PeerDisconnectEvent", sm.config.NodeID)
-	log.Printf("Peer disconnected: %s", e.Peer.url)
+	log.Printf("[%d] Processing PeerDisconnectEvent from [%s]", sm.config.NodeID, e.Peer.name)
 
 	// Close the connection
 	if e.Peer.connection != nil {
@@ -291,9 +300,6 @@ func (e PeerDisconnectEvent) process(sm *StateMachine) {
 
 	// Remove the peer from the peers map
 	delete(sm.peers, e.Peer.url)
-
-	// Remove any pending update requests for this peer
-	delete(sm.updateRequests, e.Peer.url)
 
 	// Trigger a reconnection attempt after a delay
 	go func() {
