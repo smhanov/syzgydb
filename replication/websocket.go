@@ -187,15 +187,15 @@ func (p *Peer) SendGossipMessage(msg *pb.GossipMessage, ts Timestamp) error {
 }
 
 // SendUpdate sends an update message to the peer.
-func (p *Peer) SendUpdate(update Update, ts Timestamp) error {
+func (p *Peer) SendUpdate(update Update, vc *VectorClock) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.connection == nil {
 		return errors.New("not connected")
 	}
 	message := &pb.Message{
-		Type:      pb.Message_UPDATE,
-		Timestamp: ts.toProto(),
+		Type:        pb.Message_UPDATE,
+		VectorClock: vc.toProto(),
 		Content: &pb.Message_Update{
 			Update: update.toProto(),
 		},
@@ -209,7 +209,7 @@ func (p *Peer) SendUpdate(update Update, ts Timestamp) error {
 }
 
 // RequestUpdates sends an update request to the peer.
-func (p *Peer) RequestUpdates(since Timestamp, maxResults int, ts Timestamp) error {
+func (p *Peer) RequestUpdates(since *VectorClock, maxResults int, vc *VectorClock) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.connection == nil {
@@ -220,8 +220,8 @@ func (p *Peer) RequestUpdates(since Timestamp, maxResults int, ts Timestamp) err
 		MaxResults: int32(maxResults),
 	}
 	message := &pb.Message{
-		Type:      pb.Message_UPDATE_REQUEST,
-		Timestamp: ts.toProto(),
+		Type:        pb.Message_UPDATE_REQUEST,
+		VectorClock: vc.toProto(),
 		Content: &pb.Message_UpdateRequest{
 			UpdateRequest: request,
 		},

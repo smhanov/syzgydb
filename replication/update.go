@@ -14,7 +14,7 @@ func (u Update) toProto() *pb.Update {
         }
     }
     return &pb.Update{
-        Timestamp:    u.Timestamp.toProto(),
+        VectorClock:  u.VectorClock.toProto(),
         Type:         pb.Update_UpdateType(u.Type),
         RecordId:     u.RecordID,
         DataStreams:  protoDataStreams,
@@ -32,7 +32,7 @@ func fromProtoUpdate(pu *pb.Update) Update {
         }
     }
     return Update{
-        Timestamp:    fromProtoTimestamp(pu.Timestamp),
+        VectorClock:  fromProtoVectorClock(pu.VectorClock),
         Type:         UpdateType(pu.Type),
         RecordID:     pu.RecordId,
         DataStreams:  dataStreams,

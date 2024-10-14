@@ -4,6 +4,10 @@ option go_package = "replication/proto";
 
 package proto;
 
+message VectorClock {
+  map<uint64, Timestamp> clock = 1;
+}
+
 message Timestamp {
   int64 unix_time = 1;
   int64 lamport_clock = 2;
@@ -15,7 +19,7 @@ message DataStream {
 }
 
 message Update {
-  Timestamp timestamp = 1;
+  VectorClock vector_clock = 1;
   enum UpdateType {
     DELETE_RECORD = 0;
     UPSERT_RECORD = 1;
@@ -31,11 +35,11 @@ message Update {
 message GossipMessage {
   string node_id = 1;
   repeated string known_peers = 2;
-  Timestamp last_timestamp = 3;
+  VectorClock last_vector_clock = 3;
 }
 
 message UpdateRequest {
-  Timestamp since = 1;
+  VectorClock since = 1;
   int32 max_results = 2;
 }
 
@@ -52,7 +56,7 @@ message Message {
     BATCH_UPDATE = 3;
   }
   MessageType type = 1;
-  Timestamp timestamp = 6;
+  VectorClock vector_clock = 6;
   oneof content {
     GossipMessage gossip_message = 2;
     Update update = 3;

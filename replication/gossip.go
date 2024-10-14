@@ -27,15 +27,15 @@ func (re *ReplicationEngine) GossipLoop() {
 }
 
 // sendGossipMessage sends a gossip message to a specific peer.
-func (re *ReplicationEngine) sendGossipMessage(peer *Peer, ts Timestamp) {
+func (re *ReplicationEngine) sendGossipMessage(peer *Peer, vc *VectorClock) {
 	re.mu.Lock()
 	defer re.mu.Unlock()
 	msg := &pb.GossipMessage{
-		NodeId:        re.name,
-		KnownPeers:    re.getPeerURLs(),
-		LastTimestamp: ts.toProto(),
+		NodeId:           re.name,
+		KnownPeers:       re.getPeerURLs(),
+		LastVectorClock:  vc.toProto(),
 	}
-	err := peer.SendGossipMessage(msg, ts)
+	err := peer.SendGossipMessage(msg, vc)
 	if err != nil {
 		log.Println("Failed to send gossip message:", err)
 	}
@@ -45,16 +45,16 @@ func (re *ReplicationEngine) sendGossipMessage(peer *Peer, ts Timestamp) {
 // and requesting updates if necessary.
 func (re *ReplicationEngine) HandleGossipMessage(peer *Peer, msg *pb.GossipMessage) {
 	re.updatePeerList(msg.KnownPeers)
-	peerTimestamp := fromProtoTimestamp(msg.LastTimestamp)
+	peerVectorClock := fromProtoVectorClock(msg.LastVectorClock)
 
 	peer.mu.Lock()
-	if peerTimestamp.After(peer.lastKnownTimestamp) {
-		peer.lastKnownTimestamp = peerTimestamp
+	if peerVectorClock.After(peer.lastKnownVectorClock) {
+		peer.lastKnownVectorClock = peerVectorClock
 	}
 	peer.name = msg.NodeId
 	peer.mu.Unlock()
 
-	if re.lastTimestamp.Compare(peerTimestamp) < 0 {
+	if re.lastKnownVectorClock.Before(peerVectorClock) {
 		go re.requestUpdatesFromPeer(peer.url)
 	}
 }
