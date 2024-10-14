@@ -10,11 +10,23 @@ import (
 
 // Peer represents a connected peer in the replication system.
 type Peer struct {
+	name                 string
 	url                  string
 	connection           Connection
 	lastActive           time.Time
 	lastKnownVectorClock *VectorClock
 	stateMachine         *StateMachine
+}
+
+// NewPeer creates a new Peer instance.
+func NewPeer(name, url string, sm *StateMachine) *Peer {
+	return &Peer{
+		name:                 name,
+		url:                  url,
+		lastActive:           time.Now(),
+		lastKnownVectorClock: NewVectorClock(),
+		stateMachine:         sm,
+	}
 }
 
 type PeerConnection struct {

@@ -104,20 +104,33 @@ type WebSocketConnectionEvent struct {
 }
 
 func (e WebSocketConnectionEvent) process(sm *StateMachine) {
+	tokenString := e.Request.Header.Get("Authorization")
+	if tokenString == "" || len(tokenString) <= 7 || tokenString[:7] != "Bearer " {
+		http.Error(e.ResponseWriter, "Missing or invalid Authorization header", http.StatusUnauthorized)
+		return
+	}
+	tokenString = tokenString[7:]
+
+	peerName, peerURL, err := ValidateToken(tokenString, sm.config.JWTSecret)
+	if err != nil {
+		http.Error(e.ResponseWriter, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
 	conn, err := upgradeToWebSocket(e.ResponseWriter, e.Request)
 	if err != nil {
 		log.Printf("Failed to upgrade connection to WebSocket: %v", err)
 		return
 	}
 
-	peer := NewPeer("c:?", e.Request.RemoteAddr, sm)
+	peer := NewPeer(peerName, peerURL, sm)
 	peer.connection = conn
-	sm.peers[e.Request.RemoteAddr] = peer
+	sm.peers[peerURL] = peer
 
 	// Schedule a SendGossipEvent for the new peer
 	sm.eventChan <- SendGossipEvent{Peer: peer}
 
-	go peer.ReadLoop()
+	go peer.ReadLoop(sm.eventChan)
 }
 
 type SendGossipEvent struct {
