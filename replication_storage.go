@@ -42,7 +42,7 @@ func (rs *ReplicationStorage) applyUpdate(update replication.Update) error {
     case replication.DropDatabase:
         return rs.dropCollection(update)
     case replication.UpsertRecord:
-        return rs.upsertRecord(update)
+        return rs.handleDeletedRecord(update)
     case replication.DeleteRecord:
         return rs.deleteRecord(update)
     default:
@@ -164,4 +164,31 @@ func (rs *ReplicationStorage) CreateUpdate(updateType replication.UpdateType, da
         DataStreams:  dataStreams,
         DatabaseName: databaseName,
     }
+}
+
+func (rs *ReplicationStorage) handleDeletedRecord(update replication.Update) error {
+    collection, exists := rs.node.GetCollection(update.DatabaseName)
+    if !exists {
+        return fmt.Errorf("collection %s does not exist", update.DatabaseName)
+    }
+
+    id, err := strconv.ParseUint(update.RecordID, 10, 64)
+    if err != nil {
+        return fmt.Errorf("invalid record ID: %v", err)
+    }
+
+    // Check if the record is marked as deleted
+    if collection.spanfile.IsRecordDeleted(update.RecordID) {
+        // If the incoming update has a newer timestamp, undelete the record
+        deletedTimestamp := collection.spanfile.CurrentTimeStamp()
+        if update.Timestamp.After(deletedTimestamp) {
+            // Undelete the record by applying the update
+            return rs.upsertRecord(update)
+        }
+        // If the deleted timestamp is newer, ignore the update
+        return nil
+    }
+
+    // If the record is not deleted, proceed with normal upsert
+    return rs.upsertRecord(update)
 }

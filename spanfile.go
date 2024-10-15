@@ -63,6 +63,14 @@ func (db *SpanFile) CurrentTimeStamp() replication.Timestamp {
 	return db.latestTimestamp
 }
 
+func (db *SpanFile) IsRecordDeleted(recordID string) bool {
+    db.fileMutex.RLock()
+    defer db.fileMutex.RUnlock()
+
+    _, exists := db.deletedIndex[recordID]
+    return exists
+}
+
 const verboseSpanFile = true
 
 type SpanReader struct {
