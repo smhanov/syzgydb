@@ -279,44 +279,56 @@ func (e PeerHeartbeatEvent) process(sm *StateMachine) {
 }
 
 type LocalUpdatesEvent struct {
-	Updates []Update
+    Updates   []Update
+    ReplyChan chan<- error
 }
 
 func (e LocalUpdatesEvent) process(sm *StateMachine) {
-	log.Printf("[%d] Processing LocalUpdatesEvent", sm.config.NodeID)
-	sm.storage.CommitUpdates(e.Updates)
+    log.Printf("[%d] Processing LocalUpdatesEvent", sm.config.NodeID)
+    
+    // Commit updates locally
+    err := sm.storage.CommitUpdates(e.Updates)
+    if err != nil {
+        e.ReplyChan <- err
+        return
+    }
 
-	// Create a BatchUpdate message
-	batchUpdate := &pb.BatchUpdate{
-		Updates: toProtoUpdates(e.Updates),
-		HasMore: false,
-	}
+    // Create a BatchUpdate message
+    batchUpdate := &pb.BatchUpdate{
+        Updates: toProtoUpdates(e.Updates),
+        HasMore: false,
+    }
 
-	// Create a Message containing the BatchUpdate
-	msg := &pb.Message{
-		Type:        pb.Message_BATCH_UPDATE,
-		VectorClock: sm.lastKnownVectorClock.toProto(),
-		Content: &pb.Message_BatchUpdate{
-			BatchUpdate: batchUpdate,
-		},
-	}
+    // Create a Message containing the BatchUpdate
+    msg := &pb.Message{
+        Type:        pb.Message_BATCH_UPDATE,
+        VectorClock: sm.lastKnownVectorClock.toProto(),
+        Content: &pb.Message_BatchUpdate{
+            BatchUpdate: batchUpdate,
+        },
+    }
 
-	// Marshal the message
-	data, err := proto.Marshal(msg)
-	if err != nil {
-		log.Printf("[%d] Error marshaling BatchUpdate message: %v", sm.config.NodeID, err)
-		return
-	}
+    // Marshal the message
+    data, err := proto.Marshal(msg)
+    if err != nil {
+        log.Printf("[%d] Error marshaling BatchUpdate message: %v", sm.config.NodeID, err)
+        e.ReplyChan <- err
+        return
+    }
 
-	// Send the BatchUpdate to all connected peers
-	for _, peer := range sm.peers {
-		if peer.connection != nil {
-			err := peer.connection.WriteMessage(websocket.BinaryMessage, data)
-			if err != nil {
-				log.Printf("[%d] Error sending BatchUpdate to peer %s: %v", sm.config.NodeID, peer.url, err)
-			}
-		}
-	}
+    // Send the BatchUpdate to all connected peers
+    for _, peer := range sm.peers {
+        if peer.connection != nil {
+            err := peer.connection.WriteMessage(websocket.BinaryMessage, data)
+            if err != nil {
+                log.Printf("[%d] Error sending BatchUpdate to peer %s: %v", sm.config.NodeID, peer.url, err)
+                // Note: We're not treating this as a fatal error, just logging it
+            }
+        }
+    }
+
+    // Signal that the updates have been processed
+    e.ReplyChan <- nil
 }
 
 type PeerDisconnectEvent struct {
