@@ -6,6 +6,8 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/smhanov/syzgydb/replication"
 )
 
 func TestExportImportJSON(t *testing.T) {
@@ -24,6 +26,7 @@ func TestExportImportJSON(t *testing.T) {
 		DimensionCount: 3,
 		Quantization:   64,
 		FileMode:       CreateAndOverwrite,
+		Timestamp:      replication.Timestamp{0, 1},
 	}
 
 	collection, err := NewCollection(options)

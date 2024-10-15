@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/smhanov/syzgydb/replication"
 )
 
 type Node struct {
@@ -13,6 +15,7 @@ type Node struct {
 	mutex       sync.RWMutex
 	dataFolder  string
 	nodeID      uint64
+	initialized bool
 }
 
 func NewNode(dataFolder string, nodeID uint64) *Node {
@@ -25,13 +28,13 @@ func NewNode(dataFolder string, nodeID uint64) *Node {
 
 // GetCollectionNames returns a list of all collection names
 func (n *Node) GetCollectionNames() []string {
-    n.mutex.RLock()
-    defer n.mutex.RUnlock()
-    names := make([]string, 0, len(n.collections))
-    for name := range n.collections {
-        names = append(names, name)
-    }
-    return names
+	n.mutex.RLock()
+	defer n.mutex.RUnlock()
+	names := make([]string, 0, len(n.collections))
+	for name := range n.collections {
+		names = append(names, name)
+	}
+	return names
 }
 
 // Initialize loads all collections from disk.
@@ -57,7 +60,27 @@ func (n *Node) Initialize() error {
 		log.Printf("Collection %s loaded successfully", collectionName)
 	}
 
+	n.initialized = true
+
 	return nil
+}
+
+func (n *Node) isInitialized() bool {
+	n.mutex.RLock()
+	defer n.mutex.RUnlock()
+	return n.initialized
+}
+
+// Returns the vector clock from the disk files for the node.
+func (n *Node) getStoredVectorClock() *replication.VectorClock {
+	n.mutex.RLock()
+	defer n.mutex.RUnlock()
+
+	clock := replication.NewVectorClock()
+	for _, collection := range n.collections {
+		clock.Merge(collection.getLatestVectorClock())
+	}
+	return clock
 }
 
 func (n *Node) GetCollection(name string) (*Collection, bool) {

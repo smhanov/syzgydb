@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 )
 
 // indentWriter is a custom writer that adds an indent to the start of each line
@@ -269,11 +270,38 @@ func DumpIndex(filename string) {
 			var seq uint64
 			seq, at, err = read7Code(buffer, at)
 			if err != nil {
-				fmt.Printf("[%08d] Could not read sequence number.\n", at)
+				fmt.Printf("[%08d] Could not read Time.\n", at)
 				at = start + int(length)
 				continue
 			}
-			fmt.Printf("[%08d] Sequence Number: %d\n", start, seq)
+			fmt.Printf("[%08d] Time: %d, (%s)\n", start, seq, time.Unix(0, int64(seq)*int64(time.Millisecond)).Format(time.RFC3339))
+
+			var lamport uint64
+			lamport, at, err = read7Code(buffer, at)
+			if err != nil {
+				fmt.Printf("[%08d] Could not read Time.\n", at)
+				at = start + int(length)
+				continue
+			}
+			fmt.Printf("[%08d] Lamport: %d\n", start, lamport)
+
+			var siteID uint64
+			siteID, at, err = read7Code(buffer, at)
+			if err != nil {
+				fmt.Printf("[%08d] Could not read siteID.\n", at)
+				at = start + int(length)
+				continue
+			}
+			fmt.Printf("[%08d] SiteID: %d\n", start, siteID)
+
+			var unused uint64
+			unused, at, err = read7Code(buffer, at)
+			if err != nil {
+				fmt.Printf("[%08d] Could not read unused byte.\n", at)
+				at = start + int(length)
+				continue
+			}
+			fmt.Printf("[%08d] Unused: %d\n", start, unused)
 
 			var idlen uint64
 			was := at

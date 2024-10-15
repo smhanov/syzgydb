@@ -103,3 +103,7 @@ func (t Timestamp) String() string {
 		t.LamportClock,
 		unixTime.Format("2006-01-02/15:04:05.000"))
 }
+
+func (t Timestamp) IsZero() bool {
+	return t.LamportClock == 0 && t.UnixTime == 0
+}

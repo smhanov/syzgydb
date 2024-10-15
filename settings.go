@@ -17,6 +17,7 @@ type Config struct {
 	ReplicationOwnURL   string   `mapstructure:"replication_own_url"`
 	ReplicationPeerURLs []string `mapstructure:"replication_peer_urls"`
 	ReplicationJWTKey   string   `mapstructure:"replication_jwt_key"`
+	NodeID              uint64   `mapstructure:"node_id"`
 }
 
 var globalConfig Config

@@ -55,7 +55,7 @@ func setupTestServer() *Server {
 	ensureTestFolder(nil) // We're not in a test context here, so pass nil
 
 	globalConfig.DataFolder = "./testdata" // Set the data folder to the testfolder
-	node := NewNode(globalConfig.DataFolder)
+	node := NewNode(globalConfig.DataFolder, 0)
 
 	return &Server{node: node}
 }

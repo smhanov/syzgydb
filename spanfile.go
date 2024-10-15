@@ -64,14 +64,14 @@ func (db *SpanFile) CurrentTimeStamp() replication.Timestamp {
 }
 
 func (db *SpanFile) IsRecordDeleted(recordID string) bool {
-    db.fileMutex.RLock()
-    defer db.fileMutex.RUnlock()
+	db.fileMutex.RLock()
+	defer db.fileMutex.RUnlock()
 
-    _, exists := db.deletedIndex[recordID]
-    return exists
+	_, exists := db.deletedIndex[recordID]
+	return exists
 }
 
-const verboseSpanFile = true
+const verboseSpanFile = false
 
 type SpanReader struct {
 	data []byte
@@ -209,11 +209,12 @@ type SpanFile struct {
 	fileName string
 	mmapData mmap.MMap
 	// map from string id to offset of the record
-	index           map[string]uint64
-	deletedIndex    map[string]uint64 // New map for deleted record IDs
-	freeMap         freeMap           // Change from freeList to freeMap
-	latestTimestamp replication.Timestamp
-	fileMutex       sync.RWMutex
+	index             map[string]uint64
+	deletedIndex      map[string]uint64 // New map for deleted record IDs
+	freeMap           freeMap           // Change from freeList to freeMap
+	latestTimestamp   replication.Timestamp
+	latestVectorClock *replication.VectorClock
+	fileMutex         sync.RWMutex
 }
 
 type FreeSpan struct {
@@ -312,13 +313,14 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 	}
 
 	db := &SpanFile{
-		file:            file,
-		mmapData:        mmapData,
-		index:           make(map[string]uint64),
-		deletedIndex:    make(map[string]uint64),        // Initialize deletedIndex
-		freeMap:         freeMap{freeSpaces: []space{}}, // Initialize freeMap
-		latestTimestamp: replication.Timestamp{UnixTime: 0, LamportClock: 0},
-		fileName:        filename,
+		file:              file,
+		mmapData:          mmapData,
+		index:             make(map[string]uint64),
+		deletedIndex:      make(map[string]uint64),        // Initialize deletedIndex
+		freeMap:           freeMap{freeSpaces: []space{}}, // Initialize freeMap
+		latestTimestamp:   replication.Timestamp{UnixTime: 0, LamportClock: 0},
+		latestVectorClock: replication.NewVectorClock(),
+		fileName:          filename,
 	}
 
 	err = db.scanFile()
@@ -381,6 +383,7 @@ func (db *SpanFile) scanFile() error {
 			if span.Timestamp.After(latestTimestamp) {
 				latestTimestamp = span.Timestamp
 			}
+			db.latestVectorClock.Update(span.SiteID, span.Timestamp)
 
 			db.index[span.RecordID] = uint64(offset)
 		} else if magicNumber == freeMagic {
@@ -408,7 +411,7 @@ func (db *SpanFile) addFreeSpan(offset, length uint64) {
 	db.freeMap.markFree(int(offset), int(length)) // Use markFree from freeMap
 }
 
-func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestamp) error {
+func (db *SpanFile) RemoveRecord(recordID string, siteID uint64, timestamp replication.Timestamp) error {
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
 
@@ -417,7 +420,7 @@ func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestam
 
 	if !exists && !wasDeleted {
 		// Record doesn't exist, add a new deleted span
-		return db.addDeletedSpan(recordID, timestamp)
+		return db.addDeletedSpan(recordID, siteID, timestamp)
 	}
 
 	if wasDeleted {
@@ -432,7 +435,7 @@ func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestam
 		}
 
 		// New timestamp is newer, create a new deleted span and mark the old one as free
-		err = db.addDeletedSpan(recordID, timestamp)
+		err = db.addDeletedSpan(recordID, siteID, timestamp)
 		if err != nil {
 			return err
 		}
@@ -462,7 +465,7 @@ func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestam
 	}
 
 	// Create a new deleted span
-	err = db.addDeletedSpan(recordID, timestamp)
+	err = db.addDeletedSpan(recordID, siteID, timestamp)
 	if err != nil {
 		return err
 	}
@@ -488,9 +491,10 @@ func (db *SpanFile) RemoveRecord(recordID string, timestamp replication.Timestam
 }
 
 // Helper function to add a deleted span
-func (db *SpanFile) addDeletedSpan(recordID string, timestamp replication.Timestamp) error {
+func (db *SpanFile) addDeletedSpan(recordID string, siteID uint64, timestamp replication.Timestamp) error {
 	deletedSpan := &Span{
 		MagicNumber: deletedMagic,
+		SiteID:      siteID,
 		Timestamp:   timestamp,
 		RecordID:    recordID,
 		DataStreams: []DataStream{}, // Empty data streams
@@ -510,7 +514,7 @@ func (db *SpanFile) addDeletedSpan(recordID string, timestamp replication.Timest
 	return nil
 }
 
-func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, timestamp replication.Timestamp) error {
+func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, siteID uint64, timestamp replication.Timestamp) error {
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
 
@@ -532,13 +536,14 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, times
 			return err
 		}
 
-		if existingSpan.Timestamp.After(timestamp) {
+		if existingSpan.Timestamp.After(timestamp) && recordID != "" {
 			return nil // Ignore the write
 		}
 	}
 
 	span := &Span{
 		MagicNumber: activeMagic,
+		SiteID:      siteID,
 		Timestamp:   timestamp,
 		RecordID:    recordID,
 		DataStreams: dataStreams,
@@ -1035,15 +1040,6 @@ func SpanLog(format string, v ...interface{}) {
 		log.Printf(format, v...)
 	}
 }
-
-func (db *SpanFile) IsRecordDeleted(recordID string) bool {
-	db.fileMutex.RLock()
-	defer db.fileMutex.RUnlock()
-
-	_, exists := db.deletedIndex[recordID]
-	return exists
-}
-
 func (db *SpanFile) writeSpanToAllocatedSpace(span *Span, size int) (uint64, error) {
 	spanBytes, err := serializeSpan(span)
 	if err != nil {
@@ -1089,4 +1085,8 @@ func (db *SpanFile) writeSpanToAllocatedSpace(span *Span, size int) (uint64, err
 	}
 
 	return offset, nil
+}
+
+func (db *SpanFile) getLatestVectorClock() *replication.VectorClock {
+	return db.latestVectorClock
 }

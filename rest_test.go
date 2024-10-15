@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -16,14 +16,13 @@ import (
 func TestMain(m *testing.M) {
 	verbose := false
 	for _, arg := range os.Args {
-		if arg == "-test.v" {
+		if strings.HasPrefix(arg, "-test.v") {
 			verbose = true
 			break
 		}
 	}
-
 	if !verbose {
-		log.SetOutput(ioutil.Discard)
+		log.SetOutput(io.Discard)
 	}
 
 	os.Exit(m.Run())

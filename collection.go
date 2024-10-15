@@ -46,6 +46,9 @@ type CollectionOptions struct {
 
 	// FileMode specifies the mode for opening the memfile.
 	FileMode FileMode `json:"-"`
+
+	NodeID    uint64                `json:"node_id"`
+	Timestamp replication.Timestamp `json:"timestamp"`
 }
 
 // GetDocumentCount returns the total number of documents in the collection.
@@ -233,6 +236,10 @@ func NewCollection(options CollectionOptions) (*Collection, error) {
 		}
 	}
 
+	if options.Timestamp.IsZero() {
+		options.Timestamp = replication.Now()
+	}
+
 	// Open or create the memory-mapped file with the specified mode
 	spanFile, err := OpenFile(options.Name, options.FileMode)
 	if err != nil {
@@ -244,6 +251,10 @@ func NewCollection(options CollectionOptions) (*Collection, error) {
 		header, err := spanFile.ReadRecord("")
 		if err != nil {
 			return nil, fmt.Errorf("failed to read header: %v", err)
+		}
+
+		if len(header.DataStreams) == 0 {
+			return nil, fmt.Errorf("no datastreams found in header")
 		}
 
 		// Decode the collection options from the header
@@ -266,7 +277,7 @@ func NewCollection(options CollectionOptions) (*Collection, error) {
 		dataStreams := []DataStream{
 			{StreamID: 0, Data: optionsData},
 		}
-		err = spanFile.WriteRecord("", dataStreams, spanFile.NextTimestamp())
+		err = spanFile.WriteRecord("", dataStreams, options.NodeID, options.Timestamp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to write options: %v", err)
 		}
@@ -340,6 +351,12 @@ func (c *Collection) GetAllIDs() []uint64 {
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 
 	return ids
+}
+
+func (c *Collection) getLatestVectorClock() *replication.VectorClock {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	return c.spanfile.getLatestVectorClock().Clone()
 }
 
 /*
@@ -422,7 +439,7 @@ func (c *Collection) Close() error {
 }
 
 // AddRecordDirect adds a record directly to the collection with the specified ID, metadata, datastreams, and timestamp.
-func (c *Collection) AddRecordDirect(id uint64, dataStreams []DataStream, timestamp replication.Timestamp) error {
+func (c *Collection) AddRecordDirect(id uint64, dataStreams []DataStream, nodeID uint64, timestamp replication.Timestamp) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -443,7 +460,7 @@ func (c *Collection) AddRecordDirect(id uint64, dataStreams []DataStream, timest
 	vector := decodeVector(vectorData, c.DimensionCount, c.Quantization)
 
 	// Use the common function to add the record
-	return c.addRecordCommon(id, vector, dataStreams, timestamp)
+	return c.addRecordCommon(id, vector, dataStreams, nodeID, timestamp)
 }
 
 /*
@@ -469,12 +486,12 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) e
 	}
 
 	// Use the common function to add the record
-	return c.addRecordCommon(id, vector, dataStreams, c.spanfile.NextTimestamp())
+	return c.addRecordCommon(id, vector, dataStreams, 0, c.spanfile.NextTimestamp())
 }
 
-func (c *Collection) addRecordCommon(id uint64, vector []float64, dataStreams []DataStream, timestamp replication.Timestamp) error {
+func (c *Collection) addRecordCommon(id uint64, vector []float64, dataStreams []DataStream, nodeID uint64, timestamp replication.Timestamp) error {
 	// Write to spanfile
-	err := c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, timestamp)
+	err := c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, nodeID, timestamp)
 	if err != nil {
 		return fmt.Errorf("failed to write record: %v", err)
 	}
@@ -537,7 +554,7 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 		{StreamID: 0, Data: newMetadata},
 		{StreamID: 1, Data: span.DataStreams[1].Data},
 	}
-	err = c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, timestamp)
+	err = c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, 0, timestamp)
 	if err != nil {
 		return err
 	}
@@ -545,16 +562,20 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	return nil
 }
 
-func (c *Collection) removeDocument(id uint64) error {
+func (c *Collection) removeDocumentDirect(id uint64, nodeID uint64, timeStamp replication.Timestamp) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-
+	idStr := fmt.Sprintf("%d", id)
 	// Remove the document's vector from the LSH table
 	doc, err := c.getDocument(id)
 	if err == nil {
 		c.lshTree.removePoint(id, doc.Vector)
 	}
-	return c.spanfile.RemoveRecord(fmt.Sprintf("%d", id), c.spanfile.NextTimestamp())
+	return c.spanfile.RemoveRecord(idStr, nodeID, timeStamp)
+}
+
+func (c *Collection) removeDocument(id uint64) error {
+	return c.removeDocumentDirect(id, 0, c.spanfile.NextTimestamp())
 }
 
 // iterateDocuments applies a function to each document in the collection.
@@ -814,12 +835,12 @@ func angularDistance(vec1, vec2 []float64) float64 {
 
 // EncodeVector encodes a float64 vector to a byte slice
 func EncodeVector(vector []float64, quantization int) []byte {
-    return encodeVector(vector, quantization)
+	return encodeVector(vector, quantization)
 }
 
 // DecodeVector decodes a byte slice to a float64 vector
 func DecodeVector(data []byte, dimensions int, quantization int) []float64 {
-    return decodeVector(data, dimensions, quantization)
+	return decodeVector(data, dimensions, quantization)
 }
 
 type searchIndex interface {
