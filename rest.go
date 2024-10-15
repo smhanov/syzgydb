@@ -300,7 +300,7 @@ func (s *Server) handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := collection.removeDocument(id); err != nil {
+	if err := collection.RemoveDocument(id); err != nil {
 		http.Error(w, "Record not found", http.StatusNotFound)
 		return
 	}

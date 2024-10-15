@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/smhanov/syzgydb/query"
@@ -49,6 +50,19 @@ type CollectionOptions struct {
 
 	NodeID    uint64                `json:"node_id"`
 	Timestamp replication.Timestamp `json:"timestamp"`
+}
+
+type ICollection interface {
+	AddDocument(id uint64, vector []float64, metadata []byte) error
+	Close() error
+	ComputeStats() CollectionStats
+	GetAllIDs() []uint64
+	GetDocument(id uint64) (*Document, error)
+	GetDocumentCount() int
+	GetOptions() CollectionOptions
+	RemoveDocument(id uint64) error
+	Search(args SearchArgs) SearchResults
+	UpdateDocument(id uint64, newMetadata []byte) error
 }
 
 // GetDocumentCount returns the total number of documents in the collection.
@@ -332,6 +346,12 @@ func (c *Collection) GetOptions() CollectionOptions {
 	return c.CollectionOptions
 }
 
+func (c *Collection) GetName() string {
+	name := c.CollectionOptions.Name
+	base := name[strings.LastIndex(name, "/")+1:]
+	return base[:strings.LastIndex(base, ".")]
+}
+
 /*
 GetAllIDs returns a sorted list of all document IDs in the collection.
 */
@@ -574,7 +594,7 @@ func (c *Collection) removeDocumentDirect(id uint64, nodeID uint64, timeStamp re
 	return c.spanfile.RemoveRecord(idStr, nodeID, timeStamp)
 }
 
-func (c *Collection) removeDocument(id uint64) error {
+func (c *Collection) RemoveDocument(id uint64) error {
 	return c.removeDocumentDirect(id, 0, c.spanfile.NextTimestamp())
 }
 

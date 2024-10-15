@@ -114,7 +114,7 @@ func (rs *ReplicationStorage) deleteRecord(update replication.Update) error {
 		return fmt.Errorf("invalid record ID: %v", err)
 	}
 
-	return collection.removeDocument(id)
+	return collection.RemoveDocument(id)
 }
 
 func (rs *ReplicationStorage) GetUpdatesSince(vectorClock *replication.VectorClock, maxResults int) (map[string][]replication.Update, bool, error) {

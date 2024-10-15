@@ -1,6 +1,7 @@
 package syzgydb
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -10,20 +11,32 @@ import (
 	"github.com/smhanov/syzgydb/replication"
 )
 
+/*
+The node class is responsible for maintaining the list of local collections and
+also the replication system. When a write is made to the collection, it is converted
+into an update and forwarded to the replication system. The node class itself
+then processes updates that come in from the replication system.
+*/
+
 type Node struct {
 	collections map[string]*Collection
 	mutex       sync.RWMutex
 	dataFolder  string
 	nodeID      uint64
 	initialized bool
+	re          *replication.ReplicationEngine
+	config      Config
 }
 
-func NewNode(dataFolder string, nodeID uint64) *Node {
-	return &Node{
+func NewNode(config Config) *Node {
+	node := &Node{
 		collections: make(map[string]*Collection),
-		dataFolder:  dataFolder,
-		nodeID:      nodeID,
+		dataFolder:  config.DataFolder,
+		nodeID:      config.NodeID,
+		config:      config,
 	}
+
+	return node
 }
 
 // GetCollectionNames returns a list of all collection names
@@ -62,6 +75,18 @@ func (n *Node) Initialize() error {
 
 	n.initialized = true
 
+	reConfig := replication.ReplicationConfig{
+		OwnURL:    n.config.ReplicationOwnURL,
+		PeerURLs:  n.config.ReplicationPeerURLs,
+		JWTSecret: []byte(n.config.ReplicationJWTKey),
+		NodeID:    n.config.NodeID,
+	}
+
+	n.re, err = replication.Init(n, reConfig, n.getStoredVectorClock())
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -83,14 +108,17 @@ func (n *Node) getStoredVectorClock() *replication.VectorClock {
 	return clock
 }
 
-func (n *Node) GetCollection(name string) (*Collection, bool) {
+func (n *Node) GetCollection(name string) (ICollection, bool) {
 	n.mutex.RLock()
 	defer n.mutex.RUnlock()
 	collection, exists := n.collections[name]
-	return collection, exists
+	if !exists {
+		return nil, false
+	}
+	return newCollectionProxy(n, collection), true
 }
 
-func (n *Node) CreateCollection(opts CollectionOptions) (*Collection, error) {
+func (n *Node) createCollectionImpl(opts CollectionOptions) (ICollection, error) {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
 
@@ -115,7 +143,7 @@ func (n *Node) CreateCollection(opts CollectionOptions) (*Collection, error) {
 	}
 
 	n.collections[key] = collection
-	return collection, nil
+	return newCollectionProxy(n, collection), nil
 }
 
 func (n *Node) DropCollection(name string) error {
@@ -152,4 +180,125 @@ func (n *Node) collectionNameToFileName(name string) string {
 
 func (n *Node) fileNameToCollectionName(fileName string) string {
 	return strings.TrimSuffix(filepath.Base(fileName), ".dat")
+}
+
+// CommitUpdates applies a list of updates to the storage.
+func (n *Node) CommitUpdates(updates []replication.Update) error {
+	// Go through the updates and call DropCollection, CreateCollection, UpdateDocument, RemoveDocument
+	// as necessary of the underlying collections.
+	for _, update := range updates {
+		switch update.Type {
+		case replication.CreateDatabase:
+			var opts CollectionOptions
+			err := json.Unmarshal(update.DataStreams[0].Data, &opts)
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal collection options: %v", err)
+			}
+			opts.Name = update.DatabaseName
+			opts.Timestamp = update.Timestamp
+			opts.NodeID = update.NodeID
+			_, err = node.CreateCollection(opts)
+			if err != nil {
+				return err
+			}
+
+		}
+	}
+	return nil
+}
+
+// GetUpdatesSince retrieves updates that occurred after the given vector clock, up to maxResults.
+func (n *Node) GetUpdatesSince(vectorClock *replication.VectorClock, maxResults int) (map[string][]replication.Update, bool, error) {
+	// TODO: Implement this method
+	return nil, false, nil
+}
+
+// ResolveConflict determines which of two conflicting updates should be applied.
+func (n *Node) ResolveConflict(update1, update2 replication.Update) (replication.Update, error) {
+	if update1.NodeID < update2.NodeID {
+		return update1, nil
+	}
+	return update2, nil
+}
+
+// Exists checks if a given dependency (usually a database) exists in the storage.
+func (n *Node) Exists(dependency string) bool {
+	return n.CollectionExists(dependency)
+}
+
+// GetRecord retrieves a record by its ID and database name.
+func (n *Node) GetRecord(databaseName, recordID string) ([]replication.DataStream, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// This proxy allows local access to the collection but forwards writes to the replication engine.
+type CollectionProxy struct {
+	node       *Node
+	collection *Collection
+}
+
+func newCollectionProxy(node *Node, collection *Collection) *CollectionProxy {
+	return &CollectionProxy{
+		node:       node,
+		collection: collection,
+	}
+}
+
+func (cf *CollectionProxy) AddDocument(id uint64, vector []float64, metadata []byte) error {
+	return nil
+}
+
+func (cf *CollectionProxy) Close() error {
+	return cf.collection.Close()
+}
+
+func (cf *CollectionProxy) ComputeStats() CollectionStats {
+	return cf.collection.ComputeStats()
+}
+
+func (cf *CollectionProxy) GetAllIDs() []uint64 {
+	return cf.collection.GetAllIDs()
+}
+
+func (cf *CollectionProxy) GetDocument(id uint64) (*Document, error) {
+	return cf.collection.GetDocument(id)
+}
+
+func (cf *CollectionProxy) GetDocumentCount() int {
+	return cf.collection.GetDocumentCount()
+}
+
+func (cf *CollectionProxy) GetOptions() CollectionOptions {
+	return cf.collection.GetOptions()
+}
+
+func (cf *CollectionProxy) RemoveDocument(id uint64) error {
+	update := replication.Update{
+		NodeID:       cf.node.nodeID,
+		Timestamp:    cf.node.re.NextLocalTimestamp(),
+		Type:         replication.DeleteRecord,
+		RecordID:     fmt.Sprintf("%d", id),
+		DatabaseName: cf.collection.GetName(),
+	}
+
+	return cf.node.re.SubmitUpdates([]replication.Update{update})
+}
+
+func (cf *CollectionProxy) Search(args SearchArgs) SearchResults {
+	return cf.collection.Search(args)
+}
+
+func (cf *CollectionProxy) UpdateDocument(id uint64, newMetadata []byte) error {
+	update := replication.Update{
+		NodeID:    cf.node.nodeID,
+		Timestamp: cf.node.re.NextLocalTimestamp(),
+		Type:      replication.UpsertRecord,
+		RecordID:  fmt.Sprintf("%d", id),
+		DataStreams: []replication.DataStream{
+			{StreamID: 0, Data: newMetadata},
+		},
+		DatabaseName: cf.collection.GetName(),
+	}
+
+	return cf.node.re.SubmitUpdates([]replication.Update{update})
 }

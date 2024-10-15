@@ -7,12 +7,11 @@ import (
 )
 
 func RunServer() {
-	nodeID := globalConfig.NodeID
-	if nodeID == 0 {
+	if globalConfig.NodeID == 0 {
 		log.Printf("Warning: node ID is 0. We will generate a temporary one")
-		nodeID = uint64(myRandom.Intn(100) + 1)
+		globalConfig.NodeID = uint64(myRandom.Intn(100) + 1)
 	}
-	node := NewNode(globalConfig.DataFolder, nodeID)
+	node := NewNode(globalConfig)
 	err := node.Initialize()
 	if err != nil {
 		log.Fatalf("Failed to initialize node: %v", err)
