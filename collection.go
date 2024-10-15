@@ -812,6 +812,16 @@ func angularDistance(vec1, vec2 []float64) float64 {
 	return math.Acos(dotProduct/(math.Sqrt(magnitude1)*math.Sqrt(magnitude2))) / math.Pi
 }
 
+// EncodeVector encodes a float64 vector to a byte slice
+func EncodeVector(vector []float64, quantization int) []byte {
+    return encodeVector(vector, quantization)
+}
+
+// DecodeVector decodes a byte slice to a float64 vector
+func DecodeVector(data []byte, dimensions int, quantization int) []float64 {
+    return decodeVector(data, dimensions, quantization)
+}
+
 type searchIndex interface {
 	addPoint(docid uint64, vector []float64)
 	removePoint(docid uint64, vector []float64)

@@ -12,13 +12,26 @@ type Node struct {
 	collections map[string]*Collection
 	mutex       sync.RWMutex
 	dataFolder  string
+	nodeID      uint64
 }
 
-func NewNode(dataFolder string) *Node {
+func NewNode(dataFolder string, nodeID uint64) *Node {
 	return &Node{
 		collections: make(map[string]*Collection),
 		dataFolder:  dataFolder,
+		nodeID:      nodeID,
 	}
+}
+
+// GetCollectionNames returns a list of all collection names
+func (n *Node) GetCollectionNames() []string {
+    n.mutex.RLock()
+    defer n.mutex.RUnlock()
+    names := make([]string, 0, len(n.collections))
+    for name := range n.collections {
+        names = append(names, name)
+    }
+    return names
 }
 
 // Initialize loads all collections from disk.
