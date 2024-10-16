@@ -1,6 +1,10 @@
 package syzgydb
 
-import "math/rand"
+import (
+	"hash/fnv"
+	"math/rand"
+	"net"
+)
 
 // Config holds the configuration settings for the service.
 type Config struct {
@@ -83,3 +87,29 @@ func (r *myRandomType) ThreadsafeNew() *myRandomType {
 }
 
 var myRandom *myRandomType
+
+// GetServerHash returns a unique consistent hash for the server
+func GetServerHash() (uint64, error) {
+	// Get the MAC address
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return 0, err
+	}
+
+	var mac net.HardwareAddr
+	for _, intf := range interfaces {
+		if len(intf.HardwareAddr) > 0 {
+			mac = intf.HardwareAddr
+			break
+		}
+	}
+
+	if mac == nil {
+		return 0, fmt.Errorf("no valid MAC address found")
+	}
+
+	// Use FNV-1a hash
+	h := fnv.New64a()
+	h.Write(mac)
+	return h.Sum64(), nil
+}
