@@ -256,7 +256,14 @@ func (n *Node) CommitUpdates(updates []replication.Update) error {
 			}
 			if len(update.DataStreams) == 2 {
 				// This is an AddDocument operation
-				err = collection.AddRecordDirect(id, update.DataStreams, update.NodeID, update.Timestamp)
+				dataStreams := make([]DataStream, len(update.DataStreams))
+				for i, ds := range update.DataStreams {
+					dataStreams[i] = DataStream{
+						StreamID: uint8(ds.StreamID),
+						Data:     ds.Data,
+					}
+				}
+				err = collection.AddRecordDirect(id, dataStreams, update.NodeID, update.Timestamp)
 			} else if len(update.DataStreams) == 1 {
 				// This is an UpdateDocument operation
 				err = collection.UpdateDocumentDirect(id, update.DataStreams[0].Data, update.NodeID, update.Timestamp)
