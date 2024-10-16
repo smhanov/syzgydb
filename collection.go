@@ -46,7 +46,7 @@ type CollectionOptions struct {
 	Quantization int `json:"quantization"`
 
 	// FileMode specifies the mode for opening the memfile.
-	FileMode FileMode `json:"-"`
+	FileMode FileMode `json:"file_mode"`
 
 	NodeID    uint64                `json:"node_id"`
 	Timestamp replication.Timestamp `json:"timestamp"`

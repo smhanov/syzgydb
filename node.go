@@ -51,26 +51,29 @@ func (n *Node) GetCollectionNames() []string {
 }
 
 // Initialize loads all collections from disk.
-func (n *Node) Initialize() error {
+func (n *Node) Initialize(openStored bool) error {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
-
-	files, err := filepath.Glob(filepath.Join(n.dataFolder, "*.dat"))
-	if err != nil {
-		return fmt.Errorf("failed to list .dat files: %v", err)
-	}
-
-	for _, file := range files {
-		collectionName := n.fileNameToCollectionName(file)
-		log.Printf("Loading collection from file: %s", file)
-
-		opts := CollectionOptions{Name: file}
-		collection, err := NewCollection(opts)
+	log.Printf("Initailizing")
+	if openStored {
+		log.Printf("Openstored")
+		files, err := filepath.Glob(filepath.Join(n.dataFolder, "*.dat"))
 		if err != nil {
-			return fmt.Errorf("failed to create collection %s: %v", collectionName, err)
+			return fmt.Errorf("failed to list .dat files: %v", err)
 		}
-		n.collections[collectionName] = collection
-		log.Printf("Collection %s loaded successfully", collectionName)
+
+		for _, file := range files {
+			collectionName := n.fileNameToCollectionName(file)
+			log.Printf("Loading collection from file: %s", file)
+
+			opts := CollectionOptions{Name: file}
+			collection, err := NewCollection(opts)
+			if err != nil {
+				return fmt.Errorf("failed to create collection %s: %v", collectionName, err)
+			}
+			n.collections[collectionName] = collection
+			log.Printf("Collection %s loaded successfully", collectionName)
+		}
 	}
 
 	n.initialized = true
@@ -82,30 +85,20 @@ func (n *Node) Initialize() error {
 		NodeID:    n.config.NodeID,
 	}
 
-	n.re, err = replication.Init(n, reConfig, n.getStoredVectorClock())
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (n *Node) isInitialized() bool {
-	n.mutex.RLock()
-	defer n.mutex.RUnlock()
-	return n.initialized
-}
-
-// Returns the vector clock from the disk files for the node.
-func (n *Node) getStoredVectorClock() *replication.VectorClock {
-	n.mutex.RLock()
-	defer n.mutex.RUnlock()
-
+	var err error
 	clock := replication.NewVectorClock()
 	for _, collection := range n.collections {
 		clock.Merge(collection.getLatestVectorClock())
 	}
-	return clock
+
+	n.re, err = replication.Init(n, reConfig, clock)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("n.re is %p", n.re)
+
+	return nil
 }
 
 func (n *Node) CreateCollection(opts CollectionOptions) (ICollection, error) {
@@ -293,9 +286,10 @@ func newCollectionProxy(node *Node, collection *Collection) *CollectionProxy {
 }
 
 func (cf *CollectionProxy) AddDocument(id uint64, vector []float64, metadata []byte) error {
+	log.Printf("AddDocument(%d) called", id)
 	// Prepare an update and send it to the replication engine
 	options := cf.collection.GetOptions()
-	
+
 	// Encode the vector using the collection's quantization
 	encodedVector := EncodeVector(vector, options.Quantization)
 
