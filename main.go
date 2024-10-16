@@ -8,11 +8,15 @@ import (
 
 func RunServer() {
 	if globalConfig.NodeID == 0 {
-		log.Printf("Warning: node ID is 0. We will generate a temporary one")
-		globalConfig.NodeID = uint64(myRandom.Intn(100) + 1)
+		var err error
+		globalConfig.NodeID, err = GetServerHash()
+		if err != nil {
+			log.Printf("Warning: Can't get server hash: %v", err)
+			globalConfig.NodeID = uint64(myRandom.Intn(100) + 1)
+		}
 	}
 	node := NewNode(globalConfig)
-	err := node.Initialize()
+	err := node.Initialize(true)
 	if err != nil {
 		log.Fatalf("Failed to initialize node: %v", err)
 	}

@@ -427,7 +427,7 @@ type collectionStatsWithName struct {
 	Name string `json:"name"`
 }
 
-func (s *Server) getCollectionStats(collection *Collection, name string) collectionStatsWithName {
+func (s *Server) getCollectionStats(collection ICollection, name string) collectionStatsWithName {
 	stats := collection.ComputeStats()
 	return collectionStatsWithName{
 		CollectionStats: stats,

@@ -49,9 +49,9 @@ func (re *ReplicationEngine) GetHandler() http.Handler {
 }
 
 func (re *ReplicationEngine) SubmitUpdates(updates []Update) error {
-    replyChan := make(chan error)
-    re.stateMachine.eventChan <- LocalUpdatesEvent{Updates: updates, ReplyChan: replyChan}
-    return <-replyChan
+	replyChan := make(chan error)
+	re.stateMachine.eventChan <- LocalUpdatesEvent{Updates: updates, ReplyChan: replyChan}
+	return <-replyChan
 }
 
 func (re *ReplicationEngine) Listen(address string) error {

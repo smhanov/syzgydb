@@ -1,6 +1,7 @@
 package syzgydb
 
 import (
+	"fmt"
 	"hash/fnv"
 	"math/rand"
 	"net"

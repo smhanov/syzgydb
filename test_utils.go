@@ -2,6 +2,7 @@ package syzgydb
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -55,7 +56,12 @@ func setupTestServer() *Server {
 	ensureTestFolder(nil) // We're not in a test context here, so pass nil
 
 	globalConfig.DataFolder = "./testdata" // Set the data folder to the testfolder
-	node := NewNode(globalConfig.DataFolder, 0)
+	globalConfig.ReplicationJWTKey = "testkey"
+	node := NewNode(globalConfig)
+	err := node.Initialize(false)
+	if err != nil {
+		log.Fatalf("Failed to initialize node: %v", err)
+	}
 
 	return &Server{node: node}
 }
