@@ -293,9 +293,25 @@ func newCollectionProxy(node *Node, collection *Collection) *CollectionProxy {
 }
 
 func (cf *CollectionProxy) AddDocument(id uint64, vector []float64, metadata []byte) error {
-	// TODO: Prepare an update and send it to the replication engine. You will need to encode the metabdata in datastream 0
-	// and the vector in datastream 1 using the encoding functions and quantization options from collection.go
-	return nil
+	// Prepare an update and send it to the replication engine
+	options := cf.collection.GetOptions()
+	
+	// Encode the vector using the collection's quantization
+	encodedVector := EncodeVector(vector, options.Quantization)
+
+	update := replication.Update{
+		NodeID:       cf.node.nodeID,
+		Timestamp:    cf.node.re.NextLocalTimestamp(),
+		Type:         replication.UpsertRecord,
+		RecordID:     fmt.Sprintf("%d", id),
+		DatabaseName: cf.collection.GetName(),
+		DataStreams: []replication.DataStream{
+			{StreamID: 0, Data: metadata},
+			{StreamID: 1, Data: encodedVector},
+		},
+	}
+
+	return cf.node.re.SubmitUpdates([]replication.Update{update})
 }
 
 func (cf *CollectionProxy) Close() error {
