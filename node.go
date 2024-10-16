@@ -108,6 +108,38 @@ func (n *Node) getStoredVectorClock() *replication.VectorClock {
 	return clock
 }
 
+func (n *Node) CreateCollection(opts CollectionOptions) (ICollection, error) {
+	// Prepare an update and send it to the replication engine.
+	// The data of the update should be the JSON encoding of the CollectionOptions.
+	data, err := json.Marshal(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal collection options: %v", err)
+	}
+
+	update := replication.Update{
+		NodeID:    n.nodeID,
+		Timestamp: n.re.NextLocalTimestamp(),
+		Type:      replication.CreateDatabase,
+		DataStreams: []replication.DataStream{
+			{StreamID: 0, Data: data},
+		},
+		DatabaseName: opts.Name,
+	}
+
+	err = n.re.SubmitUpdates([]replication.Update{update})
+	if err != nil {
+		return nil, err
+	}
+
+	n.mutex.RLock()
+	defer n.mutex.RUnlock()
+	coll, exists := n.collections[opts.Name]
+	if !exists {
+		return nil, fmt.Errorf("collection %s failed to create", opts.Name)
+	}
+	return newCollectionProxy(n, coll), nil
+}
+
 func (n *Node) GetCollection(name string) (ICollection, bool) {
 	n.mutex.RLock()
 	defer n.mutex.RUnlock()
@@ -149,10 +181,19 @@ func (n *Node) createCollectionImpl(opts CollectionOptions) (ICollection, error)
 func (n *Node) DropCollection(name string) error {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
-	return n.dropCollection(name)
+
+	// Prepare an update and send it to the replication engine.
+	update := replication.Update{
+		NodeID:       n.nodeID,
+		Timestamp:    n.re.NextLocalTimestamp(),
+		Type:         replication.DropDatabase,
+		DatabaseName: name,
+	}
+
+	return n.re.SubmitUpdates([]replication.Update{update})
 }
 
-func (n *Node) dropCollection(name string) error {
+func (n *Node) dropCollectionImpl(name string) error {
 	collection, exists := n.collections[name]
 	if !exists {
 		return fmt.Errorf("collection %s does not exist", name)
@@ -189,6 +230,7 @@ func (n *Node) CommitUpdates(updates []replication.Update) error {
 	for _, update := range updates {
 		switch update.Type {
 		case replication.CreateDatabase:
+			//TODO: Check if the create is before the database was dropped and ignore. Need somewhere to store this
 			var opts CollectionOptions
 			err := json.Unmarshal(update.DataStreams[0].Data, &opts)
 			if err != nil {
@@ -197,11 +239,17 @@ func (n *Node) CommitUpdates(updates []replication.Update) error {
 			opts.Name = update.DatabaseName
 			opts.Timestamp = update.Timestamp
 			opts.NodeID = update.NodeID
-			_, err = node.CreateCollection(opts)
+			_, err = n.createCollectionImpl(opts)
 			if err != nil {
 				return err
 			}
 
+		case replication.DropDatabase:
+			// TODO: Check if the drop is after the database was created.
+			err := n.dropCollectionImpl(update.DatabaseName)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -245,6 +293,8 @@ func newCollectionProxy(node *Node, collection *Collection) *CollectionProxy {
 }
 
 func (cf *CollectionProxy) AddDocument(id uint64, vector []float64, metadata []byte) error {
+	// TODO: Prepare an update and send it to the replication engine. You will need to encode the metabdata in datastream 0
+	// and the vector in datastream 1 using the encoding functions and quantization options from collection.go
 	return nil
 }
 
