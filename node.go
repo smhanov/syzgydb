@@ -256,7 +256,6 @@ func (n *Node) CommitUpdates(updates []replication.Update) error {
 			}
 			if len(update.DataStreams) == 2 {
 				// This is an AddDocument operation
-				vector := DecodeVector(update.DataStreams[1].Data, collection.DimensionCount, collection.Quantization)
 				err = collection.AddRecordDirect(id, update.DataStreams, update.NodeID, update.Timestamp)
 			} else if len(update.DataStreams) == 1 {
 				// This is an UpdateDocument operation
