@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -240,6 +241,43 @@ func (n *Node) CommitUpdates(updates []replication.Update) error {
 		case replication.DropDatabase:
 			// TODO: Check if the drop is after the database was created.
 			err := n.dropCollectionImpl(update.DatabaseName)
+			if err != nil {
+				return err
+			}
+
+		case replication.UpsertRecord:
+			collection, exists := n.collections[update.DatabaseName]
+			if !exists {
+				return fmt.Errorf("collection %s does not exist", update.DatabaseName)
+			}
+			id, err := strconv.ParseUint(update.RecordID, 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid record ID: %v", err)
+			}
+			if len(update.DataStreams) == 2 {
+				// This is an AddDocument operation
+				vector := DecodeVector(update.DataStreams[1].Data, collection.DimensionCount, collection.Quantization)
+				err = collection.AddRecordDirect(id, update.DataStreams, update.NodeID, update.Timestamp)
+			} else if len(update.DataStreams) == 1 {
+				// This is an UpdateDocument operation
+				err = collection.UpdateDocumentDirect(id, update.DataStreams[0].Data, update.NodeID, update.Timestamp)
+			} else {
+				return fmt.Errorf("invalid number of data streams for UpsertRecord")
+			}
+			if err != nil {
+				return err
+			}
+
+		case replication.DeleteRecord:
+			collection, exists := n.collections[update.DatabaseName]
+			if !exists {
+				return fmt.Errorf("collection %s does not exist", update.DatabaseName)
+			}
+			id, err := strconv.ParseUint(update.RecordID, 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid record ID: %v", err)
+			}
+			err = collection.removeDocumentDirect(id, update.NodeID, update.Timestamp)
 			if err != nil {
 				return err
 			}

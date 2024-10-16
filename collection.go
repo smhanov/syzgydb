@@ -598,6 +598,22 @@ func (c *Collection) RemoveDocument(id uint64) error {
 	return c.removeDocumentDirect(id, 0, c.spanfile.NextTimestamp())
 }
 
+func (c *Collection) UpdateDocumentDirect(id uint64, newMetadata []byte, nodeID uint64, timestamp replication.Timestamp) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	span, err := c.spanfile.ReadRecord(fmt.Sprintf("%d", id))
+	if err != nil {
+		return err
+	}
+
+	dataStreams := []DataStream{
+		{StreamID: 0, Data: newMetadata},
+		{StreamID: 1, Data: span.DataStreams[1].Data},
+	}
+	return c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, nodeID, timestamp)
+}
+
 // iterateDocuments applies a function to each document in the collection.
 /*
 func (c *Collection) iterateDocuments(fn func(doc *Document)) {
