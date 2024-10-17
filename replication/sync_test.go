@@ -13,31 +13,39 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestGossipMessageReceived(t *testing.T) {
-	// Set up a single node
-	storage := NewMockStorage(0)
+// TestNode represents a node in the test environment
+type TestNode struct {
+	RE     *ReplicationEngine
+	Config ReplicationConfig
+}
+
+// setupTestNode creates and starts a test node
+func setupTestNode(t *testing.T, nodeID uint64, port int) *TestNode {
+	storage := NewMockStorage(int(nodeID))
 	config := ReplicationConfig{
-		OwnURL:    "ws://localhost:8080",
+		OwnURL:    fmt.Sprintf("ws://localhost:%d", port),
 		PeerURLs:  []string{},
 		JWTSecret: []byte("test_secret"),
-		NodeID:    0,
+		NodeID:    nodeID,
 	}
-	re, err := Init(storage, config, NewVectorClock().Update(0, Now()))
+	re, err := Init(storage, config, NewVectorClock().Update(nodeID, Now()))
 	if err != nil {
 		t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
 	}
 
-	// Start listening
-	err = re.Listen(":8080")
+	err = re.Listen(fmt.Sprintf(":%d", port))
 	if err != nil {
 		t.Fatalf("Failed to start listening: %v", err)
 	}
-	defer re.Close()
 
-	// Connect to the WebSocket
-	u := url.URL{Scheme: "ws", Host: "localhost:8080", Path: "/"}
+	return &TestNode{RE: re, Config: config}
+}
+
+// connectToNode establishes a WebSocket connection to a node
+func connectToNode(t *testing.T, node *TestNode, clientURL string) *websocket.Conn {
+	u := url.URL{Scheme: "ws", Host: node.Config.OwnURL[5:], Path: "/"}
 	header := http.Header{}
-	token, err := GenerateToken("test_client", "ws://localhost:8081", config.JWTSecret)
+	token, err := GenerateToken(fmt.Sprintf("%d", node.Config.NodeID), clientURL, node.Config.JWTSecret)
 	if err != nil {
 		t.Fatalf("Failed to generate token: %v", err)
 	}
@@ -47,43 +55,70 @@ func TestGossipMessageReceived(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to WebSocket: %v", err)
 	}
-	defer c.Close()
+	return c
+}
 
-	// Wait for and read the gossip message
+// sendMessage sends a protobuf message over the WebSocket connection
+func sendMessage(t *testing.T, conn *websocket.Conn, msg proto.Message) {
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		t.Fatalf("Failed to marshal message: %v", err)
+	}
+	err = conn.WriteMessage(websocket.BinaryMessage, data)
+	if err != nil {
+		t.Fatalf("Failed to send message: %v", err)
+	}
+}
+
+// receiveMessage waits for and receives a specific type of message
+func receiveMessage(t *testing.T, conn *websocket.Conn, timeout time.Duration) *pb.Message {
 	done := make(chan struct{})
-	var gossipMsg *pb.GossipMessage
+	var receivedMsg *pb.Message
 
 	go func() {
 		defer close(done)
-		for {
-			_, message, err := c.ReadMessage()
-			if err != nil {
-				t.Errorf("Failed to read message: %v", err)
-				return
-			}
-
-			var msg pb.Message
-			err = proto.Unmarshal(message, &msg)
-			if err != nil {
-				t.Errorf("Failed to unmarshal message: %v", err)
-				return
-			}
-
-			if msg.Type == pb.Message_GOSSIP {
-				gossipMsg = msg.GetGossipMessage()
-				return
-			}
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			t.Errorf("Failed to read message: %v", err)
+			return
 		}
+
+		var msg pb.Message
+		err = proto.Unmarshal(message, &msg)
+		if err != nil {
+			t.Errorf("Failed to unmarshal message: %v", err)
+			return
+		}
+
+		receivedMsg = &msg
 	}()
 
 	select {
 	case <-done:
-		if gossipMsg == nil {
-			t.Fatalf("Did not receive gossip message")
+		if receivedMsg == nil {
+			t.Fatalf("Did not receive expected message")
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatalf("Timed out waiting for gossip message")
+		return receivedMsg
+	case <-time.After(timeout):
+		t.Fatalf("Timed out waiting for message")
+		return nil
 	}
+}
+
+func TestGossipMessageReceived(t *testing.T) {
+	node := setupTestNode(t, 0, 8080)
+	defer node.RE.Close()
+
+	conn := connectToNode(t, node, "ws://localhost:8081")
+	defer conn.Close()
+
+	msg := receiveMessage(t, conn, 5*time.Second)
+
+	if msg.Type != pb.Message_GOSSIP {
+		t.Fatalf("Expected GOSSIP message, got %v", msg.Type)
+	}
+
+	gossipMsg := msg.GetGossipMessage()
 
 	// Verify the contents of the gossip message
 	if gossipMsg.NodeId != "0" {
@@ -97,8 +132,46 @@ func TestGossipMessageReceived(t *testing.T) {
 	vcJSON, _ := json.MarshalIndent(gossipMsg.LastVectorClock, "", "  ")
 	fmt.Printf("Received VectorClock: %s\n", vcJSON)
 
-	// You may want to add more specific checks for the LastVectorClock
 	if gossipMsg.LastVectorClock == nil {
 		t.Errorf("Expected non-nil LastVectorClock")
 	}
+}
+
+func TestSendAndReceiveUpdate(t *testing.T) {
+	node := setupTestNode(t, 0, 8080)
+	defer node.RE.Close()
+
+	conn := connectToNode(t, node, "ws://localhost:8081")
+	defer conn.Close()
+
+	// Receive initial gossip message
+	receiveMessage(t, conn, 5*time.Second)
+
+	// Create and send an update message
+	update := &pb.Update{
+		NodeId:    "1",
+		Timestamp: &pb.Timestamp{UnixTime: 123456789, LamportClock: 1},
+		Type:      pb.Update_UPSERT,
+		RecordId:  "testRecord",
+		DataStreams: []*pb.DataStream{
+			{StreamId: 1, Data: []byte("test data")},
+		},
+	}
+	updateMsg := &pb.Message{
+		Type: pb.Message_BATCH_UPDATE,
+		Content: &pb.Message_BatchUpdate{
+			BatchUpdate: &pb.BatchUpdate{
+				Updates: []*pb.Update{update},
+			},
+		},
+	}
+	sendMessage(t, conn, updateMsg)
+
+	// Wait for and verify the response
+	response := receiveMessage(t, conn, 5*time.Second)
+	// Add assertions to check the response
+	if response.Type != pb.Message_BATCH_UPDATE {
+		t.Fatalf("Expected BATCH_UPDATE response, got %v", response.Type)
+	}
+	// Add more specific checks for the response content
 }
