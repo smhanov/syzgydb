@@ -58,6 +58,53 @@ func connectToNode(t *testing.T, node *TestNode, clientURL string) *websocket.Co
 	return c
 }
 
+// Helper function to create a protocol buffer Message
+func createProtoMessage(messageType pb.Message_MessageType, content proto.Message) *pb.Message {
+	msg := &pb.Message{
+		Type: messageType,
+	}
+
+	switch v := content.(type) {
+	case *pb.GossipMessage:
+		msg.Content = &pb.Message_GossipMessage{GossipMessage: v}
+	case *pb.BatchUpdate:
+		msg.Content = &pb.Message_BatchUpdate{BatchUpdate: v}
+	case *pb.UpdateRequest:
+		msg.Content = &pb.Message_UpdateRequest{UpdateRequest: v}
+	case *pb.Heartbeat:
+		msg.Content = &pb.Message_Heartbeat{Heartbeat: v}
+	}
+
+	return msg
+}
+
+// Helper function to create a protocol buffer Update
+func createProtoUpdate(nodeID uint64, timestamp Timestamp, updateType UpdateType, recordID string, dataStreams []DataStream) *pb.Update {
+	return (&Update{
+		NodeID:      nodeID,
+		Timestamp:   timestamp,
+		Type:        updateType,
+		RecordID:    recordID,
+		DataStreams: dataStreams,
+	}).toProto()
+}
+
+// Helper function to create a protocol buffer BatchUpdate
+func createProtoBatchUpdate(updates []Update) *pb.BatchUpdate {
+	return &pb.BatchUpdate{
+		Updates: toProtoUpdates(updates),
+		HasMore: false,
+	}
+}
+
+// Helper function to create a protocol buffer UpdateRequest
+func createProtoUpdateRequest(since *VectorClock, maxResults int32) *pb.UpdateRequest {
+	return &pb.UpdateRequest{
+		Since:      since.toProto(),
+		MaxResults: maxResults,
+	}
+}
+
 // sendMessage sends a protobuf message over the WebSocket connection
 func sendMessage(t *testing.T, conn *websocket.Conn, msg proto.Message) {
 	data, err := proto.Marshal(msg)
@@ -148,23 +195,15 @@ func TestSendAndReceiveUpdate(t *testing.T) {
 	receiveMessage(t, conn, 5*time.Second)
 
 	// Create and send an update message
-	update := &pb.Update{
-		NodeId:    1,
-		Timestamp: &pb.Timestamp{UnixTime: 123456789, LamportClock: 1},
-		Type:      pb.Update_UpdateType(UpsertRecord),
-		RecordId:  "testRecord",
-		DataStreams: []*pb.DataStream{
-			{StreamId: 1, Data: []byte("test data")},
-		},
-	}
-	updateMsg := &pb.Message{
-		Type: pb.Message_BATCH_UPDATE,
-		Content: &pb.Message_BatchUpdate{
-			BatchUpdate: &pb.BatchUpdate{
-				Updates: []*pb.Update{update},
-			},
-		},
-	}
+	update := createProtoUpdate(
+		1,
+		Timestamp{UnixTime: 123456789, LamportClock: 1},
+		UpsertRecord,
+		"testRecord",
+		[]DataStream{{StreamID: 1, Data: []byte("test data")}},
+	)
+	batchUpdate := createProtoBatchUpdate([]Update{fromProtoUpdate(update)})
+	updateMsg := createProtoMessage(pb.Message_BATCH_UPDATE, batchUpdate)
 	sendMessage(t, conn, updateMsg)
 
 	// Wait for and verify the response
