@@ -1,6 +1,7 @@
 package replication
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -9,51 +10,6 @@ import (
 	pb "github.com/smhanov/syzgydb/replication/proto"
 	"google.golang.org/protobuf/proto"
 )
-
-type GossipMessageEvent struct {
-	Peer    *Peer
-	Message *pb.GossipMessage
-}
-
-func (e GossipMessageEvent) process(sm *StateMachine) {
-	log.Printf("[%d] Processing GossipMessageEvent", sm.config.NodeID)
-	peerVectorClock := fromProtoVectorClock(e.Message.LastVectorClock)
-
-	e.Peer.lastKnownVectorClock = peerVectorClock
-	e.Peer.name = e.Message.NodeId
-
-	for _, peerURL := range e.Message.KnownPeers {
-		if _, exists := sm.peers[peerURL]; !exists && peerURL != sm.config.OwnURL {
-			sm.eventChan <- AddPeerEvent{URL: peerURL}
-		}
-	}
-
-	if sm.lastKnownVectorClock.Before(peerVectorClock) {
-		updateRequest := &pb.UpdateRequest{
-			Since:      sm.lastKnownVectorClock.toProto(),
-			MaxResults: MaxUpdateResults,
-		}
-
-		msg := &pb.Message{
-			Type:        pb.Message_UPDATE_REQUEST,
-			VectorClock: sm.lastKnownVectorClock.toProto(),
-			Content: &pb.Message_UpdateRequest{
-				UpdateRequest: updateRequest,
-			},
-		}
-
-		data, err := proto.Marshal(msg)
-		if err != nil {
-			log.Printf("Error marshaling update request: %v", err)
-			return
-		}
-
-		err = e.Peer.connection.WriteMessage(websocket.BinaryMessage, data)
-		if err != nil {
-			log.Printf("Error sending update request to peer %s: %v", e.Peer.url, err)
-		}
-	}
-}
 
 type UpdateRequestEvent struct {
 	Peer       *Peer
@@ -125,7 +81,7 @@ func (e AddPeerEvent) process(sm *StateMachine) {
 			stateMachine:         sm,
 		}
 		// Schedule a ConnectPeerEvent instead of directly connecting
-		sm.eventChan <- ConnectPeerEvent{URL: e.URL}
+		sm.eventChan <- ConnectPeerEvent(e)
 	}
 }
 
@@ -141,7 +97,8 @@ func (e ConnectPeerEvent) process(sm *StateMachine) {
 		return
 	}
 
-	conn, err := dialWebSocket(e.URL, sm.config.JWTSecret)
+	name := fmt.Sprintf("%d", sm.config.NodeID)
+	conn, err := dialWebSocket(name, sm.config.OwnURL, e.URL, sm.config.JWTSecret)
 	if err != nil {
 		log.Printf("Failed to connect to peer %s: %v", e.URL, err)
 		// Optionally, schedule a retry after some time
@@ -181,6 +138,16 @@ func (e WebSocketConnectionEvent) process(sm *StateMachine) {
 		return
 	}
 
+	if peer, ok := sm.peers[peerURL]; ok {
+		log.Printf("[%d] Ignore new connection from connected peer %s", sm.config.NodeID, peer.name)
+		http.Error(e.ResponseWriter, "Peer already connected", http.StatusConflict)
+		return
+	}
+
+	if peerName == "" || peerURL == "" {
+		log.Panicf("Peer has blank name: %s, URL: %s", peerName, peerURL)
+	}
+
 	conn, err := upgradeToWebSocket(e.ResponseWriter, e.Request)
 	if err != nil {
 		log.Printf("Failed to upgrade connection to WebSocket: %v", err)
@@ -191,6 +158,7 @@ func (e WebSocketConnectionEvent) process(sm *StateMachine) {
 	peer := NewPeer(peerName, peerURL, sm)
 	peer.connection = conn
 	sm.peers[peerURL] = peer
+	log.Printf("[%d] Connected to peer %s (incoming)", sm.config.NodeID, peerName)
 
 	// Schedule a SendGossipEvent for the new peer
 	sm.eventChan <- SendGossipEvent{Peer: peer}
@@ -227,6 +195,56 @@ func (e SendGossipEvent) process(sm *StateMachine) {
 	err = e.Peer.connection.WriteMessage(websocket.BinaryMessage, data)
 	if err != nil {
 		log.Printf("Error sending gossip message to peer %s: %v", e.Peer.url, err)
+	}
+}
+
+type GossipMessageEvent struct {
+	Peer    *Peer
+	Message *pb.GossipMessage
+}
+
+func (e GossipMessageEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing GossipMessageEvent", sm.config.NodeID)
+	peerVectorClock := fromProtoVectorClock(e.Message.LastVectorClock)
+
+	e.Peer.lastKnownVectorClock = peerVectorClock
+	e.Peer.name = e.Message.NodeId
+
+	for _, peer := range sm.peers {
+		log.Printf("[%d]     Known peer: %s", sm.config.NodeID, peer.url)
+	}
+
+	for _, peerURL := range e.Message.KnownPeers {
+		if _, exists := sm.peers[peerURL]; !exists && peerURL != sm.config.OwnURL {
+			log.Printf("[%d]    New peer: %s", sm.config.NodeID, peerURL)
+			sm.eventChan <- AddPeerEvent{URL: peerURL}
+		}
+	}
+
+	if sm.lastKnownVectorClock.Before(peerVectorClock) {
+		updateRequest := &pb.UpdateRequest{
+			Since:      sm.lastKnownVectorClock.toProto(),
+			MaxResults: MaxUpdateResults,
+		}
+
+		msg := &pb.Message{
+			Type:        pb.Message_UPDATE_REQUEST,
+			VectorClock: sm.lastKnownVectorClock.toProto(),
+			Content: &pb.Message_UpdateRequest{
+				UpdateRequest: updateRequest,
+			},
+		}
+
+		data, err := proto.Marshal(msg)
+		if err != nil {
+			log.Printf("Error marshaling update request: %v", err)
+			return
+		}
+
+		err = e.Peer.connection.WriteMessage(websocket.BinaryMessage, data)
+		if err != nil {
+			log.Printf("Error sending update request to peer %s: %v", e.Peer.url, err)
+		}
 	}
 }
 
@@ -279,56 +297,57 @@ func (e PeerHeartbeatEvent) process(sm *StateMachine) {
 }
 
 type LocalUpdatesEvent struct {
-    Updates   []Update
-    ReplyChan chan<- error
+	Updates   []Update
+	ReplyChan chan<- error
 }
 
 func (e LocalUpdatesEvent) process(sm *StateMachine) {
-    log.Printf("[%d] Processing LocalUpdatesEvent", sm.config.NodeID)
-    
-    // Commit updates locally
-    err := sm.storage.CommitUpdates(e.Updates)
-    if err != nil {
-        e.ReplyChan <- err
-        return
-    }
+	log.Printf("[%d] Processing LocalUpdatesEvent", sm.config.NodeID)
 
-    // Create a BatchUpdate message
-    batchUpdate := &pb.BatchUpdate{
-        Updates: toProtoUpdates(e.Updates),
-        HasMore: false,
-    }
+	// Commit updates locally
+	err := sm.storage.CommitUpdates(e.Updates)
+	if err != nil {
+		e.ReplyChan <- err
+		return
+	}
 
-    // Create a Message containing the BatchUpdate
-    msg := &pb.Message{
-        Type:        pb.Message_BATCH_UPDATE,
-        VectorClock: sm.lastKnownVectorClock.toProto(),
-        Content: &pb.Message_BatchUpdate{
-            BatchUpdate: batchUpdate,
-        },
-    }
+	// Create a BatchUpdate message
+	batchUpdate := &pb.BatchUpdate{
+		Updates: toProtoUpdates(e.Updates),
+		HasMore: false,
+	}
 
-    // Marshal the message
-    data, err := proto.Marshal(msg)
-    if err != nil {
-        log.Printf("[%d] Error marshaling BatchUpdate message: %v", sm.config.NodeID, err)
-        e.ReplyChan <- err
-        return
-    }
+	// Create a Message containing the BatchUpdate
+	msg := &pb.Message{
+		Type:        pb.Message_BATCH_UPDATE,
+		VectorClock: sm.lastKnownVectorClock.toProto(),
+		Content: &pb.Message_BatchUpdate{
+			BatchUpdate: batchUpdate,
+		},
+	}
 
-    // Send the BatchUpdate to all connected peers
-    for _, peer := range sm.peers {
-        if peer.connection != nil {
-            err := peer.connection.WriteMessage(websocket.BinaryMessage, data)
-            if err != nil {
-                log.Printf("[%d] Error sending BatchUpdate to peer %s: %v", sm.config.NodeID, peer.url, err)
-                // Note: We're not treating this as a fatal error, just logging it
-            }
-        }
-    }
+	// Marshal the message
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		log.Printf("[%d] Error marshaling BatchUpdate message: %v", sm.config.NodeID, err)
+		e.ReplyChan <- err
+		return
+	}
 
-    // Signal that the updates have been processed
-    e.ReplyChan <- nil
+	// Send the BatchUpdate to all connected peers
+	for _, peer := range sm.peers {
+		if peer.connection != nil {
+			log.Printf("[%d] Sending BatchUpdate to peer [%s]", sm.config.NodeID, peer.name)
+			err := peer.connection.WriteMessage(websocket.BinaryMessage, data)
+			if err != nil {
+				log.Printf("[%d] Error sending BatchUpdate to peer %s: %v", sm.config.NodeID, peer.url, err)
+				// Note: We're not treating this as a fatal error, just logging it
+			}
+		}
+	}
+
+	// Signal that the updates have been processed
+	e.ReplyChan <- nil
 }
 
 type PeerDisconnectEvent struct {
