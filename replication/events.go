@@ -90,29 +90,49 @@ type ConnectPeerEvent struct {
 }
 
 func (e ConnectPeerEvent) process(sm *StateMachine) {
-	log.Printf("[%d] Processing ConnectPeerEvent", sm.config.NodeID)
-	peer, exists := sm.peers[e.URL]
-	if !exists {
-		log.Printf("Peer %s not found for connection", e.URL)
-		return
-	}
+    log.Printf("[%d] Processing ConnectPeerEvent", sm.config.NodeID)
+    peer, exists := sm.peers[e.URL]
+    if !exists {
+        log.Printf("Peer %s not found for connection", e.URL)
+        return
+    }
 
-	name := fmt.Sprintf("%d", sm.config.NodeID)
-	conn, err := dialWebSocket(name, sm.config.OwnURL, e.URL, sm.config.JWTSecret)
-	if err != nil {
-		log.Printf("Failed to connect to peer %s: %v", e.URL, err)
-		// Optionally, schedule a retry after some time
-		// time.AfterFunc(5*time.Second, func() { sm.eventChan <- ConnectPeerEvent{URL: e.URL} })
-		return
-	}
+    name := fmt.Sprintf("%d", sm.config.NodeID)
+    dialWebSocket(name, sm.config.OwnURL, e.URL, sm.config.JWTSecret, sm.eventChan)
+}
 
-	peer.connection = conn
+type WebSocketDialSucceededEvent struct {
+    URL        string
+    Connection *websocket.Conn
+}
 
-	// Schedule a SendGossipEvent for the new peer
-	sm.eventChan <- SendGossipEvent{Peer: peer}
+func (e WebSocketDialSucceededEvent) process(sm *StateMachine) {
+    log.Printf("[%d] Processing WebSocketDialSucceededEvent for %s", sm.config.NodeID, e.URL)
+    peer, exists := sm.peers[e.URL]
+    if !exists {
+        log.Printf("Peer %s not found for successful connection", e.URL)
+        e.Connection.Close()
+        return
+    }
 
-	// Start reading messages from this peer
-	go peer.ReadLoop(sm.eventChan)
+    peer.connection = e.Connection
+
+    // Schedule a SendGossipEvent for the new peer
+    sm.eventChan <- SendGossipEvent{Peer: peer}
+
+    // Start reading messages from this peer
+    go peer.ReadLoop(sm.eventChan)
+}
+
+type WebSocketDialFailedEvent struct {
+    URL   string
+    Error error
+}
+
+func (e WebSocketDialFailedEvent) process(sm *StateMachine) {
+    log.Printf("[%d] Processing WebSocketDialFailedEvent for %s: %v", sm.config.NodeID, e.URL, e.Error)
+    // Optionally, schedule a retry after some time
+    time.AfterFunc(5*time.Second, func() { sm.eventChan <- ConnectPeerEvent{URL: e.URL} })
 }
 
 type WebSocketConnectionEvent struct {
