@@ -149,9 +149,9 @@ func TestSendAndReceiveUpdate(t *testing.T) {
 
 	// Create and send an update message
 	update := &pb.Update{
-		NodeId:    "1",
+		NodeId:    1,
 		Timestamp: &pb.Timestamp{UnixTime: 123456789, LamportClock: 1},
-		Type:      pb.Update_UPSERT,
+		Type:      pb.Update_UpdateType(UpsertRecord),
 		RecordId:  "testRecord",
 		DataStreams: []*pb.DataStream{
 			{StreamId: 1, Data: []byte("test data")},
