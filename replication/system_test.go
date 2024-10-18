@@ -115,6 +115,14 @@ func TestScalability(t *testing.T) {
 	nodes := setupTestEnvironment(t, nodeCount)
 	defer tearDownTestEnvironment(nodes)
 
+	// Start a goroutine that waits 5 seconds then prints a complete stacktrace of all goroutines
+	/*go func() {
+		time.Sleep(5 * time.Second)
+		buf := make([]byte, 1<<20)
+		stacklen := runtime.Stack(buf, true)
+		fmt.Printf("=== BEGIN goroutine stack trace ===\n%s\n=== END goroutine stack trace ===\n", buf[:stacklen])
+	}()*/
+
 	// Create the "testdb" database on the first node
 	createDBUpdate := Update{
 		Timestamp:    nodes[0].NextLocalTimestamp(),
@@ -126,7 +134,7 @@ func TestScalability(t *testing.T) {
 		t.Fatalf("Failed to create database: %v", err)
 	}
 
-	// Submit multiple updates to random nodes
+	// Round-robin updates to all nodes
 	for i := 0; i < updateCount; i++ {
 		nodeIndex := i % nodeCount
 		update := Update{
@@ -144,14 +152,15 @@ func TestScalability(t *testing.T) {
 	}
 
 	// Wait for replication
-	time.Sleep(15000 * time.Millisecond)
+	time.Sleep(10000 * time.Millisecond)
 
 	// Check if all nodes have all records
 	for i, node := range nodes {
 		for j := 0; j < updateCount; j++ {
 			record, err := node.storage.GetRecord("testdb", fmt.Sprintf("record%d", j))
 			if err != nil {
-				t.Fatalf("Node %d: Failed to get record%d: %v", i, j, err)
+				t.Errorf("Node %d: Failed to get record%d: %v", i, j, err)
+				continue
 			}
 			if string(record[0].Data) != fmt.Sprintf("data%d", j) {
 				t.Errorf("Node %d: Expected record%d data 'data%d', got '%s'", i, j, j, string(record[0].Data))

@@ -38,7 +38,7 @@ func (p *Peer) ReadLoop(eventChan chan<- Event) {
 	for {
 		_, message, err := p.connection.ReadMessage()
 		if err != nil {
-			log.Printf("Error reading message from peer %s: %v", p.url, err)
+			log.Printf("[%d]<-[%s] Peer disconnected", p.stateMachine.config.NodeID, p.name)
 			break
 		}
 
@@ -76,4 +76,6 @@ func (p *Peer) ReadLoop(eventChan chan<- Event) {
 			log.Printf("Unknown message type from peer %s: %v", p.url, msg.Type)
 		}
 	}
+	p.connection.Close()
+	p.connection = nil
 }

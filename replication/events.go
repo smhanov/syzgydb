@@ -18,7 +18,7 @@ type UpdateRequestEvent struct {
 }
 
 func (e UpdateRequestEvent) process(sm *StateMachine) {
-	log.Printf("[%d] Processing UpdateRequestEvent", sm.config.NodeID)
+	log.Printf("[%d]->[%s] Processing UpdateRequestEvent", sm.config.NodeID, e.Peer.name)
 	updates, hasMore, err := sm.storage.GetUpdatesSince(e.Since, e.MaxResults)
 	if err != nil {
 		log.Println("Failed to get updates:", err)
@@ -55,12 +55,13 @@ type BatchUpdateEvent struct {
 }
 
 func (e BatchUpdateEvent) process(sm *StateMachine) {
-	log.Printf("[%d] Processing BatchUpdateEvent", sm.config.NodeID)
+	log.Printf("[%d]<-[%s] Processing BatchUpdateEvent", sm.config.NodeID, e.Peer.name)
 	updates := make([]Update, 0, len(e.BatchUpdate.Updates))
 	for _, protoUpdate := range e.BatchUpdate.Updates {
 		update := fromProtoUpdate(protoUpdate)
 		updates = append(updates, update)
-		//TODO: update the peer's last received update state
+
+		e.Peer.lastKnownVectorClock.Update(update.NodeID, update.Timestamp)
 	}
 
 	sm.storage.CommitUpdates(updates)
@@ -73,7 +74,7 @@ type AddPeerEvent struct {
 }
 
 func (e AddPeerEvent) process(sm *StateMachine) {
-	log.Printf("[%d] Processing AddPeerEvent", sm.config.NodeID)
+	log.Printf("[%d] Processing AddPeerEvent %s", sm.config.NodeID, e.URL)
 	if _, exists := sm.peers[e.URL]; !exists {
 		sm.peers[e.URL] = &Peer{
 			url:                  e.URL,
@@ -90,49 +91,60 @@ type ConnectPeerEvent struct {
 }
 
 func (e ConnectPeerEvent) process(sm *StateMachine) {
-    log.Printf("[%d] Processing ConnectPeerEvent", sm.config.NodeID)
-    peer, exists := sm.peers[e.URL]
-    if !exists {
-        log.Printf("Peer %s not found for connection", e.URL)
-        return
-    }
+	log.Printf("[%d] Processing ConnectPeerEvent", sm.config.NodeID)
+	peer, exists := sm.peers[e.URL]
+	if !exists {
+		log.Printf("Peer %s not found for connection", e.URL)
+		return
+	}
 
-    name := fmt.Sprintf("%d", sm.config.NodeID)
-    dialWebSocket(name, sm.config.OwnURL, e.URL, sm.config.JWTSecret, sm.eventChan)
+	if peer.connection != nil {
+		log.Printf("[%d] Peer %s already connected", sm.config.NodeID, e.URL)
+		return
+	}
+
+	name := fmt.Sprintf("%d", sm.config.NodeID)
+	dialWebSocket(name, sm.config.OwnURL, e.URL, sm.config.JWTSecret, sm.eventChan)
 }
 
 type WebSocketDialSucceededEvent struct {
-    URL        string
-    Connection *websocket.Conn
+	URL        string
+	Connection *websocket.Conn
 }
 
 func (e WebSocketDialSucceededEvent) process(sm *StateMachine) {
-    log.Printf("[%d] Processing WebSocketDialSucceededEvent for %s", sm.config.NodeID, e.URL)
-    peer, exists := sm.peers[e.URL]
-    if !exists {
-        log.Printf("Peer %s not found for successful connection", e.URL)
-        e.Connection.Close()
-        return
-    }
+	log.Printf("[%d] Processing WebSocketDialSucceededEvent for %s", sm.config.NodeID, e.URL)
+	peer, exists := sm.peers[e.URL]
+	if !exists {
+		log.Printf("Peer %s not found for successful connection", e.URL)
+		e.Connection.Close()
+		return
+	}
 
-    peer.connection = e.Connection
+	if peer.connection != nil {
+		log.Printf("[%d] Peer %s already connected", sm.config.NodeID, e.URL)
+		e.Connection.Close()
+		return
+	}
 
-    // Schedule a SendGossipEvent for the new peer
-    sm.eventChan <- SendGossipEvent{Peer: peer}
+	peer.connection = e.Connection
 
-    // Start reading messages from this peer
-    go peer.ReadLoop(sm.eventChan)
+	// Schedule a SendGossipEvent for the new peer
+	sm.eventChan <- SendGossipEvent{Peer: peer}
+
+	// Start reading messages from this peer
+	go peer.ReadLoop(sm.eventChan)
 }
 
 type WebSocketDialFailedEvent struct {
-    URL   string
-    Error error
+	URL   string
+	Error error
 }
 
 func (e WebSocketDialFailedEvent) process(sm *StateMachine) {
-    log.Printf("[%d] Processing WebSocketDialFailedEvent for %s: %v", sm.config.NodeID, e.URL, e.Error)
-    // Optionally, schedule a retry after some time
-    time.AfterFunc(5*time.Second, func() { sm.eventChan <- ConnectPeerEvent{URL: e.URL} })
+	//log.Printf("[%d] Processing WebSocketDialFailedEvent for %s: %v", sm.config.NodeID, e.URL, e.Error)
+	// Optionally, schedule a retry after some time
+	//time.AfterFunc(5*time.Second, func() { sm.eventChan <- ConnectPeerEvent{URL: e.URL} })
 }
 
 type WebSocketConnectionEvent struct {
@@ -159,7 +171,7 @@ func (e WebSocketConnectionEvent) process(sm *StateMachine) {
 	}
 
 	if peer, ok := sm.peers[peerURL]; ok {
-		log.Printf("[%d] Ignore new connection from connected peer %s", sm.config.NodeID, peer.name)
+		log.Printf("[%d] Ignore new connection from connected peer [%s]", sm.config.NodeID, peer.name)
 		http.Error(e.ResponseWriter, "Peer already connected", http.StatusConflict)
 		return
 	}
@@ -178,7 +190,7 @@ func (e WebSocketConnectionEvent) process(sm *StateMachine) {
 	peer := NewPeer(peerName, peerURL, sm)
 	peer.connection = conn
 	sm.peers[peerURL] = peer
-	log.Printf("[%d] Connected to peer %s (incoming)", sm.config.NodeID, peerName)
+	log.Printf("[%d]<-[%s] Connected to peer (incoming)", sm.config.NodeID, peerName)
 
 	// Schedule a SendGossipEvent for the new peer
 	sm.eventChan <- SendGossipEvent{Peer: peer}
@@ -191,9 +203,9 @@ type SendGossipEvent struct {
 }
 
 func (e SendGossipEvent) process(sm *StateMachine) {
-	log.Printf("[%d] Processing SendGossipEvent", sm.config.NodeID)
+	log.Printf("[%d]->[%s] Processing SendGossipEvent", sm.config.NodeID, e.Peer.name)
 	msg := &pb.GossipMessage{
-		NodeId:          sm.config.OwnURL,
+		NodeId:          fmt.Sprintf("%d", sm.config.NodeID),
 		KnownPeers:      sm.getPeerURLs(),
 		LastVectorClock: sm.lastKnownVectorClock.toProto(),
 	}
@@ -224,7 +236,7 @@ type GossipMessageEvent struct {
 }
 
 func (e GossipMessageEvent) process(sm *StateMachine) {
-	log.Printf("[%d] Processing GossipMessageEvent", sm.config.NodeID)
+	log.Printf("[%d]<-[%s] Processing GossipMessageEvent", sm.config.NodeID, e.Message.NodeId)
 	peerVectorClock := fromProtoVectorClock(e.Message.LastVectorClock)
 
 	e.Peer.lastKnownVectorClock = peerVectorClock
@@ -242,6 +254,7 @@ func (e GossipMessageEvent) process(sm *StateMachine) {
 	}
 
 	if sm.lastKnownVectorClock.Before(peerVectorClock) {
+		log.Printf("[%d]->[%s] Request updates", sm.config.NodeID, e.Peer.name)
 		updateRequest := &pb.UpdateRequest{
 			Since:      sm.lastKnownVectorClock.toProto(),
 			MaxResults: MaxUpdateResults,

@@ -1,7 +1,6 @@
 package replication
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -42,10 +41,10 @@ func setupTestNode(t *testing.T, nodeID uint64, port int) *TestNode {
 }
 
 // connectToNode establishes a WebSocket connection to a node
-func connectToNode(t *testing.T, node *TestNode, clientURL string) *websocket.Conn {
+func connectToNode(t *testing.T, node *TestNode, clientID, clientURL string) *websocket.Conn {
 	u := url.URL{Scheme: "ws", Host: node.Config.OwnURL[5:], Path: "/"}
 	header := http.Header{}
-	token, err := GenerateToken(fmt.Sprintf("%d", node.Config.NodeID), clientURL, node.Config.JWTSecret)
+	token, err := GenerateToken(clientID, clientURL, node.Config.JWTSecret)
 	if err != nil {
 		t.Fatalf("Failed to generate token: %v", err)
 	}
@@ -156,7 +155,7 @@ func TestGossipMessageReceived(t *testing.T) {
 	node := setupTestNode(t, 0, 8080)
 	defer node.RE.Close()
 
-	conn := connectToNode(t, node, "ws://localhost:8081")
+	conn := connectToNode(t, node, "1", "ws://localhost:8081")
 	defer conn.Close()
 
 	msg := receiveMessage(t, conn, 5*time.Second)
@@ -176,8 +175,7 @@ func TestGossipMessageReceived(t *testing.T) {
 		t.Errorf("Expected KnownPeers to be ['ws://localhost:8081'], got %v", gossipMsg.KnownPeers)
 	}
 
-	vcJSON, _ := json.MarshalIndent(gossipMsg.LastVectorClock, "", "  ")
-	fmt.Printf("Received VectorClock: %s\n", vcJSON)
+	fmt.Printf("Received VectorClock: %s\n", gossipMsg.LastVectorClock)
 
 	if gossipMsg.LastVectorClock == nil {
 		t.Errorf("Expected non-nil LastVectorClock")
@@ -188,7 +186,7 @@ func TestSendAndReceiveUpdate(t *testing.T) {
 	node := setupTestNode(t, 0, 8080)
 	defer node.RE.Close()
 
-	conn := connectToNode(t, node, "ws://localhost:8081")
+	conn := connectToNode(t, node, "1", "ws://localhost:8081")
 	defer conn.Close()
 
 	// Receive initial gossip message

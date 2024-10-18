@@ -1,10 +1,13 @@
 package replication
 
+import "sync"
+
 type Event interface {
 	process(sm *StateMachine)
 }
 
 type StateMachine struct {
+	mu                   sync.Mutex
 	storage              StorageInterface
 	config               ReplicationConfig
 	peers                map[string]*Peer
@@ -53,6 +56,8 @@ func (sm *StateMachine) getPeerURLs() []string {
 }
 
 func (sm *StateMachine) NextTimestamp(local bool) *VectorClock {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 	// Increment the vector clock for this node
 	nodeID := uint64(sm.config.NodeID)
 	currentTimestamp, exists := sm.lastKnownVectorClock.Get(nodeID)
@@ -67,6 +72,8 @@ func (sm *StateMachine) NextTimestamp(local bool) *VectorClock {
 }
 
 func (sm *StateMachine) NextLocalTimestamp() Timestamp {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 	cur, _ := sm.lastKnownVectorClock.Get(uint64(sm.config.NodeID))
 	cur = cur.Next(true)
 	sm.lastKnownVectorClock.Update(uint64(sm.config.NodeID), cur)
