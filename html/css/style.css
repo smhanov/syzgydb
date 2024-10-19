@@ -1,0 +1,31 @@
+body {
+    @apply bg-gray-900 text-white;
+}
+
+#app {
+    @apply min-h-screen flex flex-col;
+}
+
+.container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+@keyframes highlight {
+    0% {
+        background-color: rgba(139, 92, 246, 0);
+    }
+    50% {
+        background-color: rgba(139, 92, 246, 0.2);
+    }
+    100% {
+        background-color: rgba(139, 92, 246, 0);
+    }
+}
+
+.collection-card {
+    transition: all 0.3s ease;
+}
+
+.collection-card:hover {
+    animation: highlight 1s ease-in-out infinite;
+}

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SyzgyDB Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'accent-blue': '#3b82f6',
+                        'accent-violet': '#8b5cf6',
+                    },
+                },
+            },
+        }
+    </script>
+    <link href="css/style.css" rel="stylesheet">
+    <script type="importmap">
+    {
+      "imports": {
+        "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js",
+        "vue-router": "https://unpkg.com/vue-router@4.2.5/dist/vue-router.esm-browser.js",
+        "@vue/devtools-api": "https://unpkg.com/@vue/devtools-api@6.5.0/lib/esm/index.js"
+      }
+    }
+    </script>
+</head>
+<body class="bg-gray-900 text-white">
+    <div id="app"></div>
+    <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -394,7 +394,6 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		searchArgs.Offset, _ = strconv.Atoi(query.Get("offset"))
 		searchArgs.Limit, _ = strconv.Atoi(query.Get("limit"))
 		searchArgs.Radius, _ = strconv.ParseFloat(query.Get("radius"), 64)
-		searchArgs.Radius, _ = strconv.ParseFloat(query.Get("radius"), 64)
 		searchArgs.K, _ = strconv.Atoi(query.Get("k"))
 		searchRequest.Text = query.Get("text")
 		searchArgs.Precision = query.Get("precision")
@@ -406,13 +405,13 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		}
 
 		searchArgs = SearchArgs{
-			Vector: searchRequest.Vector,
-			Offset: searchRequest.Offset,
-			Limit:  searchRequest.Limit,
-			Radius: searchRequest.Radius,
-			K:      searchRequest.K,
+			Vector:    searchRequest.Vector,
+			Offset:    searchRequest.Offset,
+			Limit:     searchRequest.Limit,
+			Radius:    searchRequest.Radius,
+			K:         searchRequest.K,
+			Precision: searchRequest.Precision,
 		}
-		searchArgs.Precision = searchRequest.Precision
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -449,18 +448,18 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		Distance float64                `json:"distance"`
 	}
 
-	jsonResults := make([]jsonSearchResult, len(results.Results))
-	for i, result := range results.Results {
+	jsonResults := make([]jsonSearchResult, 0, len(results.Results))
+	for _, result := range results.Results {
 		var metadata map[string]interface{}
 		if err := json.Unmarshal(result.Metadata, &metadata); err != nil {
 			log.Printf("Error decoding metadata for ID %d: %v", result.ID, err)
 			continue
 		}
-		jsonResults[i] = jsonSearchResult{
+		jsonResults = append(jsonResults, jsonSearchResult{
 			ID:       result.ID,
 			Metadata: metadata,
 			Distance: result.Distance,
-		}
+		})
 	}
 
 	json.NewEncoder(w).Encode(struct {

@@ -40,7 +40,7 @@ func CompileExpression(node Node) CompiledExpression {
 			}
 			var ret interface{}
 			ret, err = evaluateOperation(n.Operator, lval, rval)
-			log.Printf("Evaluated operation: `%v, %v, %v` to `%v, %v`", n.Operator, lval, rval, ret, err)
+			//log.Printf("Evaluated operation: `%v, %v, %v` to `%v, %v`", n.Operator, lval, rval, ret, err)
 			return ret, err
 		}
 	case *IdentifierNode:
@@ -49,7 +49,7 @@ func CompileExpression(node Node) CompiledExpression {
 		}
 	case *ValueNode:
 		return func(data interface{}) (interface{}, error) {
-			log.Printf("Returning n.Value of %v", n.Value)
+			//log.Printf("Returning n.Value of %v", n.Value)
 			return n.Value, nil
 		}
 	case *FunctionNode:
@@ -167,9 +167,9 @@ func CompileExpression(node Node) CompiledExpression {
 }
 
 func evaluateOperation(operator string, left, right interface{}) (interface{}, error) {
-	log.Printf("Evaluating operation: %s, %v, %v", operator, left, right)
-	log.Printf("Type of left: %T", left)
-	log.Printf("Type of right: %T", right)
+	//log.Printf("Evaluating operation: %s, %v, %v", operator, left, right)
+	//log.Printf("Type of left: %T", left)
+	//log.Printf("Type of right: %T", right)
 	switch operator {
 	case "==":
 		return reflect.DeepEqual(left, right), nil

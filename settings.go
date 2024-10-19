@@ -9,6 +9,7 @@ type Config struct {
 	ImageModel   string `mapstructure:"image_model"`
 	DataFolder   string `mapstructure:"data_folder"`
 	SyzgyHost    string `mapstructure:"syzgy_host"`
+	HTMLRoot     string `mapstructure:"html_root"`
 
 	// If non-zero, we will use psuedorandom numbers so everything is predictable for testing.
 	RandomSeed int64
@@ -23,6 +24,7 @@ func init() {
 		ImageModel:   "default_image_model",
 		DataFolder:   "default_data_folder",
 		SyzgyHost:    "default_syzgy_host",
+		HTMLRoot:     "./html",
 	}
 
 	myRandom = &myRandomType{}

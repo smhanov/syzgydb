@@ -519,39 +519,41 @@ func (db *SpanFile) ReadRecord(recordID string) (*Span, error) {
 }
 
 func (db *SpanFile) IterateRecords(callback func(recordID string, sr *SpanReader) error) error {
-	if myRandom.rand == nil {
-		// Fast path: iterate directly over the map when not in testing mode
-		for recordID, offset := range db.index {
-			if recordID == "" {
-				continue
-			}
-			spanData := db.mmapData[offset:]
-			sr := &SpanReader{data: spanData}
-
-			err := callback(recordID, sr)
-			if err != nil {
-				return err
-			}
+	if myRandom.rand != nil {
+		return db.IterateSortedRecords(callback)
+	}
+	for recordID, offset := range db.index {
+		if recordID == "" {
+			continue
 		}
-	} else {
-		// Testing mode: use a sorted slice for predictable order
-		recordIDs := make([]string, 0, len(db.index))
-		for recordID := range db.index {
-			if recordID != "" {
-				recordIDs = append(recordIDs, recordID)
-			}
+		spanData := db.mmapData[offset:]
+		sr := &SpanReader{data: spanData}
+
+		err := callback(recordID, sr)
+		if err != nil {
+			return err
 		}
-		sort.Strings(recordIDs)
+	}
+	return nil
+}
 
-		for _, recordID := range recordIDs {
-			offset := db.index[recordID]
-			spanData := db.mmapData[offset:]
-			sr := &SpanReader{data: spanData}
+func (db *SpanFile) IterateSortedRecords(callback func(recordID string, sr *SpanReader) error) error {
+	recordIDs := make([]string, 0, len(db.index))
+	for recordID := range db.index {
+		if recordID != "" {
+			recordIDs = append(recordIDs, recordID)
+		}
+	}
+	sort.Strings(recordIDs)
 
-			err := callback(recordID, sr)
-			if err != nil {
-				return err
-			}
+	for _, recordID := range recordIDs {
+		offset := db.index[recordID]
+		spanData := db.mmapData[offset:]
+		sr := &SpanReader{data: spanData}
+
+		err := callback(recordID, sr)
+		if err != nil {
+			return err
 		}
 	}
 	return nil

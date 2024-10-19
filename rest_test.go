@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -23,7 +21,7 @@ func TestMain(m *testing.M) {
 	}
 
 	if !verbose {
-		log.SetOutput(ioutil.Discard)
+		//		log.SetOutput(ioutil.Discard)
 	}
 
 	os.Exit(m.Run())
@@ -69,6 +67,84 @@ func TestGetCollectionIDs(t *testing.T) {
 	if !equalUint64Slices(ids, expectedIDs) {
 		t.Errorf("handler returned unexpected IDs: got %v want %v", ids, expectedIDs)
 	}
+}
+
+func TestSearchRecordsWithLimitAndOffset(t *testing.T) {
+	ensureTestFolder(t)
+	server := setupTestServer()
+
+	// Create the collection explicitly for this test
+	collection, err := NewCollection(CollectionOptions{
+		Name:           testFilePath("test_collection.dat"),
+		DistanceMethod: Cosine,
+		DimensionCount: 5,
+		Quantization:   64,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test collection: %v", err)
+	}
+	server.collections["test_collection"] = collection
+
+	// Add 10 documents to the collection
+	for i := 0; i < 10; i++ {
+		vector := []float64{float64(i) * 0.1, float64(i) * 0.2, float64(i) * 0.3, float64(i) * 0.4, float64(i) * 0.5}
+		metadata := fmt.Sprintf(`{"id":%d}`, i)
+		server.collections["test_collection"].AddDocument(uint64(i), vector, []byte(metadata))
+	}
+
+	// Helper function to perform search and check results
+	checkSearch := func(limit, offset int, expectedIDs []int) {
+		reqBody := fmt.Sprintf(`{"limit": %d, "offset": %d}`, limit, offset)
+		req, err := http.NewRequest(http.MethodPost, "/api/v1/collections/test_collection/search", strings.NewReader(reqBody))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rr := httptest.NewRecorder()
+		handler := http.HandlerFunc(server.handleSearchRecords)
+		handler.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		}
+
+		var response struct {
+			Results []struct {
+				ID       uint64                 `json:"id"`
+				Metadata map[string]interface{} `json:"metadata"`
+			} `json:"results"`
+		}
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatal(err)
+		}
+
+		t.Logf("Search with limit %d, offset %d", limit, offset)
+		actualIDs := make([]int, len(response.Results))
+		for i, result := range response.Results {
+			actualIDs[i] = int(result.ID)
+		}
+		t.Logf("Expected IDs: %v", expectedIDs)
+		t.Logf("Actual IDs: %v", actualIDs)
+
+		if len(actualIDs) != len(expectedIDs) {
+			t.Errorf("expected %d results, got %d", len(expectedIDs), len(actualIDs))
+		} else {
+			for i, id := range actualIDs {
+				if id != expectedIDs[i] {
+					t.Errorf("at position %d: expected ID %d, got %d", i, expectedIDs[i], id)
+				}
+			}
+		}
+	}
+
+	// Test cases
+	checkSearch(3, 0, []int{0, 1, 2})                       // First page
+	checkSearch(3, 3, []int{3, 4, 5})                       // Second page
+	checkSearch(3, 6, []int{6, 7, 8})                       // Third page
+	checkSearch(3, 9, []int{9})                             // Last page (partial)
+	checkSearch(5, 7, []int{7, 8, 9})                       // Overlap last page
+	checkSearch(20, 0, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) // All records
+	checkSearch(3, 20, []int{})                             // Beyond available records
 }
 
 func equalUint64Slices(a, b []uint64) bool {

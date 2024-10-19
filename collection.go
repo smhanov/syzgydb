@@ -574,6 +574,8 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		args.Precision = "medium"
 	}
 
+	log.Printf("Search called with %+v", args)
+
 	resultsPQ := &resultPriorityQueue{}
 	heap.Init(resultsPQ)
 	pointsSearched := 0
@@ -626,27 +628,73 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		return PointChecked, radius
 	}
 
-	if args.Radius == 0 && args.K == 0 || args.Precision == "exact" {
+	var results []SearchResult
+
+	if args.Radius == 0 && args.K == 0 {
+		stop := fmt.Errorf("stop iterating")
 		// Exhaustive search: consider all documents
-		c.spanfile.IterateRecords(func(recordID string, sr *SpanReader) error {
-			id, err := strconv.ParseUint(recordID, 10, 64)
-			if err == nil {
-				consider(id, 0)
+		err := c.spanfile.IterateSortedRecords(func(recordID string, sr *SpanReader) error {
+			id, _ := strconv.ParseUint(recordID, 10, 64)
+			metadata, err := sr.getStream(0)
+			if err != nil {
+				log.Printf("Warning -- could not read metadata for record %s", recordID)
 			}
+
+			if args.Filter != nil && !args.Filter(id, metadata) {
+				// skip this record
+				return nil
+			}
+			pointsSearched++
+
+			if args.Offset > 0 && pointsSearched <= args.Offset {
+				// skip this record
+				return nil
+			}
+
+			results = append(results, SearchResult{
+				ID:       id,
+				Metadata: metadata,
+			})
+
+			if args.Limit > 0 && len(results) >= args.Limit {
+				return stop
+			}
+
 			return nil
 		})
-	} else {
-		radius := math.MaxFloat64
-		if args.Radius > 0 {
-			radius = args.Radius
-		}
-		c.index.search(args.Vector, radius, consider)
-	}
 
-	// Extract results from the priority queue
-	results := make([]SearchResult, resultsPQ.Len())
-	for i := len(results) - 1; i >= 0; i-- {
-		results[i] = heap.Pop(resultsPQ).(*resultItem).SearchResult
+		if err != nil && err != stop {
+			log.Panicf("Failed to iterate records: %v", err)
+		}
+
+	} else {
+
+		if args.Precision == "exact" {
+			// Exact search: consider all documents
+			err := c.spanfile.IterateRecords(func(recordID string, sr *SpanReader) error {
+				id, err := strconv.ParseUint(recordID, 10, 64)
+				if err != nil {
+					return nil
+				}
+				consider(id, math.MaxFloat64)
+				return nil
+			})
+			if err != nil {
+				log.Panicf("Failed to iterate records: %v", err)
+			}
+		} else {
+			radius := math.MaxFloat64
+			if args.Radius > 0 {
+				radius = args.Radius
+			}
+			c.index.search(args.Vector, radius, consider)
+		}
+
+		// Extract results from the priority queue
+		results = make([]SearchResult, resultsPQ.Len())
+		for i := len(results) - 1; i >= 0; i-- {
+			results[i] = heap.Pop(resultsPQ).(*resultItem).SearchResult
+		}
 	}
 
 	_, numRecords := c.spanfile.GetStats()

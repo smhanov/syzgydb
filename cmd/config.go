@@ -18,6 +18,7 @@ func init() {
 	pflag.String("config", "", "Path to the configuration file")
 	pflag.String("data-folder", "./data", "Path to the data folder")
 	pflag.String("syzgy-host", "0.0.0.0:8080", "Host and port for the Syzygy server")
+	pflag.String("html-root", "./html", "Root directory for serving HTML files")
 
 	f := pflag.CommandLine
 	normalizeFunc := f.GetNormalizeFunc()
@@ -80,6 +81,7 @@ func LoadConfig() error {
 	fmt.Printf("Image Model: %s\n", cfg.ImageModel)
 	fmt.Printf("Data Folder: %s\n", cfg.DataFolder)
 	fmt.Printf("Port: %s\n", cfg.SyzgyHost)
+	fmt.Printf("HTML Root: %s\n", cfg.HTMLRoot)
 
 	// Assign the loaded configuration to the global variable
 	syzgydb.Configure(cfg)

@@ -49,7 +49,16 @@ func RunServer() {
 		}
 	})))
 
+	// Serve static files if HTMLRoot is set
+	if globalConfig.HTMLRoot != "" {
+		fs := http.FileServer(http.Dir(globalConfig.HTMLRoot))
+		http.Handle("/", http.StripPrefix("/", fs))
+	}
+
 	host := globalConfig.SyzgyHost
 	log.Printf("Starting server on %s", host)
+	if globalConfig.HTMLRoot != "" {
+		log.Printf("Serving static files from %s", globalConfig.HTMLRoot)
+	}
 	http.ListenAndServe(host, nil)
 }
