@@ -535,7 +535,6 @@ func (c *Collection) iterateDocuments(fn func(doc *Document)) {
 
 type resultItem struct {
 	SearchResult
-	Priority float64
 }
 
 type resultPriorityQueue []*resultItem
@@ -543,7 +542,7 @@ type resultPriorityQueue []*resultItem
 func (pq resultPriorityQueue) Len() int { return len(pq) }
 
 func (pq resultPriorityQueue) Less(i, j int) bool {
-	return pq[i].Priority > pq[j].Priority // Max-heap based on distance
+	return pq[i].Distance > pq[j].Distance // Max-heap based on distance
 }
 
 func (pq resultPriorityQueue) Swap(i, j int) {
@@ -598,22 +597,21 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		if args.Radius > 0 && distance <= args.Radius {
 			heap.Push(resultsPQ, &resultItem{
 				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
-				Priority:     distance,
 			})
 			return PointAccepted, radius
 		} else if args.Radius > 0 {
 			return PointChecked, radius
 		} else if args.K > 0 {
 			if resultsPQ.Len() <= args.K {
-				if resultsPQ.Len() < args.K || (*resultsPQ)[0].Priority > distance {
+				if resultsPQ.Len() < args.K || (*resultsPQ)[0].Distance > distance {
 					heap.Push(resultsPQ, &resultItem{
 						SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
-						Priority:     distance,
 					})
 					if resultsPQ.Len() > args.K {
 						heap.Pop(resultsPQ)
+						radius = (*resultsPQ)[0].Distance
+						log.Printf("k=%v radius changes to %v", args.K, radius)
 					}
-					radius = (*resultsPQ)[0].Distance
 					return PointAccepted, radius
 				}
 			}
@@ -621,7 +619,6 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 			// Exhaustive search: add all results
 			heap.Push(resultsPQ, &resultItem{
 				SearchResult: SearchResult{ID: doc.ID, Metadata: doc.Metadata, Distance: distance},
-				Priority:     distance,
 			})
 			return PointAccepted, radius
 		}

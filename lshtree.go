@@ -46,8 +46,9 @@ func randomNormalizedVector(rand *myRandomType, dim int) []float64 {
 type lshNode struct {
 	normal []float64
 	b      float64
-	// radius is the maximum distance of any point in the node and its children to the hyperplane.
-	radius      float64
+	// lmax is the maximum distance of any point in the left side of the tree to the hyperplane.
+	lmin, lmax  float64
+	rmin, rmax  float64
 	left, right *lshNode
 	ids         []uint64
 }
@@ -57,6 +58,14 @@ func (n *lshNode) isLeaf() bool {
 }
 
 func distanceToHyperplane(method int, vector []float64, length float64, normal []float64, b float64) (dist float64, right bool) {
+	dist = angularDistance(vector, normal)
+	if dist < 0.5 {
+		right = true
+	} else {
+		dist = 1 - dist
+	}
+	return
+
 	dist = dotProduct(vector, normal) - b
 	if method == Euclidean {
 		if dist > 0 {
@@ -69,8 +78,9 @@ func distanceToHyperplane(method int, vector []float64, length float64, normal [
 
 	// angular distance of two already-normalized vectors
 	dist = math.Acos(dist/length) / math.Pi
-	if dist > 0.5 {
+	if dist < 0.5 {
 		right = true
+	} else {
 		dist = 1 - dist
 	}
 	return
@@ -123,11 +133,14 @@ func (tree *lshTree) insert(node *lshNode, docid uint64, vector []float64, lengt
 	}
 
 	distance, right := distanceToHyperplane(tree.c.DistanceMethod, vector, length, node.normal, node.b)
-	node.radius = math.Max(node.radius, distance)
-	if !right {
-		node.left = tree.insert(node.left, docid, vector, length)
-	} else {
+	if right {
+		node.rmax = math.Max(node.rmax, distance)
+		node.rmin = math.Min(node.rmin, distance)
 		node.right = tree.insert(node.right, docid, vector, length)
+	} else {
+		node.lmax = math.Max(node.lmax, distance)
+		node.lmin = math.Min(node.lmin, distance)
+		node.left = tree.insert(node.left, docid, vector, length)
 	}
 
 	return node
@@ -212,7 +225,10 @@ func (tree *lshTree) split(node *lshNode) *lshNode {
 
 	leftIDs := []uint64{}
 	rightIDs := []uint64{}
-	var radius float64
+	var lmax float64
+	var rmax float64
+	lmin := math.MaxFloat64
+	rmin := math.MaxFloat64
 
 	for _, id := range node.ids {
 		doc, err := tree.c.getDocument(id)
@@ -224,11 +240,14 @@ func (tree *lshTree) split(node *lshNode) *lshNode {
 		length := vectorLength(v)
 
 		distance, right := distanceToHyperplane(tree.c.DistanceMethod, v, length, normal, b)
-		radius = math.Max(radius, distance)
-		if !right {
-			leftIDs = append(leftIDs, id)
-		} else {
+		if right {
+			rmax = math.Max(lmax, distance)
+			rmin = math.Min(lmin, distance)
 			rightIDs = append(rightIDs, id)
+		} else {
+			lmax = math.Max(lmax, distance)
+			lmin = math.Min(lmin, distance)
+			leftIDs = append(leftIDs, id)
 		}
 	}
 
@@ -241,7 +260,10 @@ func (tree *lshTree) split(node *lshNode) *lshNode {
 	return &lshNode{
 		normal: normal,
 		b:      b,
-		radius: radius,
+		lmax:   lmax,
+		lmin:   lmin,
+		rmax:   rmax,
+		rmin:   rmin,
 		left:   &lshNode{ids: leftIDs},
 		right:  &lshNode{ids: rightIDs},
 	}
@@ -272,10 +294,10 @@ func (tree *lshTree) remove(node *lshNode, docid uint64, vector []float64, lengt
 
 	// Traverse the tree based on the vector's position relative to the hyperplane
 	_, right := distanceToHyperplane(tree.c.DistanceMethod, vector, length, node.normal, node.b)
-	if !right {
-		node.left = tree.remove(node.left, docid, vector, length)
-	} else {
+	if right {
 		node.right = tree.remove(node.right, docid, vector, length)
+	} else {
+		node.left = tree.remove(node.left, docid, vector, length)
 	}
 	return node
 }
@@ -292,21 +314,14 @@ func (tree *lshTree) search(vector []float64, radius float64, callback searchCal
 	heap.Init(pq)
 
 	// Add all roots to the priority queue
-	for _, root := range tree.roots {
-		heap.Push(pq, &nodePriorityItem{node: root, priority: 0})
+	for _, node := range tree.roots {
+		heap.Push(pq, &nodePriorityItem{node: node})
 	}
 
 	for pq.Len() > 0 {
 		item := heap.Pop(pq).(*nodePriorityItem)
 		node := item.node
-		//log.Printf("Node with priority %v (tau=%v, k=%v) leaf=%v", item.priority, tau, k_counter, node.isLeaf())
-
-		if item.priority < 0 && -item.priority > radius {
-			// This is the "other" side of the hyperplane.
-			// We can stop searching because the distance to the hyperplane is greater than the radius
-			//log.Printf("Early stopping; %v > %v", -item.priority, radius)
-			continue
-		}
+		log.Printf("Node with priority %v (tau=%v, k=%v) leaf=%v", item.distance, radius, k_counter, node.isLeaf())
 
 		if k_counter >= search_k {
 			break
@@ -337,14 +352,15 @@ func (tree *lshTree) search(vector []float64, radius float64, callback searchCal
 		} else {
 			// Calculate the distance to the hyperplane
 			dist, right := distanceToHyperplane(tree.c.DistanceMethod, vector, length, node.normal, node.b)
+			log.Printf("Distance to hyperplane: right=%v %v (%v-%v, %v-%v)", right, dist, node.rmax, node.rmin, node.lmax, node.lmin)
 
 			// Add child nodes to the priority queue
 			if right {
-				heap.Push(pq, &nodePriorityItem{node: node.right, priority: dist})
-				heap.Push(pq, &nodePriorityItem{node: node.left, priority: -dist})
+				heap.Push(pq, &nodePriorityItem{node: node.right, distance: dist - node.rmax})
+				heap.Push(pq, &nodePriorityItem{node: node.left, distance: dist})
 			} else {
-				heap.Push(pq, &nodePriorityItem{node: node.left, priority: dist})
-				heap.Push(pq, &nodePriorityItem{node: node.right, priority: -dist})
+				heap.Push(pq, &nodePriorityItem{node: node.left, distance: dist - node.lmax})
+				heap.Push(pq, &nodePriorityItem{node: node.right, distance: dist})
 			}
 		}
 	}
@@ -352,7 +368,7 @@ func (tree *lshTree) search(vector []float64, radius float64, callback searchCal
 
 type nodePriorityItem struct {
 	node     *lshNode
-	priority float64
+	distance float64
 }
 
 type nodePriorityQueue []*nodePriorityItem
@@ -360,7 +376,8 @@ type nodePriorityQueue []*nodePriorityItem
 func (pq nodePriorityQueue) Len() int { return len(pq) }
 
 func (pq nodePriorityQueue) Less(i, j int) bool {
-	return pq[i].priority > pq[j].priority // Max-heap based on priority
+	return pq[i].distance < pq[j].distance
+	//return pq[i].priority > pq[j].priority // Max-heap based on priority
 }
 
 func (pq nodePriorityQueue) Swap(i, j int) {
