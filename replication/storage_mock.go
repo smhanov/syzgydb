@@ -51,7 +51,7 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 }
 
 // GetUpdatesSince retrieves updates that occurred after the given vector clock, up to maxResults.
-func (ms *MockStorage) GetUpdatesSince(vectorClock *VectorClock, maxResults int) (map[string][]Update, bool, error) {
+func (ms *MockStorage) GetUpdatesSince(sequences *NodeSequences, maxResults int) (map[string][]Update, bool, error) {
 	ms.updatesMutex.Lock()
 	defer ms.updatesMutex.Unlock()
 
@@ -60,7 +60,7 @@ func (ms *MockStorage) GetUpdatesSince(vectorClock *VectorClock, maxResults int)
 	hasMore := false
 
 	for _, update := range ms.updates {
-		if vectorClock.BeforeTimestamp(update.NodeID, update.Timestamp) {
+		if sequences.BeforeNode(update.NodeID, update.SequenceNo) {
 			if totalUpdates >= maxResults {
 				hasMore = true
 				break
@@ -73,7 +73,7 @@ func (ms *MockStorage) GetUpdatesSince(vectorClock *VectorClock, maxResults int)
 		}
 	}
 
-	log.Printf("[node%d] Updates since %v: %v", ms.nodeID, vectorClock, result)
+	log.Printf("[node%d] Updates since %v: %v", ms.nodeID, sequences, result)
 	return result, hasMore, nil
 }
 
@@ -110,4 +110,8 @@ func (ms *MockStorage) GetRecord(databaseName, recordID string) ([]DataStream, e
 		}
 	}
 	return nil, fmt.Errorf("record not found")
+}
+
+func (ms *MockStorage) SaveState(state []byte) error {
+	return nil
 }

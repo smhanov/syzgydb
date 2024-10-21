@@ -5,14 +5,6 @@ import (
 	"time"
 )
 
-func TestVectorClockComparison(t *testing.T) {
-	vc1 := NewVectorClock().Update(1, Timestamp{UnixTime: 1000, LamportClock: 1})
-	vc2 := NewVectorClock().Update(1, Timestamp{UnixTime: 1000, LamportClock: 2})
-	if vc1.Compare(vc2) != -1 {
-		t.Error("Expected vc1 < vc2")
-	}
-}
-
 func TestBasicOperations(t *testing.T) {
 	storage := NewMockStorage(0)
 

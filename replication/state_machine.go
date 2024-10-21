@@ -3,6 +3,8 @@ package replication
 import (
 	"encoding/json"
 	"sync"
+
+	pb "github.com/smhanov/syzgydb/replication/proto"
 )
 
 type Event interface {
@@ -69,17 +71,13 @@ func (sm *StateMachine) Stop() {
 	close(sm.done)
 }
 
-func (sm *StateMachine) UpdateTimestamp(t Timestamp) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
+func (sm *StateMachine) updateTimestamp(t Timestamp) {
 	if t.After(sm.timestamp) {
 		sm.timestamp = t
 	}
 }
 
-func (sm *StateMachine) SaveState() ([]byte, error) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
+func (sm *StateMachine) saveState() ([]byte, error) {
 	state := replicationState{
 		NodeSequences: sm.nodeSequences,
 		Timestamp:     sm.timestamp,
@@ -95,27 +93,17 @@ func (sm *StateMachine) getPeerURLs() []string {
 	return keys
 }
 
-func (sm *StateMachine) NextTimestamp(local bool) *VectorClock {
+func (sm *StateMachine) nextTimestamp() Timestamp {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	// Increment the vector clock for this node
-	nodeID := uint64(sm.config.NodeID)
-	currentTimestamp, exists := sm.lastKnownVectorClock.Get(nodeID)
-	if !exists {
-		currentTimestamp = Timestamp{}
-	}
-	newTimestamp := currentTimestamp.Next(local)
-	sm.lastKnownVectorClock.Update(nodeID, newTimestamp)
 
-	// Return a copy of the updated vector clock
-	return sm.lastKnownVectorClock.Clone()
+	return sm.timestamp.Next(true)
 }
 
-func (sm *StateMachine) NextLocalTimestamp() Timestamp {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-	cur, _ := sm.lastKnownVectorClock.Get(uint64(sm.config.NodeID))
-	cur = cur.Next(true)
-	sm.lastKnownVectorClock.Update(uint64(sm.config.NodeID), cur)
-	return cur
+func (sm *StateMachine) incrementAndGetTimestamp() *pb.Timestamp {
+	ts := sm.nextTimestamp()
+	return &pb.Timestamp{
+		UnixTime:     ts.UnixTime,
+		LamportClock: ts.LamportClock,
+	}
 }

@@ -1,7 +1,6 @@
 package replication
 
 import (
-	"bytes"
 	"fmt"
 	"time"
 
@@ -70,13 +69,6 @@ func (t Timestamp) Before(other Timestamp) bool {
 // Equal checks if two Timestamps are equal.
 func (t Timestamp) Equal(other Timestamp) bool {
 	return t.LamportClock == other.LamportClock && t.UnixTime == other.UnixTime
-}
-
-// Bytes serializes the Timestamp into a byte slice.
-func (t Timestamp) Bytes() []byte {
-	buf := new(bytes.Buffer)
-	// Implement serialization logic here
-	return buf.Bytes()
 }
 
 // toProto converts a Timestamp to its protobuf representation.

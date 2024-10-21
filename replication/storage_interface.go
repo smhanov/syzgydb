@@ -24,6 +24,7 @@ type DataStream struct {
 // Update represents a single update operation in the replication system.
 type Update struct {
 	NodeID       uint64       `json:"node_id"`
+	SequenceNo   uint64       `json:"sequence_no"`
 	Timestamp    Timestamp    `json:"timestamp"`
 	Type         UpdateType   `json:"type"`
 	RecordID     string       `json:"record_id"`
@@ -75,7 +76,7 @@ type StorageInterface interface {
 
 	// GetUpdatesSince retrieves updates that occurred after the given vector clock, up to maxResults.
 	// It returns the updates, a boolean indicating if there are more results, and an error if any.
-	GetUpdatesSince(vectorClock *VectorClock, maxResults int) (map[string][]Update, bool, error)
+	GetUpdatesSince(nodeSequences *NodeSequences, maxResults int) (map[string][]Update, bool, error)
 
 	// ResolveConflict determines which of two conflicting updates should be applied.
 	ResolveConflict(update1, update2 Update) (Update, error)
@@ -85,6 +86,9 @@ type StorageInterface interface {
 
 	// GetRecord retrieves a record by its ID and database name.
 	GetRecord(databaseName, recordID string) ([]DataStream, error)
+
+	// Save replication state to storage.
+	SaveState(state []byte) error
 }
 
 const MaxUpdateResults = 100

@@ -27,7 +27,7 @@ func setupTestNode(t *testing.T, nodeID uint64, port int) *TestNode {
 		JWTSecret: []byte("test_secret"),
 		NodeID:    nodeID,
 	}
-	re, err := Init(storage, config, NewVectorClock().Update(nodeID, Now()))
+	re, err := Init(storage, config, nil)
 	if err != nil {
 		t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
 	}
@@ -60,7 +60,8 @@ func connectToNode(t *testing.T, node *TestNode, clientID, clientURL string) *we
 // Helper function to create a protocol buffer Message
 func createProtoMessage(messageType pb.Message_MessageType, content proto.Message) *pb.Message {
 	msg := &pb.Message{
-		Type: messageType,
+		Type:      messageType,
+		TimeStamp: Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 1}.toProto(),
 	}
 
 	switch v := content.(type) {
@@ -97,7 +98,7 @@ func createProtoBatchUpdate(updates []Update) *pb.BatchUpdate {
 }
 
 // Helper function to create a protocol buffer UpdateRequest
-func createProtoUpdateRequest(since *VectorClock, maxResults int32) *pb.UpdateRequest {
+func createProtoUpdateRequest(since *NodeSequences, maxResults int32) *pb.UpdateRequest {
 	return &pb.UpdateRequest{
 		Since:      since.toProto(),
 		MaxResults: maxResults,
@@ -175,10 +176,10 @@ func TestGossipMessageReceived(t *testing.T) {
 		t.Errorf("Expected KnownPeers to be ['ws://localhost:8081'], got %v", gossipMsg.KnownPeers)
 	}
 
-	fmt.Printf("Received VectorClock: %s\n", gossipMsg.LastVectorClock)
+	fmt.Printf("Received VectorClock: %s\n", gossipMsg.NodeSequences)
 
-	if gossipMsg.LastVectorClock == nil {
-		t.Errorf("Expected non-nil LastVectorClock")
+	if gossipMsg.NodeSequences == nil {
+		t.Errorf("Expected non-nil NodeSequences")
 	}
 }
 

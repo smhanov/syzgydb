@@ -13,7 +13,7 @@ const sleepTime = 400 * time.Millisecond
 // Helper function to create a database
 func createDatabase(t *testing.T, node *ReplicationEngine, dbName string) {
 	createDBUpdate := Update{
-		Timestamp:    node.NextLocalTimestamp(),
+		Timestamp:    node.NextTimestamp(),
 		Type:         CreateDatabase,
 		DatabaseName: dbName,
 	}
@@ -69,7 +69,7 @@ func TestBufferedUpdates(t *testing.T) {
 	// Node 1 submits a record to the database
 	update := Update{
 		NodeID:       1,
-		Timestamp:    nodes[1].NextLocalTimestamp(),
+		Timestamp:    nodes[1].NextTimestamp(),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
@@ -125,7 +125,7 @@ func TestScalability(t *testing.T) {
 
 	// Create the "testdb" database on the first node
 	createDBUpdate := Update{
-		Timestamp:    nodes[0].NextLocalTimestamp(),
+		Timestamp:    nodes[0].NextTimestamp(),
 		Type:         CreateDatabase,
 		DatabaseName: "testdb",
 	}
@@ -139,7 +139,7 @@ func TestScalability(t *testing.T) {
 		nodeIndex := i % nodeCount
 		update := Update{
 			NodeID:       uint64(nodeIndex),
-			Timestamp:    nodes[nodeIndex].NextLocalTimestamp(),
+			Timestamp:    nodes[nodeIndex].NextTimestamp(),
 			Type:         UpsertRecord,
 			RecordID:     fmt.Sprintf("record%d", i),
 			DataStreams:  []DataStream{{StreamID: 1, Data: []byte(fmt.Sprintf("data%d", i))}},
@@ -180,7 +180,7 @@ func setupTestEnvironment(t *testing.T, nodeCount int) []*ReplicationEngine {
 			JWTSecret: []byte("test_secret"),
 			NodeID:    uint64(i),
 		}
-		re, err := Init(storage, config, NewVectorClock().Update(uint64(i), Now()))
+		re, err := Init(storage, config, nil)
 		if err != nil {
 			t.Fatalf("Failed to initialize ReplicationEngine: %v", err)
 		}
@@ -220,7 +220,7 @@ func TestBasicReplication(t *testing.T) {
 
 	// Submit an update to node0
 	update := Update{
-		Timestamp:    nodes[0].NextLocalTimestamp(),
+		Timestamp:    nodes[0].NextTimestamp(),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("test data")}},
@@ -256,7 +256,7 @@ func TestConflictResolution(t *testing.T) {
 
 	// Submit conflicting updates to both nodes
 	update1 := Update{
-		Timestamp: nodes[0].NextLocalTimestamp(),,
+		Timestamp: nodes[0].NextTimestamp(),,
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data from node0")}},
@@ -301,7 +301,7 @@ func TestNetworkPartition(t *testing.T) {
 
 	// Submit updates to node0 and node2
 	update1 := Update{
-		Timestamp:    nodes[0].NextLocalTimestamp(),
+		Timestamp:    nodes[0].NextTimestamp(),
 		Type:         UpsertRecord,
 		RecordID:     "record1",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data from node0")}},
@@ -309,7 +309,7 @@ func TestNetworkPartition(t *testing.T) {
 	}
 	update2 := Update{
 		NodeID:       2,
-		Timestamp:    nodes[2].NextLocalTimestamp(),
+		Timestamp:    nodes[2].NextTimestamp(),
 		Type:         UpsertRecord,
 		RecordID:     "record2",
 		DataStreams:  []DataStream{{StreamID: 1, Data: []byte("data from node2")}},

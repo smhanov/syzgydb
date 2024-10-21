@@ -10,22 +10,22 @@ import (
 
 // Peer represents a connected peer in the replication system.
 type Peer struct {
-	name                 string
-	url                  string
-	connection           Connection
-	lastActive           time.Time
-	lastKnownVectorClock *VectorClock
-	stateMachine         *StateMachine
+	name          string
+	url           string
+	connection    Connection
+	lastActive    time.Time
+	nodeSequences *NodeSequences
+	stateMachine  *StateMachine
 }
 
 // NewPeer creates a new Peer instance.
 func NewPeer(name, url string, sm *StateMachine) *Peer {
 	return &Peer{
-		name:                 name,
-		url:                  url,
-		lastActive:           time.Now(),
-		lastKnownVectorClock: NewVectorClock(),
-		stateMachine:         sm,
+		name:          name,
+		url:           url,
+		lastActive:    time.Now(),
+		nodeSequences: NewNodeSequences(),
+		stateMachine:  sm,
 	}
 }
 
@@ -49,6 +49,14 @@ func (p *Peer) ReadLoop(eventChan chan<- Event) {
 			continue
 		}
 
+		//log.Printf("msg is %+v", msg)
+
+		// Update the state machine's timestamp
+		p.stateMachine.updateTimestamp(Timestamp{
+			UnixTime:     msg.TimeStamp.UnixTime,
+			LamportClock: msg.TimeStamp.LamportClock,
+		})
+
 		switch msg.Type {
 		case pb.Message_GOSSIP:
 			if gossipMsg := msg.GetGossipMessage(); gossipMsg != nil {
@@ -60,7 +68,7 @@ func (p *Peer) ReadLoop(eventChan chan<- Event) {
 			if updateReq := msg.GetUpdateRequest(); updateReq != nil {
 				eventChan <- UpdateRequestEvent{
 					Peer:       p,
-					Since:      fromProtoVectorClock(updateReq.Since),
+					Since:      fromProtoNodeSequences(updateReq.Since),
 					MaxResults: int(updateReq.MaxResults),
 				}
 			} else {

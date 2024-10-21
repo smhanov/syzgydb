@@ -11,17 +11,9 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func (sm *StateMachine) incrementAndGetTimestamp() *pb.Timestamp {
-	sm.timestamp = sm.timestamp.Next(true)
-	return &pb.Timestamp{
-		UnixTime:     sm.timestamp.UnixTime,
-		LamportClock: sm.timestamp.LamportClock,
-	}
-}
-
 type UpdateRequestEvent struct {
 	Peer       *Peer
-	Since      *VectorClock
+	Since      *NodeSequences
 	MaxResults int
 }
 
@@ -68,8 +60,8 @@ func (e BatchUpdateEvent) process(sm *StateMachine) {
 	for _, protoUpdate := range e.BatchUpdate.Updates {
 		update := fromProtoUpdate(protoUpdate)
 		updates = append(updates, update)
-
-		e.Peer.lastKnownVectorClock.Update(update.NodeID, update.Timestamp)
+		sm.nodeSequences.Update(update.NodeID, update.SequenceNo)
+		e.Peer.nodeSequences.Update(update.NodeID, update.SequenceNo)
 	}
 
 	sm.storage.CommitUpdates(updates)
@@ -84,11 +76,7 @@ type AddPeerEvent struct {
 func (e AddPeerEvent) process(sm *StateMachine) {
 	log.Printf("[%d] Processing AddPeerEvent %s", sm.config.NodeID, e.URL)
 	if _, exists := sm.peers[e.URL]; !exists {
-		sm.peers[e.URL] = &Peer{
-			url:                  e.URL,
-			lastKnownVectorClock: NewVectorClock(),
-			stateMachine:         sm,
-		}
+		sm.peers[e.URL] = NewPeer("", e.URL, sm)
 		// Schedule a ConnectPeerEvent instead of directly connecting
 		sm.eventChan <- ConnectPeerEvent(e)
 	}
@@ -245,9 +233,8 @@ type GossipMessageEvent struct {
 
 func (e GossipMessageEvent) process(sm *StateMachine) {
 	log.Printf("[%d]<-[%s] Processing GossipMessageEvent", sm.config.NodeID, e.Message.NodeId)
-	peerVectorClock := fromProtoVectorClock(e.Message.LastVectorClock)
 
-	e.Peer.lastKnownVectorClock = peerVectorClock
+	e.Peer.nodeSequences = fromProtoNodeSequences(e.Message.NodeSequences)
 	e.Peer.name = e.Message.NodeId
 
 	for _, peer := range sm.peers {
@@ -261,17 +248,17 @@ func (e GossipMessageEvent) process(sm *StateMachine) {
 		}
 	}
 
-	if sm.lastKnownVectorClock.Before(peerVectorClock) {
-		log.Printf("[%d]->[%s] Request updates", sm.config.NodeID, e.Peer.name)
+	// TODO: schedule updates from peers to avoid requesting the same changes from multiple peers.
+	if sm.nodeSequences.Before(e.Peer.nodeSequences) {
+		log.Printf("[%d]->[%s] Request updates since %s", sm.config.NodeID, e.Peer.name, e.Peer.nodeSequences)
 		updateRequest := &pb.UpdateRequest{
-			Since:      sm.lastKnownVectorClock.toProto(),
+			Since:      sm.nodeSequences.toProto(),
 			MaxResults: MaxUpdateResults,
 		}
 
 		msg := &pb.Message{
-			Type:        pb.Message_UPDATE_REQUEST,
-			TimeStamp:   sm.incrementAndGetTimestamp(),
-			VectorClock: sm.lastKnownVectorClock.toProto(),
+			Type:      pb.Message_UPDATE_REQUEST,
+			TimeStamp: sm.incrementAndGetTimestamp(),
 			Content: &pb.Message_UpdateRequest{
 				UpdateRequest: updateRequest,
 			},
@@ -313,13 +300,12 @@ func (e PeerHeartbeatEvent) process(sm *StateMachine) {
 	log.Printf("[%d] Processing PeerHeartbeatEvent", sm.config.NodeID)
 	for _, peer := range sm.peers {
 		heartbeat := &pb.Heartbeat{
-			VectorClock: sm.lastKnownVectorClock.toProto(),
+			NodeSequences: sm.nodeSequences.toProto(),
 		}
 
 		msg := &pb.Message{
-			Type:        pb.Message_HEARTBEAT,
-			TimeStamp:   sm.incrementAndGetTimestamp(),
-			VectorClock: sm.lastKnownVectorClock.toProto(),
+			Type:      pb.Message_HEARTBEAT,
+			TimeStamp: sm.incrementAndGetTimestamp(),
 			Content: &pb.Message_Heartbeat{
 				Heartbeat: heartbeat,
 			},
@@ -353,42 +339,41 @@ func (e LocalUpdatesEvent) process(sm *StateMachine) {
 		e.ReplyChan <- err
 		return
 	}
-
-	// Create a BatchUpdate message
-	batchUpdate := &pb.BatchUpdate{
-		Updates: toProtoUpdates(e.Updates),
-		HasMore: false,
-	}
-
-	// Create a Message containing the BatchUpdate
-	msg := &pb.Message{
-		Type:        pb.Message_BATCH_UPDATE,
-		TimeStamp:   sm.incrementAndGetTimestamp(),
-		VectorClock: sm.lastKnownVectorClock.toProto(),
-		Content: &pb.Message_BatchUpdate{
-			BatchUpdate: batchUpdate,
-		},
-	}
-
-	// Marshal the message
-	data, err := proto.Marshal(msg)
-	if err != nil {
-		log.Printf("[%d] Error marshaling BatchUpdate message: %v", sm.config.NodeID, err)
-		e.ReplyChan <- err
-		return
-	}
-
-	// Send the BatchUpdate to all connected peers
-	for _, peer := range sm.peers {
-		if peer.connection != nil {
-			log.Printf("[%d] Sending BatchUpdate to peer [%s]", sm.config.NodeID, peer.name)
-			err := peer.connection.WriteMessage(websocket.BinaryMessage, data)
-			if err != nil {
-				log.Printf("[%d] Error sending BatchUpdate to peer %s: %v", sm.config.NodeID, peer.url, err)
-				// Note: We're not treating this as a fatal error, just logging it
-			}
+	/*
+		// Create a BatchUpdate message
+		batchUpdate := &pb.BatchUpdate{
+			Updates: toProtoUpdates(e.Updates),
+			HasMore: false,
 		}
-	}
+
+		// Create a Message containing the BatchUpdate
+		msg := &pb.Message{
+			Type:      pb.Message_BATCH_UPDATE,
+			TimeStamp: sm.incrementAndGetTimestamp(),
+			Content: &pb.Message_BatchUpdate{
+				BatchUpdate: batchUpdate,
+			},
+		}
+
+		// Marshal the message
+		data, err := proto.Marshal(msg)
+		if err != nil {
+			log.Printf("[%d] Error marshaling BatchUpdate message: %v", sm.config.NodeID, err)
+			e.ReplyChan <- err
+			return
+		}
+
+		// Send the BatchUpdate to all connected peers
+		for _, peer := range sm.peers {
+			if peer.connection != nil {
+				log.Printf("[%d] Sending BatchUpdate to peer [%s]", sm.config.NodeID, peer.name)
+				err := peer.connection.WriteMessage(websocket.BinaryMessage, data)
+				if err != nil {
+					log.Printf("[%d] Error sending BatchUpdate to peer %s: %v", sm.config.NodeID, peer.url, err)
+					// Note: We're not treating this as a fatal error, just logging it
+				}
+			}
+		}*/
 
 	// Signal that the updates have been processed
 	e.ReplyChan <- nil
@@ -414,32 +399,4 @@ func (e PeerDisconnectEvent) process(sm *StateMachine) {
 		time.Sleep(5 * time.Second)
 		sm.eventChan <- ConnectPeerEvent{URL: e.Peer.url}
 	}()
-}
-
-func (p *Peer) ReadLoop(eventChan chan<- Event) {
-	for {
-		_, message, err := p.connection.ReadMessage()
-		if err != nil {
-			log.Printf("Error reading message from peer %s: %v", p.url, err)
-			eventChan <- PeerDisconnectEvent{Peer: p}
-			return
-		}
-
-		var pbMessage pb.Message
-		err = proto.Unmarshal(message, &pbMessage)
-		if err != nil {
-			log.Printf("Error unmarshaling message from peer %s: %v", p.url, err)
-			continue
-		}
-
-		// Update the state machine's timestamp
-		p.stateMachine.UpdateTimestamp(Timestamp{
-			UnixTime:     pbMessage.TimeStamp.UnixTime,
-			LamportClock: pbMessage.TimeStamp.LamportClock,
-		})
-
-		switch pbMessage.Type {
-		// ... (rest of the switch statement)
-		}
-	}
 }

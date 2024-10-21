@@ -69,6 +69,10 @@ func (re *ReplicationEngine) Listen(address string) error {
 	return nil
 }
 
+func (re *ReplicationEngine) NextTimestamp() Timestamp {
+	return re.stateMachine.nextTimestamp()
+}
+
 func (re *ReplicationEngine) Close() error {
 	re.stateMachine.Stop()
 	if re.server != nil {
@@ -84,14 +88,6 @@ func (re *ReplicationEngine) AddPeer(url string) {
 	re.stateMachine.eventChan <- AddPeerEvent{URL: url}
 }
 
-func (re *ReplicationEngine) NextTimestamp(local bool) *VectorClock {
-	return re.stateMachine.NextTimestamp(local)
-}
-
-func (re *ReplicationEngine) NextLocalTimestamp() Timestamp {
-	return re.stateMachine.NextLocalTimestamp()
-}
-
 func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	replyChan := make(chan struct{})
 	re.stateMachine.eventChan <- WebSocketConnectionEvent{ResponseWriter: w, Request: r, ReplyChan: replyChan}
@@ -105,21 +101,10 @@ func (re *ReplicationEngine) startHeartbeatTimer() {
 			select {
 			case <-ticker.C:
 				re.stateMachine.eventChan <- PeerHeartbeatEvent{}
-				re.SaveState() // Save state after each heartbeat
 			case <-re.stateMachine.done:
 				ticker.Stop()
 				return
 			}
 		}
 	}()
-}
-
-func (re *ReplicationEngine) SaveState() error {
-	state, err := re.stateMachine.SaveState()
-	if err != nil {
-		return err
-	}
-	// Implement the logic to store the state bytes
-	// This could involve writing to a file, database, or other storage
-	return nil
 }
