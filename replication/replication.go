@@ -21,7 +21,7 @@ type ReplicationEngine struct {
 	storage      StorageInterface
 }
 
-func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *VectorClock) (*ReplicationEngine, error) {
+func Init(storage StorageInterface, config ReplicationConfig, state []byte) (*ReplicationEngine, error) {
 	if storage == nil {
 		return nil, errors.New("storage cannot be nil")
 	}
@@ -32,7 +32,7 @@ func Init(storage StorageInterface, config ReplicationConfig, localVectorClock *
 		return nil, errors.New("config.JWTSecret cannot be empty")
 	}
 
-	sm := NewStateMachine(storage, config, localVectorClock)
+	sm := NewStateMachine(storage, config, state)
 
 	re := &ReplicationEngine{
 		stateMachine: sm,

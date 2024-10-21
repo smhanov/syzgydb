@@ -1,31 +1,49 @@
 package replication
 
-import "sync"
+import (
+	"encoding/json"
+	"sync"
+)
 
 type Event interface {
 	process(sm *StateMachine)
 }
 
 type StateMachine struct {
-	mu                   sync.Mutex
-	storage              StorageInterface
-	config               ReplicationConfig
-	peers                map[string]*Peer
-	lastKnownVectorClock *VectorClock
-	bufferedUpdates      map[string][]Update
-	eventChan            chan Event
-	done                 chan struct{}
+	mu              sync.Mutex
+	storage         StorageInterface
+	config          ReplicationConfig
+	peers           map[string]*Peer
+	nodeSequences   *NodeSequences
+	bufferedUpdates map[string][]Update
+	eventChan       chan Event
+	done            chan struct{}
 }
 
-func NewStateMachine(storage StorageInterface, config ReplicationConfig, localVectorClock *VectorClock) *StateMachine {
+type replicationState struct {
+	NodeSequences *NodeSequences `json:"node_sequences"`
+}
+
+func NewStateMachine(storage StorageInterface, config ReplicationConfig, state []byte) *StateMachine {
+	var rstate replicationState
+	if rstate != nil {
+		if err := json.Unmarshal(state, &rstate); err != nil {
+			panic("failed to unmarshal replication state: " + err.Error())
+		}
+	} else {
+		rstate = replicationState{
+			NodeSequences: NewNodeSequences(),
+		}
+	}
+
 	sm := &StateMachine{
-		storage:              storage,
-		config:               config,
-		peers:                make(map[string]*Peer),
-		lastKnownVectorClock: localVectorClock.Clone(),
-		bufferedUpdates:      make(map[string][]Update),
-		eventChan:            make(chan Event, 1000),
-		done:                 make(chan struct{}),
+		storage:         storage,
+		config:          config,
+		peers:           make(map[string]*Peer),
+		nodeSequences:   rstate.NodeSequences,
+		bufferedUpdates: make(map[string][]Update),
+		eventChan:       make(chan Event, 1000),
+		done:            make(chan struct{}),
 	}
 
 	go sm.eventLoop()
