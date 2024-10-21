@@ -1,6 +1,7 @@
 package replication
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -212,4 +213,83 @@ func TestSendAndReceiveUpdate(t *testing.T) {
 		t.Fatalf("Expected BATCH_UPDATE response, got %v", response.Type)
 	}
 	// Add more specific checks for the response content
+}
+
+func TestMultipleUpdatesAndSync(t *testing.T) {
+	// 1. Start a node
+	node := setupTestNode(t, 1, 8080)
+	defer node.RE.Close()
+
+	// 2. Update a record with the same id twice using replication engine.SubmitUpdates
+	updates := []Update{
+		{
+			Type:     UpsertRecord,
+			RecordID: "testRecord",
+			DataStreams: []DataStream{
+				{StreamID: 1, Data: []byte("first update")},
+			},
+		},
+		{
+			Type:     UpsertRecord,
+			RecordID: "testRecord",
+			DataStreams: []DataStream{
+				{StreamID: 1, Data: []byte("second update")},
+			},
+		},
+	}
+
+	err := node.RE.SubmitUpdates(updates)
+	if err != nil {
+		t.Fatalf("Failed to submit updates: %v", err)
+	}
+
+	// 3. Connect to it as a peer and expect the gossip message
+	conn := connectToNode(t, node, "2", "ws://localhost:8081")
+	defer conn.Close()
+
+	gossipMsg := receiveMessage(t, conn, 5*time.Second)
+	if gossipMsg.Type != pb.Message_GOSSIP {
+		t.Fatalf("Expected GOSSIP message, got %v", gossipMsg.Type)
+	}
+
+	// 4. Send the update_request starting at the correct node id and sequence number 0
+	updateRequest := createProtoUpdateRequest(NewNodeSequences(), MaxUpdateResults)
+	updateRequestMsg := createProtoMessage(pb.Message_UPDATE_REQUEST, updateRequest)
+	sendMessage(t, conn, updateRequestMsg)
+
+	// 5. Expect both updates to come through
+	batchUpdateMsg := receiveMessage(t, conn, 5*time.Second)
+	if batchUpdateMsg.Type != pb.Message_BATCH_UPDATE {
+		t.Fatalf("Expected BATCH_UPDATE message, got %v", batchUpdateMsg.Type)
+	}
+
+	batchUpdate := batchUpdateMsg.GetBatchUpdate()
+	if batchUpdate == nil {
+		t.Fatalf("Received nil BatchUpdate")
+	}
+
+	if len(batchUpdate.Updates) != 2 {
+		t.Fatalf("Expected 2 updates, got %d", len(batchUpdate.Updates))
+	}
+
+	// Verify the contents of the updates
+	for i, update := range batchUpdate.Updates {
+		if update.RecordId != "testRecord" {
+			t.Errorf("Update %d: Expected RecordId 'testRecord', got '%s'", i, update.RecordId)
+		}
+		if update.NodeId != 1 {
+			t.Errorf("Update %d: Expected NodeId 1, got %d", i, update.NodeId)
+		}
+		if update.SequenceNumber != uint64(i+1) {
+			t.Errorf("Update %d: Expected SequenceNumber %d, got %d", i, i+1, update.SequenceNumber)
+		}
+		if len(update.DataStreams) != 1 {
+			t.Errorf("Update %d: Expected 1 DataStream, got %d", i, len(update.DataStreams))
+		} else {
+			expectedData := []byte(fmt.Sprintf("%s update", []string{"first", "second"}[i]))
+			if !bytes.Equal(update.DataStreams[0].Data, expectedData) {
+				t.Errorf("Update %d: Expected data '%s', got '%s'", i, expectedData, update.DataStreams[0].Data)
+			}
+		}
+	}
 }
