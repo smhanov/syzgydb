@@ -30,8 +30,7 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 	}
 
 	msg := &pb.Message{
-		Type:        pb.Message_BATCH_UPDATE,
-		VectorClock: sm.lastKnownVectorClock.toProto(),
+		Type: pb.Message_BATCH_UPDATE,
 		Content: &pb.Message_BatchUpdate{
 			BatchUpdate: batchUpdate,
 		},
@@ -205,14 +204,13 @@ type SendGossipEvent struct {
 func (e SendGossipEvent) process(sm *StateMachine) {
 	log.Printf("[%d]->[%s] Processing SendGossipEvent", sm.config.NodeID, e.Peer.name)
 	msg := &pb.GossipMessage{
-		NodeId:          fmt.Sprintf("%d", sm.config.NodeID),
-		KnownPeers:      sm.getPeerURLs(),
-		LastVectorClock: sm.lastKnownVectorClock.toProto(),
+		NodeId:        fmt.Sprintf("%d", sm.config.NodeID),
+		KnownPeers:    sm.getPeerURLs(),
+		NodeSequences: sm.nodeSequences.toProto(),
 	}
 
 	protoMsg := &pb.Message{
-		Type:        pb.Message_GOSSIP,
-		VectorClock: sm.lastKnownVectorClock.toProto(),
+		Type: pb.Message_GOSSIP,
 		Content: &pb.Message_GossipMessage{
 			GossipMessage: msg,
 		},
