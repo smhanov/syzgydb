@@ -61,7 +61,7 @@ func (ns *NodeSequences) UnmarshalJSON(data []byte) error {
 func (ns *NodeSequences) Clone() *NodeSequences {
 	ns.mutex.RLock()
 	defer ns.mutex.RUnlock()
-	
+
 	clone := NewNodeSequences()
 	for nodeID, seq := range ns.sequences {
 		clone.sequences[nodeID] = seq
@@ -70,7 +70,7 @@ func (ns *NodeSequences) Clone() *NodeSequences {
 }
 
 // ToProto converts the NodeSequences to its protobuf representation
-func (ns *NodeSequences) ToProto() *proto.NodeSequences {
+func (ns *NodeSequences) toProto() *proto.NodeSequences {
 	ns.mutex.RLock()
 	defer ns.mutex.RUnlock()
 
