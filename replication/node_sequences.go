@@ -93,3 +93,22 @@ func fromProtoNodeSequences(protoNS *proto.NodeSequences) *NodeSequences {
 	}
 	return ns
 }
+
+// Before returns true if this NodeSequences is considered "before" another NodeSequences.
+// It is "before" if the other contains new node IDs or if any of the corresponding
+// sequence numbers in the other one are greater.
+func (ns *NodeSequences) Before(other *NodeSequences) bool {
+	ns.mutex.RLock()
+	defer ns.mutex.RUnlock()
+	other.mutex.RLock()
+	defer other.mutex.RUnlock()
+
+	for nodeID, otherSeq := range other.sequences {
+		mySeq, exists := ns.sequences[nodeID]
+		if !exists || mySeq < otherSeq {
+			return true
+		}
+	}
+
+	return false
+}
