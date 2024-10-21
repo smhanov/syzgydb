@@ -84,3 +84,12 @@ func (ns *NodeSequences) toProto() *proto.NodeSequences {
 
 	return protoNS
 }
+
+// fromProtoNodeSequences converts a protobuf NodeSequences to a NodeSequences
+func fromProtoNodeSequences(protoNS *proto.NodeSequences) *NodeSequences {
+	ns := NewNodeSequences()
+	for nodeID, seq := range protoNS.Clock {
+		ns.Update(nodeID, seq)
+	}
+	return ns
+}
