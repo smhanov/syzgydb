@@ -2,6 +2,9 @@ package replication
 
 import (
 	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/smhanov/syzgydb/replication/proto"
@@ -111,4 +114,29 @@ func (ns *NodeSequences) Before(other *NodeSequences) bool {
 	}
 
 	return false
+}
+
+// String returns a compact, readable representation of the NodeSequences for debugging
+func (ns *NodeSequences) String() string {
+	ns.mutex.RLock()
+	defer ns.mutex.RUnlock()
+
+	var result strings.Builder
+	result.WriteString("NodeSequences{")
+	
+	keys := make([]uint64, 0, len(ns.sequences))
+	for k := range ns.sequences {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+
+	for i, k := range keys {
+		if i > 0 {
+			result.WriteString(", ")
+		}
+		result.WriteString(fmt.Sprintf("%d:%d", k, ns.sequences[k]))
+	}
+	result.WriteString("}")
+
+	return result.String()
 }
