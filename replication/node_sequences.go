@@ -29,7 +29,7 @@ func (ns *NodeSequences) Get(nodeID uint64) (uint64, bool) {
 }
 
 // Before returns true if the node id doesn't exist or if the sequence number is before the recorded one for the node
-func (ns *NodeSequences) Before(nodeID uint64, sequenceNumber uint64) bool {
+func (ns *NodeSequences) BeforeNode(nodeID uint64, sequenceNumber uint64) bool {
 	ns.mutex.RLock()
 	defer ns.mutex.RUnlock()
 	currentSeq, exists := ns.sequences[nodeID]
