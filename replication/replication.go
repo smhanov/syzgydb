@@ -105,10 +105,21 @@ func (re *ReplicationEngine) startHeartbeatTimer() {
 			select {
 			case <-ticker.C:
 				re.stateMachine.eventChan <- PeerHeartbeatEvent{}
+				re.SaveState() // Save state after each heartbeat
 			case <-re.stateMachine.done:
 				ticker.Stop()
 				return
 			}
 		}
 	}()
+}
+
+func (re *ReplicationEngine) SaveState() error {
+	state, err := re.stateMachine.SaveState()
+	if err != nil {
+		return err
+	}
+	// Implement the logic to store the state bytes
+	// This could involve writing to a file, database, or other storage
+	return nil
 }

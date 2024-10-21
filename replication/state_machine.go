@@ -18,21 +18,24 @@ type StateMachine struct {
 	bufferedUpdates map[string][]Update
 	eventChan       chan Event
 	done            chan struct{}
+	timestamp       Timestamp
 }
 
 type replicationState struct {
 	NodeSequences *NodeSequences `json:"node_sequences"`
+	Timestamp     Timestamp      `json:"timestamp"`
 }
 
 func NewStateMachine(storage StorageInterface, config ReplicationConfig, state []byte) *StateMachine {
 	var rstate replicationState
-	if rstate != nil {
+	if len(state) > 0 {
 		if err := json.Unmarshal(state, &rstate); err != nil {
 			panic("failed to unmarshal replication state: " + err.Error())
 		}
 	} else {
 		rstate = replicationState{
 			NodeSequences: NewNodeSequences(),
+			Timestamp:     Now(),
 		}
 	}
 
@@ -44,6 +47,7 @@ func NewStateMachine(storage StorageInterface, config ReplicationConfig, state [
 		bufferedUpdates: make(map[string][]Update),
 		eventChan:       make(chan Event, 1000),
 		done:            make(chan struct{}),
+		timestamp:       rstate.Timestamp,
 	}
 
 	go sm.eventLoop()
@@ -63,6 +67,24 @@ func (sm *StateMachine) eventLoop() {
 
 func (sm *StateMachine) Stop() {
 	close(sm.done)
+}
+
+func (sm *StateMachine) UpdateTimestamp(t Timestamp) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if t.After(sm.timestamp) {
+		sm.timestamp = t
+	}
+}
+
+func (sm *StateMachine) SaveState() ([]byte, error) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	state := replicationState{
+		NodeSequences: sm.nodeSequences,
+		Timestamp:     sm.timestamp,
+	}
+	return json.Marshal(state)
 }
 
 func (sm *StateMachine) getPeerURLs() []string {
