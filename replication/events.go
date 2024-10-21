@@ -11,6 +11,16 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+func (sm *StateMachine) incrementAndGetTimestamp() *pb.Timestamp {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.timestamp = sm.timestamp.Next(true)
+	return &pb.Timestamp{
+		UnixTime:     sm.timestamp.UnixTime,
+		LamportClock: sm.timestamp.LamportClock,
+	}
+}
+
 type UpdateRequestEvent struct {
 	Peer       *Peer
 	Since      *VectorClock
@@ -30,7 +40,8 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 	}
 
 	msg := &pb.Message{
-		Type: pb.Message_BATCH_UPDATE,
+		Type:      pb.Message_BATCH_UPDATE,
+		TimeStamp: sm.incrementAndGetTimestamp(),
 		Content: &pb.Message_BatchUpdate{
 			BatchUpdate: batchUpdate,
 		},
@@ -260,6 +271,7 @@ func (e GossipMessageEvent) process(sm *StateMachine) {
 
 		msg := &pb.Message{
 			Type:        pb.Message_UPDATE_REQUEST,
+			TimeStamp:   sm.incrementAndGetTimestamp(),
 			VectorClock: sm.lastKnownVectorClock.toProto(),
 			Content: &pb.Message_UpdateRequest{
 				UpdateRequest: updateRequest,
@@ -307,6 +319,7 @@ func (e PeerHeartbeatEvent) process(sm *StateMachine) {
 
 		msg := &pb.Message{
 			Type:        pb.Message_HEARTBEAT,
+			TimeStamp:   sm.incrementAndGetTimestamp(),
 			VectorClock: sm.lastKnownVectorClock.toProto(),
 			Content: &pb.Message_Heartbeat{
 				Heartbeat: heartbeat,
@@ -351,6 +364,7 @@ func (e LocalUpdatesEvent) process(sm *StateMachine) {
 	// Create a Message containing the BatchUpdate
 	msg := &pb.Message{
 		Type:        pb.Message_BATCH_UPDATE,
+		TimeStamp:   sm.incrementAndGetTimestamp(),
 		VectorClock: sm.lastKnownVectorClock.toProto(),
 		Content: &pb.Message_BatchUpdate{
 			BatchUpdate: batchUpdate,
