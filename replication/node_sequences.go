@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	"replication/proto"
+	"github.com/smhanov/syzgydb/replication/proto"
 )
 
 // NodeSequences is a thread-safe map from uint64 nodeID to uint64 sequenceNumbers
