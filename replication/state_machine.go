@@ -21,6 +21,7 @@ type StateMachine struct {
 	eventChan       chan Event
 	done            chan struct{}
 	timestamp       Timestamp
+	scheduledEvents map[string]bool
 }
 
 type replicationState struct {
@@ -105,5 +106,24 @@ func (sm *StateMachine) incrementAndGetTimestamp() *pb.Timestamp {
 	return &pb.Timestamp{
 		UnixTime:     ts.UnixTime,
 		LamportClock: ts.LamportClock,
+	}
+}
+
+func (sm *StateMachine) scheduleEvent(eventType string, event Event, delay time.Duration) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if sm.scheduledEvents == nil {
+		sm.scheduledEvents = make(map[string]bool)
+	}
+
+	if !sm.scheduledEvents[eventType] {
+		sm.scheduledEvents[eventType] = true
+		time.AfterFunc(delay, func() {
+			sm.eventChan <- event
+			sm.mu.Lock()
+			delete(sm.scheduledEvents, eventType)
+			sm.mu.Unlock()
+		})
 	}
 }

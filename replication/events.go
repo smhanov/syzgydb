@@ -66,6 +66,9 @@ func (e BatchUpdateEvent) process(sm *StateMachine) {
 
 	sm.storage.CommitUpdates(updates)
 
+	// Schedule a delayed gossip event
+	sm.scheduleEvent("DelayedGossip", SendGossipToAllEvent{}, 5*time.Second)
+
 	// TODO: If there were more updates, request them
 }
 
@@ -342,6 +345,18 @@ func (e LocalUpdatesEvent) process(sm *StateMachine) {
 
 	// Signal that the updates have been processed
 	e.ReplyChan <- nil
+
+	// Schedule a delayed gossip event
+	sm.scheduleEvent("DelayedGossip", SendGossipToAllEvent{}, 5*time.Second)
+}
+
+type SendGossipToAllEvent struct{}
+
+func (e SendGossipToAllEvent) process(sm *StateMachine) {
+	log.Printf("[%d] Processing SendGossipToAllEvent", sm.config.NodeID)
+	for _, peer := range sm.peers {
+		sm.eventChan <- SendGossipEvent{Peer: peer}
+	}
 }
 
 type PeerDisconnectEvent struct {
