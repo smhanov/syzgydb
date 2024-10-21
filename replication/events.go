@@ -12,8 +12,6 @@ import (
 )
 
 func (sm *StateMachine) incrementAndGetTimestamp() *pb.Timestamp {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
 	sm.timestamp = sm.timestamp.Next(true)
 	return &pb.Timestamp{
 		UnixTime:     sm.timestamp.UnixTime,
