@@ -339,41 +339,6 @@ func (e LocalUpdatesEvent) process(sm *StateMachine) {
 		e.ReplyChan <- err
 		return
 	}
-	/*
-		// Create a BatchUpdate message
-		batchUpdate := &pb.BatchUpdate{
-			Updates: toProtoUpdates(e.Updates),
-			HasMore: false,
-		}
-
-		// Create a Message containing the BatchUpdate
-		msg := &pb.Message{
-			Type:      pb.Message_BATCH_UPDATE,
-			TimeStamp: sm.incrementAndGetTimestamp(),
-			Content: &pb.Message_BatchUpdate{
-				BatchUpdate: batchUpdate,
-			},
-		}
-
-		// Marshal the message
-		data, err := proto.Marshal(msg)
-		if err != nil {
-			log.Printf("[%d] Error marshaling BatchUpdate message: %v", sm.config.NodeID, err)
-			e.ReplyChan <- err
-			return
-		}
-
-		// Send the BatchUpdate to all connected peers
-		for _, peer := range sm.peers {
-			if peer.connection != nil {
-				log.Printf("[%d] Sending BatchUpdate to peer [%s]", sm.config.NodeID, peer.name)
-				err := peer.connection.WriteMessage(websocket.BinaryMessage, data)
-				if err != nil {
-					log.Printf("[%d] Error sending BatchUpdate to peer %s: %v", sm.config.NodeID, peer.url, err)
-					// Note: We're not treating this as a fatal error, just logging it
-				}
-			}
-		}*/
 
 	// Signal that the updates have been processed
 	e.ReplyChan <- nil
