@@ -56,8 +56,8 @@ func (u Update) String() string {
 	default:
 		typeStr = fmt.Sprintf("Unknown(%d)", u.Type)
 	}
-	return fmt.Sprintf("Update{%s %s/%s %d@%s}",
-		typeStr, u.DatabaseName, u.RecordID, u.NodeID, u.Timestamp)
+	return fmt.Sprintf("Update{%s %s/%s %d@%d}",
+		typeStr, u.DatabaseName, u.RecordID, u.NodeID, u.SequenceNo)
 }
 
 // ReplicationConfig holds the configuration settings for the replication engine.

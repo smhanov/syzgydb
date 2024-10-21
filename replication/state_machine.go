@@ -3,6 +3,7 @@ package replication
 import (
 	"encoding/json"
 	"sync"
+	"time"
 
 	pb "github.com/smhanov/syzgydb/replication/proto"
 )

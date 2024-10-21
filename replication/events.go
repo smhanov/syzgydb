@@ -67,7 +67,7 @@ func (e BatchUpdateEvent) process(sm *StateMachine) {
 	sm.storage.CommitUpdates(updates)
 
 	// Schedule a delayed gossip event
-	sm.scheduleEvent("DelayedGossip", SendGossipToAllEvent{}, 5*time.Second)
+	sm.scheduleEvent("DelayedGossip", SendGossipToAllEvent{}, gossipAfterUpdateTimer)
 
 	// TODO: If there were more updates, request them
 }
@@ -240,16 +240,15 @@ func (e GossipMessageEvent) process(sm *StateMachine) {
 	e.Peer.nodeSequences = fromProtoNodeSequences(e.Message.NodeSequences)
 	e.Peer.name = e.Message.NodeId
 
-	for _, peer := range sm.peers {
-		log.Printf("[%d]     Known peer: %s", sm.config.NodeID, peer.url)
-	}
-
 	for _, peerURL := range e.Message.KnownPeers {
 		if _, exists := sm.peers[peerURL]; !exists && peerURL != sm.config.OwnURL {
 			log.Printf("[%d]    New peer: %s", sm.config.NodeID, peerURL)
 			sm.eventChan <- AddPeerEvent{URL: peerURL}
 		}
 	}
+
+	log.Printf("[%d]   Our  sequences: %s", sm.config.NodeID, sm.nodeSequences)
+	log.Printf("[%d]   Peer sequences: %s", sm.config.NodeID, e.Peer.nodeSequences)
 
 	// TODO: schedule updates from peers to avoid requesting the same changes from multiple peers.
 	if sm.nodeSequences.Before(e.Peer.nodeSequences) {
@@ -336,6 +335,12 @@ type LocalUpdatesEvent struct {
 func (e LocalUpdatesEvent) process(sm *StateMachine) {
 	log.Printf("[%d] Processing LocalUpdatesEvent", sm.config.NodeID)
 
+	// Go through each update and assign a sequence number
+	for i := range e.Updates {
+		e.Updates[i].NodeID = sm.config.NodeID
+		e.Updates[i].SequenceNo = sm.nodeSequences.Next(sm.config.NodeID)
+	}
+
 	// Commit updates locally
 	err := sm.storage.CommitUpdates(e.Updates)
 	if err != nil {
@@ -347,7 +352,7 @@ func (e LocalUpdatesEvent) process(sm *StateMachine) {
 	e.ReplyChan <- nil
 
 	// Schedule a delayed gossip event
-	sm.scheduleEvent("DelayedGossip", SendGossipToAllEvent{}, 5*time.Second)
+	sm.scheduleEvent("DelayedGossip", SendGossipToAllEvent{}, gossipAfterUpdateTimer)
 }
 
 type SendGossipToAllEvent struct{}
@@ -355,7 +360,9 @@ type SendGossipToAllEvent struct{}
 func (e SendGossipToAllEvent) process(sm *StateMachine) {
 	log.Printf("[%d] Processing SendGossipToAllEvent", sm.config.NodeID)
 	for _, peer := range sm.peers {
-		sm.eventChan <- SendGossipEvent{Peer: peer}
+		if peer.connection != nil {
+			sm.eventChan <- SendGossipEvent{Peer: peer}
+		}
 	}
 }
 

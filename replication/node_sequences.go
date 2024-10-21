@@ -31,19 +31,29 @@ func (ns *NodeSequences) Get(nodeID uint64) (uint64, bool) {
 	return seq, ok
 }
 
+// Next increments the sequence number for a given nodeID and returns it
+func (ns *NodeSequences) Next(nodeID uint64) uint64 {
+	ns.mutex.Lock()
+	defer ns.mutex.Unlock()
+	ns.sequences[nodeID]++
+	return ns.sequences[nodeID]
+}
+
 // Before returns true if the node id doesn't exist or if the sequence number is before the recorded one for the node
 func (ns *NodeSequences) BeforeNode(nodeID uint64, sequenceNumber uint64) bool {
 	ns.mutex.RLock()
 	defer ns.mutex.RUnlock()
 	currentSeq, exists := ns.sequences[nodeID]
-	return !exists || sequenceNumber < currentSeq
+	return !exists || sequenceNumber > currentSeq
 }
 
 // Update updates the sequence number of a particular node
 func (ns *NodeSequences) Update(nodeID uint64, sequenceNumber uint64) {
 	ns.mutex.Lock()
 	defer ns.mutex.Unlock()
-	ns.sequences[nodeID] = sequenceNumber
+	if sequenceNumber >= ns.sequences[nodeID] {
+		ns.sequences[nodeID] = sequenceNumber
+	}
 }
 
 // MarshalJSON implements the json.Marshaler interface
@@ -123,7 +133,7 @@ func (ns *NodeSequences) String() string {
 
 	var result strings.Builder
 	result.WriteString("NodeSequences{")
-	
+
 	keys := make([]uint64, 0, len(ns.sequences))
 	for k := range ns.sequences {
 		keys = append(keys, k)

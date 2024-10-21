@@ -3,6 +3,7 @@ package replication
 import (
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 )
 
@@ -38,7 +39,18 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 	ms.updatesMutex.Lock()
 	defer ms.updatesMutex.Unlock()
 
-	for _, update := range updates {
+	// Sort updates by NodeID and SequenceNo
+	sortedUpdates := make([]Update, len(updates))
+	copy(sortedUpdates, updates)
+	sort.Slice(sortedUpdates, func(i, j int) bool {
+		if sortedUpdates[i].NodeID == sortedUpdates[j].NodeID {
+			return sortedUpdates[i].SequenceNo < sortedUpdates[j].SequenceNo
+		}
+		return sortedUpdates[i].NodeID < sortedUpdates[j].NodeID
+	})
+
+	// Apply sorted updates
+	for _, update := range sortedUpdates {
 		log.Printf("[%d] Committing update: %+v", ms.nodeID, update)
 		key := update.DatabaseName + ":" + update.RecordID
 		if update.Type == CreateDatabase || update.Type == DropDatabase {

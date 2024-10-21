@@ -14,12 +14,13 @@ func (u Update) toProto() *pb.Update {
 		}
 	}
 	return &pb.Update{
-		NodeId:       u.NodeID,
-		Timestamp:    u.Timestamp.toProto(),
-		Type:         pb.Update_UpdateType(u.Type),
-		RecordId:     u.RecordID,
-		DataStreams:  protoDataStreams,
-		DatabaseName: u.DatabaseName,
+		NodeId:         u.NodeID,
+		SequenceNumber: u.SequenceNo,
+		Timestamp:      u.Timestamp.toProto(),
+		Type:           pb.Update_UpdateType(u.Type),
+		RecordId:       u.RecordID,
+		DataStreams:    protoDataStreams,
+		DatabaseName:   u.DatabaseName,
 	}
 }
 
@@ -34,6 +35,7 @@ func fromProtoUpdate(pu *pb.Update) Update {
 	}
 	return Update{
 		NodeID:       pu.NodeId,
+		SequenceNo:   pu.SequenceNumber,
 		Timestamp:    fromProtoTimestamp(pu.Timestamp),
 		Type:         UpdateType(pu.Type),
 		RecordID:     pu.RecordId,

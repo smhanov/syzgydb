@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+const heartBeatTimer = 30 * time.Second
+const gossipAfterUpdateTimer = 200 * time.Millisecond
+
 type Connection interface {
 	Close() error
 	WriteMessage(int, []byte) error
@@ -95,7 +98,7 @@ func (re *ReplicationEngine) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 }
 
 func (re *ReplicationEngine) startHeartbeatTimer() {
-	ticker := time.NewTicker(30 * time.Second) // Adjust the interval as needed
+	ticker := time.NewTicker(heartBeatTimer) // Adjust the interval as needed
 	go func() {
 		for {
 			select {
