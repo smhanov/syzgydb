@@ -3,6 +3,8 @@ package replication
 import (
 	"encoding/json"
 	"sync"
+
+	"replication/proto"
 )
 
 // NodeSequences is a thread-safe map from uint64 nodeID to uint64 sequenceNumbers
@@ -65,4 +67,20 @@ func (ns *NodeSequences) Clone() *NodeSequences {
 		clone.sequences[nodeID] = seq
 	}
 	return clone
+}
+
+// ToProto converts the NodeSequences to its protobuf representation
+func (ns *NodeSequences) ToProto() *proto.NodeSequences {
+	ns.mutex.RLock()
+	defer ns.mutex.RUnlock()
+
+	protoNS := &proto.NodeSequences{
+		Clock: make(map[uint64]uint64, len(ns.sequences)),
+	}
+
+	for nodeID, seq := range ns.sequences {
+		protoNS.Clock[nodeID] = seq
+	}
+
+	return protoNS
 }
