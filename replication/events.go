@@ -221,7 +221,8 @@ func (e SendGossipEvent) process(sm *StateMachine) {
 	}
 
 	protoMsg := &pb.Message{
-		Type: pb.Message_GOSSIP,
+		Type:      pb.Message_GOSSIP,
+		TimeStamp: sm.incrementAndGetTimestamp(),
 		Content: &pb.Message_GossipMessage{
 			GossipMessage: msg,
 		},
