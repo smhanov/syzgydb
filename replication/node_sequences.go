@@ -54,3 +54,15 @@ func (ns *NodeSequences) UnmarshalJSON(data []byte) error {
 	defer ns.mutex.Unlock()
 	return json.Unmarshal(data, &ns.sequences)
 }
+
+// Clone creates a deep copy of the NodeSequences
+func (ns *NodeSequences) Clone() *NodeSequences {
+	ns.mutex.RLock()
+	defer ns.mutex.RUnlock()
+	
+	clone := NewNodeSequences()
+	for nodeID, seq := range ns.sequences {
+		clone.sequences[nodeID] = seq
+	}
+	return clone
+}
