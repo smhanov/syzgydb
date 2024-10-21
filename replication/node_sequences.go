@@ -1,0 +1,56 @@
+package replication
+
+import (
+	"encoding/json"
+	"sync"
+)
+
+// NodeSequences is a thread-safe map from uint64 nodeID to uint64 sequenceNumbers
+type NodeSequences struct {
+	sequences map[uint64]uint64
+	mutex     sync.RWMutex
+}
+
+// NewNodeSequences creates a new NodeSequences instance
+func NewNodeSequences() *NodeSequences {
+	return &NodeSequences{
+		sequences: make(map[uint64]uint64),
+	}
+}
+
+// Get returns the sequence number for a given nodeID
+func (ns *NodeSequences) Get(nodeID uint64) (uint64, bool) {
+	ns.mutex.RLock()
+	defer ns.mutex.RUnlock()
+	seq, ok := ns.sequences[nodeID]
+	return seq, ok
+}
+
+// Before returns true if the node id doesn't exist or if the sequence number is before the recorded one for the node
+func (ns *NodeSequences) Before(nodeID uint64, sequenceNumber uint64) bool {
+	ns.mutex.RLock()
+	defer ns.mutex.RUnlock()
+	currentSeq, exists := ns.sequences[nodeID]
+	return !exists || sequenceNumber < currentSeq
+}
+
+// Update updates the sequence number of a particular node
+func (ns *NodeSequences) Update(nodeID uint64, sequenceNumber uint64) {
+	ns.mutex.Lock()
+	defer ns.mutex.Unlock()
+	ns.sequences[nodeID] = sequenceNumber
+}
+
+// MarshalJSON implements the json.Marshaler interface
+func (ns *NodeSequences) MarshalJSON() ([]byte, error) {
+	ns.mutex.RLock()
+	defer ns.mutex.RUnlock()
+	return json.Marshal(ns.sequences)
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface
+func (ns *NodeSequences) UnmarshalJSON(data []byte) error {
+	ns.mutex.Lock()
+	defer ns.mutex.Unlock()
+	return json.Unmarshal(data, &ns.sequences)
+}
