@@ -415,3 +415,31 @@ func (e PeerDisconnectEvent) process(sm *StateMachine) {
 		sm.eventChan <- ConnectPeerEvent{URL: e.Peer.url}
 	}()
 }
+
+func (p *Peer) ReadLoop(eventChan chan<- Event) {
+	for {
+		_, message, err := p.connection.ReadMessage()
+		if err != nil {
+			log.Printf("Error reading message from peer %s: %v", p.url, err)
+			eventChan <- PeerDisconnectEvent{Peer: p}
+			return
+		}
+
+		var pbMessage pb.Message
+		err = proto.Unmarshal(message, &pbMessage)
+		if err != nil {
+			log.Printf("Error unmarshaling message from peer %s: %v", p.url, err)
+			continue
+		}
+
+		// Update the state machine's timestamp
+		p.stateMachine.UpdateTimestamp(Timestamp{
+			UnixTime:     pbMessage.TimeStamp.UnixTime,
+			LamportClock: pbMessage.TimeStamp.LamportClock,
+		})
+
+		switch pbMessage.Type {
+		// ... (rest of the switch statement)
+		}
+	}
+}
