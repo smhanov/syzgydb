@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -25,7 +26,7 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 		return
 	}
 	batchUpdate := &pb.BatchUpdate{
-		Updates: toProtoUpdates(flattenUpdates(updates)),
+		Updates: toProtoUpdates(updates),
 		HasMore: hasMore,
 	}
 
@@ -56,9 +57,22 @@ type BatchUpdateEvent struct {
 
 func (e BatchUpdateEvent) process(sm *StateMachine) {
 	log.Printf("[%d]<-[%s] Processing BatchUpdateEvent", sm.config.NodeID, e.Peer.name)
+
+	// Sort the updates by sequence number
+	sort.Slice(e.BatchUpdate.Updates, func(i, j int) bool {
+		return e.BatchUpdate.Updates[i].SequenceNumber < e.BatchUpdate.Updates[j].SequenceNumber
+	})
+
 	updates := make([]Update, 0, len(e.BatchUpdate.Updates))
 	for _, protoUpdate := range e.BatchUpdate.Updates {
 		update := fromProtoUpdate(protoUpdate)
+
+		// Skip the update if the sequence number is not equal to the next one for the node
+		if update.SequenceNo != sm.nodeSequences.Get(update.NodeID)+1 {
+			log.Printf("Skipping update for node %d with sequence number %d", update.NodeID, update.SequenceNo)
+			continue
+		}
+
 		updates = append(updates, update)
 		sm.nodeSequences.Update(update.NodeID, update.SequenceNo)
 		e.Peer.nodeSequences.Update(update.NodeID, update.SequenceNo)
@@ -285,14 +299,6 @@ func toProtoUpdates(updates []Update) []*pb.Update {
 		protoUpdates = append(protoUpdates, update.toProto())
 	}
 	return protoUpdates
-}
-
-func flattenUpdates(updates map[string][]Update) []Update {
-	var flattened []Update
-	for _, dbUpdates := range updates {
-		flattened = append(flattened, dbUpdates...)
-	}
-	return flattened
 }
 
 type PeerHeartbeatEvent struct {

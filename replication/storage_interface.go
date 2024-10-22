@@ -14,6 +14,7 @@ const (
 	UpsertRecord   UpdateType = 1
 	CreateDatabase UpdateType = 2
 	DropDatabase   UpdateType = 3
+	Superceded     UpdateType = 4
 )
 
 type DataStream struct {
@@ -76,7 +77,7 @@ type StorageInterface interface {
 
 	// GetUpdatesSince retrieves updates that occurred after the given vector clock, up to maxResults.
 	// It returns the updates, a boolean indicating if there are more results, and an error if any.
-	GetUpdatesSince(nodeSequences *NodeSequences, maxResults int) (map[string][]Update, bool, error)
+	GetUpdatesSince(nodeSequences *NodeSequences, maxResults int) ([]Update, bool, error)
 
 	// ResolveConflict determines which of two conflicting updates should be applied.
 	ResolveConflict(update1, update2 Update) (Update, error)

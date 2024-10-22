@@ -24,18 +24,25 @@ func NewNodeSequences() *NodeSequences {
 }
 
 // Get returns the sequence number for a given nodeID
-func (ns *NodeSequences) Get(nodeID uint64) (uint64, bool) {
+func (ns *NodeSequences) Get(nodeID uint64) uint64 {
 	ns.mutex.RLock()
 	defer ns.mutex.RUnlock()
-	seq, ok := ns.sequences[nodeID]
-	return seq, ok
+	seq, exists := ns.sequences[nodeID]
+	if !exists {
+		return uint64(^uint64(0)) // uint64(-1)
+	}
+	return seq
 }
 
 // Next increments the sequence number for a given nodeID and returns it
 func (ns *NodeSequences) Next(nodeID uint64) uint64 {
 	ns.mutex.Lock()
 	defer ns.mutex.Unlock()
-	ns.sequences[nodeID]++
+	if _, exists := ns.sequences[nodeID]; !exists {
+		ns.sequences[nodeID] = 0
+	} else {
+		ns.sequences[nodeID]++
+	}
 	return ns.sequences[nodeID]
 }
 

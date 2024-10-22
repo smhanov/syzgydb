@@ -63,13 +63,15 @@ func (ms *MockStorage) CommitUpdates(updates []Update) error {
 }
 
 // GetUpdatesSince retrieves updates that occurred after the given vector clock, up to maxResults.
-func (ms *MockStorage) GetUpdatesSince(sequences *NodeSequences, maxResults int) (map[string][]Update, bool, error) {
+func (ms *MockStorage) GetUpdatesSince(sequences *NodeSequences, maxResults int) ([]Update, bool, error) {
 	ms.updatesMutex.Lock()
 	defer ms.updatesMutex.Unlock()
 
-	result := make(map[string][]Update)
+	var result []Update
 	totalUpdates := 0
 	hasMore := false
+
+	lowestSequence := make(map[uint64]uint64)
 
 	for _, update := range ms.updates {
 		if sequences.BeforeNode(update.NodeID, update.SequenceNo) {
@@ -77,13 +79,37 @@ func (ms *MockStorage) GetUpdatesSince(sequences *NodeSequences, maxResults int)
 				hasMore = true
 				break
 			}
-			if _, ok := result[update.DatabaseName]; !ok {
-				result[update.DatabaseName] = []Update{}
-			}
-			result[update.DatabaseName] = append(result[update.DatabaseName], update)
+
+			result = append(result, update)
 			totalUpdates++
+
+			// Track the lowest sequence number for each nodeID
+			if seq, exists := lowestSequence[update.NodeID]; !exists || update.SequenceNo < seq {
+				lowestSequence[update.NodeID] = update.SequenceNo
+			}
 		}
 	}
+
+	// Add "Superceded" updates
+	for nodeID, seqNo := range lowestSequence {
+		for i := sequences.Get(nodeID) + 1; i < seqNo; i++ {
+			log.Printf("[node%d] Create superceded update %d/%d", ms.nodeID, nodeID, i)
+			supersededUpdate := Update{
+				NodeID:     nodeID,
+				SequenceNo: i,
+				Type:       Superceded,
+			}
+			result = append(result, supersededUpdate)
+		}
+	}
+
+	// Sort the result by NodeID and SequenceNo
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].NodeID == result[j].NodeID {
+			return result[i].SequenceNo < result[j].SequenceNo
+		}
+		return result[i].NodeID < result[j].NodeID
+	})
 
 	log.Printf("[node%d] Updates since %v: %v", ms.nodeID, sequences, result)
 	return result, hasMore, nil
