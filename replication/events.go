@@ -26,36 +26,35 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 		return
 	}
 
-	// Check if our own node ID is in the e.Since map
-	lastKnownSeq := e.Since.Get(sm.config.NodeID)
-	var lowestSeq uint64
-	hasOurUpdates := false
-
-	// TODO: We will need to do this for each nodeID that exists in
-	// the map.
-
-	// Find the lowest numbered update for our node ID in the list
+	// Create a map to store the lowest sequence number for each node
+	lowestSeqMap := make(map[uint64]uint64)
+	
+	// Find the lowest numbered update for each node ID in the list
 	for _, update := range updates {
-		if update.NodeID == sm.config.NodeID {
-			if !hasOurUpdates || update.SequenceNo < lowestSeq {
-				lowestSeq = update.SequenceNo
-				hasOurUpdates = true
+		if seq, exists := lowestSeqMap[update.NodeID]; !exists || update.SequenceNo < seq {
+			lowestSeqMap[update.NodeID] = update.SequenceNo
+		}
+	}
+
+	// Create superceded updates for all nodes with gaps
+	var supercededUpdates []Update
+	for nodeID, lowestSeq := range lowestSeqMap {
+		lastKnownSeq := e.Since.Get(nodeID)
+		if lowestSeq > lastKnownSeq+1 {
+			for seq := lastKnownSeq + 1; seq < lowestSeq; seq++ {
+				log.Printf("[%d] Inserting superceded update for node %d, sequence %d", sm.config.NodeID, nodeID, seq)
+				supercededUpdate := Update{
+					NodeID:     nodeID,
+					SequenceNo: seq,
+					Type:       Superceded,
+				}
+				supercededUpdates = append(supercededUpdates, supercededUpdate)
 			}
 		}
 	}
 
-	// If we have updates and there's a gap, insert "superceded" updates
-	if hasOurUpdates && lowestSeq > lastKnownSeq+1 {
-		supercededUpdates := make([]Update, 0, lowestSeq-lastKnownSeq-1)
-		for seq := lastKnownSeq + 1; seq < lowestSeq; seq++ {
-			log.Printf("[%d] Inserting superceded update for sequence %d", sm.config.NodeID, seq)
-			supercededUpdate := Update{
-				NodeID:     sm.config.NodeID,
-				SequenceNo: seq,
-				Type:       Superceded,
-			}
-			supercededUpdates = append(supercededUpdates, supercededUpdate)
-		}
+	// Prepend superceded updates to the existing updates
+	if len(supercededUpdates) > 0 {
 		updates = append(supercededUpdates, updates...)
 	}
 
