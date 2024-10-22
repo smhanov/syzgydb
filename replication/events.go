@@ -26,11 +26,40 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 		return
 	}
 
-	// TODO: if our own node ID is in the e.Since map, then go through the update list.
-	// Find the lowest numbered update for our node ID in the list. If it is not
-	// equal to e.Since.Get(sm.config.NodeID), then insert a "superceded" update.
-	// Superceded updates are blank except for the nodeid and sequence number.
-	// Then sort the list by sequence number and send it to the peer.
+	// Check if our own node ID is in the e.Since map
+	if lastKnownSeq, exists := e.Since.sequences[sm.config.NodeID]; exists {
+		var lowestSeq uint64
+		hasOurUpdates := false
+
+		// Find the lowest numbered update for our node ID in the list
+		for _, update := range updates {
+			if update.NodeID == sm.config.NodeID {
+				if !hasOurUpdates || update.SequenceNo < lowestSeq {
+					lowestSeq = update.SequenceNo
+					hasOurUpdates = true
+				}
+			}
+		}
+
+		// If we have updates and the lowest sequence number is not equal to e.Since.Get(sm.config.NodeID) + 1,
+		// then insert a "superceded" update
+		if hasOurUpdates && lowestSeq > lastKnownSeq+1 {
+			supercededUpdate := Update{
+				NodeID:     sm.config.NodeID,
+				SequenceNo: lastKnownSeq + 1,
+				Type:       Superceded,
+			}
+			updates = append([]Update{supercededUpdate}, updates...)
+		}
+	}
+
+	// Sort the updates by sequence number
+	sort.Slice(updates, func(i, j int) bool {
+		if updates[i].NodeID == updates[j].NodeID {
+			return updates[i].SequenceNo < updates[j].SequenceNo
+		}
+		return updates[i].NodeID < updates[j].NodeID
+	})
 
 	batchUpdate := &pb.BatchUpdate{
 		Updates: toProtoUpdates(updates),
