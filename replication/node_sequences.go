@@ -63,6 +63,14 @@ func (ns *NodeSequences) Update(nodeID uint64, sequenceNumber uint64) {
 	}
 }
 
+// Has checks if a nodeID exists in the NodeSequences
+func (ns *NodeSequences) Has(nodeID uint64) bool {
+	ns.mutex.RLock()
+	defer ns.mutex.RUnlock()
+	_, exists := ns.sequences[nodeID]
+	return exists
+}
+
 // MarshalJSON implements the json.Marshaler interface
 func (ns *NodeSequences) MarshalJSON() ([]byte, error) {
 	ns.mutex.RLock()

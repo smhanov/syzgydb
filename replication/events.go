@@ -27,7 +27,8 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 	}
 
 	// Check if our own node ID is in the e.Since map
-	if lastKnownSeq, exists := e.Since.sequences[sm.config.NodeID]; exists {
+	if e.Since.Has(sm.config.NodeID) {
+		lastKnownSeq := e.Since.Get(sm.config.NodeID)
 		var lowestSeq uint64
 		hasOurUpdates := false
 
