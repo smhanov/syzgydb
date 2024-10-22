@@ -56,14 +56,6 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 		}
 	}
 
-	// Sort the updates by node ID and sequence number
-	sort.Slice(updates, func(i, j int) bool {
-		if updates[i].NodeID == updates[j].NodeID {
-			return updates[i].SequenceNo < updates[j].SequenceNo
-		}
-		return updates[i].NodeID < updates[j].NodeID
-	})
-
 	batchUpdate := &pb.BatchUpdate{
 		Updates: toProtoUpdates(updates),
 		HasMore: hasMore,
