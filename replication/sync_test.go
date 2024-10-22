@@ -98,6 +98,71 @@ func createProtoBatchUpdate(updates []Update) *pb.BatchUpdate {
 	}
 }
 
+func TestRejectMissingSequence(t *testing.T) {
+	// 1. Create a node
+	node := setupTestNode(t, 0, 8080)
+	defer node.RE.Close()
+
+	// 2. Connect to the node and expect a gossip message
+	conn := connectToNode(t, node, "1", "ws://localhost:8081")
+	defer conn.Close()
+
+	initialGossip := receiveMessage(t, conn, 5*time.Second)
+	if initialGossip.Type != pb.Message_GOSSIP {
+		t.Fatalf("Expected initial GOSSIP message, got %v", initialGossip.Type)
+	}
+
+	// 3. Send a gossip message with nodeSequences advertising nodeid 1 and sequence 2
+	gossipMsg := &pb.GossipMessage{
+		NodeId: "1",
+		NodeSequences: &pb.NodeSequences{
+			Clock: map[uint64]uint64{1: 2},
+		},
+	}
+	sendMessage(t, conn, createProtoMessage(pb.Message_GOSSIP, gossipMsg))
+
+	// 4. Expect an update_request message with since equal to nodeid 1 and sequence 0
+	updateRequestMsg := receiveMessage(t, conn, 5*time.Second)
+	if updateRequestMsg.Type != pb.Message_UPDATE_REQUEST {
+		t.Fatalf("Expected UPDATE_REQUEST message, got %v", updateRequestMsg.Type)
+	}
+	updateRequest := updateRequestMsg.GetUpdateRequest()
+	if updateRequest == nil {
+		t.Fatalf("Received nil UpdateRequest")
+	}
+	if updateRequest.Since.Clock[1] != 0 {
+		t.Fatalf("Expected UpdateRequest with since sequence 0 for node 1, got %d", updateRequest.Since.Clock[1])
+	}
+
+	// 5. Send batch_update containing an update beginning with sequence 1
+	update := createProtoUpdate(
+		1,
+		Timestamp{UnixTime: time.Now().UnixMilli(), LamportClock: 1},
+		UpsertRecord,
+		"testRecord",
+		[]DataStream{{StreamID: 1, Data: []byte("test data")}},
+	)
+	update.SequenceNumber = 1
+	batchUpdate := createProtoBatchUpdate([]Update{fromProtoUpdate(update)})
+	sendMessage(t, conn, createProtoMessage(pb.Message_BATCH_UPDATE, batchUpdate))
+
+	// 6. Wait 5s
+	time.Sleep(5 * time.Second)
+
+	// 7. Expect a gossip message with nodeid 1 and sequence 0
+	finalGossip := receiveMessage(t, conn, 5*time.Second)
+	if finalGossip.Type != pb.Message_GOSSIP {
+		t.Fatalf("Expected final GOSSIP message, got %v", finalGossip.Type)
+	}
+	finalGossipMsg := finalGossip.GetGossipMessage()
+	if finalGossipMsg == nil {
+		t.Fatalf("Received nil GossipMessage")
+	}
+	if finalGossipMsg.NodeSequences.Clock[1] != 0 {
+		t.Fatalf("Expected final gossip with sequence 0 for node 1, got %d", finalGossipMsg.NodeSequences.Clock[1])
+	}
+}
+
 // Helper function to create a protocol buffer UpdateRequest
 func createProtoUpdateRequest(since *NodeSequences, maxResults int32) *pb.UpdateRequest {
 	return &pb.UpdateRequest{
