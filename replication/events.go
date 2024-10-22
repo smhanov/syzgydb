@@ -41,19 +41,22 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 			}
 		}
 
-		// If we have updates and the lowest sequence number is not equal to e.Since.Get(sm.config.NodeID) + 1,
-		// then insert a "superceded" update
+		// If we have updates and there's a gap, insert "superceded" updates
 		if hasOurUpdates && lowestSeq > lastKnownSeq+1 {
-			supercededUpdate := Update{
-				NodeID:     sm.config.NodeID,
-				SequenceNo: lastKnownSeq + 1,
-				Type:       Superceded,
+			supercededUpdates := make([]Update, 0, lowestSeq-lastKnownSeq-1)
+			for seq := lastKnownSeq + 1; seq < lowestSeq; seq++ {
+				supercededUpdate := Update{
+					NodeID:     sm.config.NodeID,
+					SequenceNo: seq,
+					Type:       Superceded,
+				}
+				supercededUpdates = append(supercededUpdates, supercededUpdate)
 			}
-			updates = append([]Update{supercededUpdate}, updates...)
+			updates = append(supercededUpdates, updates...)
 		}
 	}
 
-	// Sort the updates by sequence number
+	// Sort the updates by node ID and sequence number
 	sort.Slice(updates, func(i, j int) bool {
 		if updates[i].NodeID == updates[j].NodeID {
 			return updates[i].SequenceNo < updates[j].SequenceNo
