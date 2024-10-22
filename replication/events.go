@@ -27,34 +27,36 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 	}
 
 	// Check if our own node ID is in the e.Since map
-	if e.Since.Has(sm.config.NodeID) {
-		lastKnownSeq := e.Since.Get(sm.config.NodeID)
-		var lowestSeq uint64
-		hasOurUpdates := false
+	lastKnownSeq := e.Since.Get(sm.config.NodeID)
+	var lowestSeq uint64
+	hasOurUpdates := false
 
-		// Find the lowest numbered update for our node ID in the list
-		for _, update := range updates {
-			if update.NodeID == sm.config.NodeID {
-				if !hasOurUpdates || update.SequenceNo < lowestSeq {
-					lowestSeq = update.SequenceNo
-					hasOurUpdates = true
-				}
+	// TODO: We will need to do this for each nodeID that exists in
+	// the map.
+
+	// Find the lowest numbered update for our node ID in the list
+	for _, update := range updates {
+		if update.NodeID == sm.config.NodeID {
+			if !hasOurUpdates || update.SequenceNo < lowestSeq {
+				lowestSeq = update.SequenceNo
+				hasOurUpdates = true
 			}
 		}
+	}
 
-		// If we have updates and there's a gap, insert "superceded" updates
-		if hasOurUpdates && lowestSeq > lastKnownSeq+1 {
-			supercededUpdates := make([]Update, 0, lowestSeq-lastKnownSeq-1)
-			for seq := lastKnownSeq + 1; seq < lowestSeq; seq++ {
-				supercededUpdate := Update{
-					NodeID:     sm.config.NodeID,
-					SequenceNo: seq,
-					Type:       Superceded,
-				}
-				supercededUpdates = append(supercededUpdates, supercededUpdate)
+	// If we have updates and there's a gap, insert "superceded" updates
+	if hasOurUpdates && lowestSeq > lastKnownSeq+1 {
+		supercededUpdates := make([]Update, 0, lowestSeq-lastKnownSeq-1)
+		for seq := lastKnownSeq + 1; seq < lowestSeq; seq++ {
+			log.Printf("[%d] Inserting superceded update for sequence %d", sm.config.NodeID, seq)
+			supercededUpdate := Update{
+				NodeID:     sm.config.NodeID,
+				SequenceNo: seq,
+				Type:       Superceded,
 			}
-			updates = append(supercededUpdates, updates...)
+			supercededUpdates = append(supercededUpdates, supercededUpdate)
 		}
+		updates = append(supercededUpdates, updates...)
 	}
 
 	batchUpdate := &pb.BatchUpdate{
