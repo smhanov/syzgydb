@@ -25,6 +25,13 @@ func (e UpdateRequestEvent) process(sm *StateMachine) {
 		log.Println("Failed to get updates:", err)
 		return
 	}
+
+	// TODO: if our own node ID is in the e.Since map, then go through the update list.
+	// Find the lowest numbered update for our node ID in the list. If it is not
+	// equal to e.Since.Get(sm.config.NodeID), then insert a "superceded" update.
+	// Superceded updates are blank except for the nodeid and sequence number.
+	// Then sort the list by sequence number and send it to the peer.
+
 	batchUpdate := &pb.BatchUpdate{
 		Updates: toProtoUpdates(updates),
 		HasMore: hasMore,
