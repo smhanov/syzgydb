@@ -15,7 +15,6 @@ const (
 	CreateDatabase UpdateType = 2
 	DropDatabase   UpdateType = 3
 	Superceded     UpdateType = 4
-	Superceded     UpdateType = 5
 )
 
 type DataStream struct {

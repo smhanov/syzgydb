@@ -90,19 +90,6 @@ func (ms *MockStorage) GetUpdatesSince(sequences *NodeSequences, maxResults int)
 		}
 	}
 
-	// Add "Superceded" updates
-	for nodeID, seqNo := range lowestSequence {
-		for i := sequences.Get(nodeID) + 1; i < seqNo; i++ {
-			log.Printf("[node%d] Create superceded update %d/%d", ms.nodeID, nodeID, i)
-			supersededUpdate := Update{
-				NodeID:     nodeID,
-				SequenceNo: i,
-				Type:       Superceded,
-			}
-			result = append(result, supersededUpdate)
-		}
-	}
-
 	// Sort the result by NodeID and SequenceNo
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].NodeID == result[j].NodeID {
