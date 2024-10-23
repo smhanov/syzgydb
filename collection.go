@@ -373,12 +373,6 @@ func (c *Collection) GetAllIDs() []uint64 {
 	return ids
 }
 
-func (c *Collection) getLatestVectorClock() *replication.VectorClock {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	return c.spanfile.getLatestVectorClock().Clone()
-}
-
 /*
 ComputeAverageDistance calculates the average distance between random pairs of documents in the collection.
 It returns the average distance or 0.0 if there are fewer than two documents or if the sample size is non-positive.
