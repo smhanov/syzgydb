@@ -37,8 +37,44 @@ import (
 	"sync"
 
 	"github.com/edsrzf/mmap-go"
+	"container/heap"
 	"github.com/smhanov/syzgydb/replication"
 )
+
+type updateItem struct {
+    update    replication.Update
+    siteID    uint64
+    seqNumber uint64
+}
+
+type updateQueue []*updateItem
+
+func (pq updateQueue) Len() int { return len(pq) }
+
+func (pq updateQueue) Less(i, j int) bool {
+    // Sort by siteID first, then sequenceNumber
+    if pq[i].siteID != pq[j].siteID {
+        return pq[i].siteID < pq[j].siteID
+    }
+    return pq[i].seqNumber < pq[j].seqNumber
+}
+
+func (pq updateQueue) Swap(i, j int) {
+    pq[i], pq[j] = pq[j], pq[i]
+}
+
+func (pq *updateQueue) Push(x interface{}) {
+    item := x.(*updateItem)
+    *pq = append(*pq, item)
+}
+
+func (pq *updateQueue) Pop() interface{} {
+    old := *pq
+    n := len(old)
+    item := old[n-1]
+    *pq = old[0 : n-1]
+    return item
+}
 
 const (
 	activeMagic  = 0x5350414E // 'SPAN'
@@ -1041,6 +1077,87 @@ func msync(_ []byte) error {
 	// Implement msync logic
 	// This is a placeholder implementation
 	return nil
+}
+
+func (db *SpanFile) GetUpdatesSince(since *replication.NodeSequences, maxResults int) ([]replication.Update, error) {
+    db.fileMutex.RLock()
+    defer db.fileMutex.RUnlock()
+
+    // Create priority queue
+    pq := &updateQueue{}
+    heap.Init(pq)
+
+    // Helper function to process spans
+    processSpan := func(offset uint64, isDeleted bool) error {
+        span, err := parseSpanAtOffset(db.mmapData, offset)
+        if err != nil {
+            return err
+        }
+
+        // Skip if this update is not newer than what we've seen
+        if sinceSeq := since.Get(span.SiteID); sinceSeq >= span.SequenceNumber {
+            return nil
+        }
+
+        update := replication.Update{
+            NodeID:       span.SiteID,
+            SequenceNo:   span.SequenceNumber,
+            Timestamp:    span.Timestamp,
+            RecordID:     span.RecordID,
+            DatabaseName: "", // Leave empty as per current implementation
+        }
+
+        if isDeleted {
+            update.Type = replication.Delete
+        } else {
+            update.Type = replication.Upsert
+            update.DataStreams = make([]replication.DataStream, len(span.DataStreams))
+            for i, ds := range span.DataStreams {
+                update.DataStreams[i] = replication.DataStream{
+                    StreamID: uint8(ds.StreamID),
+                    Data:     ds.Data,
+                }
+            }
+        }
+
+        item := &updateItem{
+            update:    update,
+            siteID:    span.SiteID,
+            seqNumber: span.SequenceNumber,
+        }
+
+        heap.Push(pq, item)
+        
+        // If we've exceeded maxResults, remove the oldest entry
+        if pq.Len() > maxResults {
+            heap.Pop(pq)
+        }
+
+        return nil
+    }
+
+    // Process active records
+    for _, offset := range db.index {
+        if err := processSpan(offset, false); err != nil {
+            return nil, err
+        }
+    }
+
+    // Process deleted records
+    for _, offset := range db.deletedIndex {
+        if err := processSpan(offset, true); err != nil {
+            return nil, err
+        }
+    }
+
+    // Convert priority queue to sorted slice
+    result := make([]replication.Update, 0, pq.Len())
+    for pq.Len() > 0 {
+        item := heap.Pop(pq).(*updateItem)
+        result = append([]replication.Update{item.update}, result...)
+    }
+
+    return result, nil
 }
 
 func magicNumberToString(magic uint32) string {
