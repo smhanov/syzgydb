@@ -554,3 +554,149 @@ func TestParseFreedSpan(t *testing.T) {
 		t.Errorf("Expected no data streams, got %d", len(span.DataStreams))
 	}
 }
+
+func TestGetUpdatesSince(t *testing.T) {
+    db, cleanup := setupTestDB(t)
+    defer cleanup()
+
+    // Create some test data with different site IDs and sequence numbers
+    testData := []struct {
+        recordID string
+        siteID uint64
+        seqNum uint64
+        data string
+        isDelete bool
+    }{
+        {"record1", 1, 1, "data1", false},
+        {"record2", 1, 2, "data2", false},
+        {"record3", 2, 1, "data3", false},
+        {"record4", 2, 2, "data4", true},  // This one will be deleted
+        {"record5", 3, 1, "data5", false},
+    }
+
+    // Write the records
+    for _, td := range testData {
+        ts := replication.Timestamp{
+            UnixTime: 1000,
+            LamportClock: int64(td.seqNum),
+        }
+
+        if !td.isDelete {
+            err := db.WriteRecord(td.recordID, []DataStream{{StreamID: 1, Data: []byte(td.data)}}, td.siteID, td.seqNum, ts)
+            if err != nil {
+                t.Fatalf("Failed to write record %s: %v", td.recordID, err)
+            }
+        } else {
+            err := db.RemoveRecord(td.recordID, td.siteID, ts)
+            if err != nil {
+                t.Fatalf("Failed to delete record %s: %v", td.recordID, err)
+            }
+        }
+    }
+
+    // Test cases with different since values and expected results
+    tests := []struct {
+        name string
+        since map[uint64]uint64  // map of siteID to sequence number
+        maxResults int
+        expectedCount int
+        expectedFirst string    // recordID of first expected result
+        expectedLast string     // recordID of last expected result
+    }{
+        {
+            name: "Get all updates",
+            since: map[uint64]uint64{},
+            maxResults: 10,
+            expectedCount: 5,
+            expectedFirst: "record1",
+            expectedLast: "record5",
+        },
+        {
+            name: "Filter by sequence number for site 1",
+            since: map[uint64]uint64{1: 1},
+            maxResults: 10,
+            expectedCount: 4,
+            expectedFirst: "record2",
+            expectedLast: "record5",
+        },
+        {
+            name: "Limited results",
+            since: map[uint64]uint64{},
+            maxResults: 3,
+            expectedCount: 3,
+            expectedFirst: "record1",
+            expectedLast: "record3",
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Create NodeSequences from the test case
+            since := replication.NewNodeSequences()
+            for siteID, seqNum := range tt.since {
+                since.Update(siteID, seqNum)
+            }
+
+            // Get updates
+            updates, err := db.GetUpdatesSince(since, tt.maxResults)
+            if err != nil {
+                t.Fatalf("GetUpdatesSince failed: %v", err)
+            }
+
+            // Verify count
+            if len(updates) != tt.expectedCount {
+                t.Errorf("Expected %d updates, got %d", tt.expectedCount, len(updates))
+            }
+
+            // Verify ordering and contents
+            if len(updates) > 0 {
+                // Check first result
+                if updates[0].RecordID != tt.expectedFirst {
+                    t.Errorf("Expected first record to be %s, got %s", tt.expectedFirst, updates[0].RecordID)
+                }
+
+                // Check last result
+                if updates[len(updates)-1].RecordID != tt.expectedLast {
+                    t.Errorf("Expected last record to be %s, got %s", tt.expectedLast, updates[len(updates)-1].RecordID)
+                }
+
+                // Verify ordering
+                for i := 1; i < len(updates); i++ {
+                    prev := updates[i-1]
+                    curr := updates[i]
+                    if prev.NodeID > curr.NodeID || 
+                       (prev.NodeID == curr.NodeID && prev.SequenceNo > curr.SequenceNo) {
+                        t.Errorf("Updates not properly ordered at index %d: %v -> %v", 
+                            i, prev, curr)
+                    }
+                }
+
+                // Verify update types
+                for _, update := range updates {
+                    expectedType := replication.UpsertRecord
+                    if update.RecordID == "record4" {
+                        expectedType = replication.DeleteRecord
+                    }
+                    if update.Type != expectedType {
+                        t.Errorf("Wrong update type for %s: expected %v, got %v",
+                            update.RecordID, expectedType, update.Type)
+                    }
+
+                    // Verify data streams for non-deleted records
+                    if update.Type == replication.UpsertRecord {
+                        if len(update.DataStreams) != 1 {
+                            t.Errorf("Expected 1 data stream for %s, got %d",
+                                update.RecordID, len(update.DataStreams))
+                        } else {
+                            expectedData := fmt.Sprintf("data%c", update.RecordID[len(update.RecordID)-1])
+                            if string(update.DataStreams[0].Data) != expectedData {
+                                t.Errorf("Wrong data for %s: expected %s, got %s",
+                                    update.RecordID, expectedData, string(update.DataStreams[0].Data))
+                            }
+                        }
+                    }
+                }
+            }
+        })
+    }
+}
