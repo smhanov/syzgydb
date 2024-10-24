@@ -48,8 +48,11 @@ type CollectionOptions struct {
 	// FileMode specifies the mode for opening the memfile.
 	FileMode FileMode `json:"file_mode"`
 
-	NodeID    uint64                `json:"node_id"`
-	Timestamp replication.Timestamp `json:"timestamp"`
+	// These are used for replication. You can leave them blank if
+	// not using the replication feature.
+	NodeID         uint64                `json:"node_id"`
+	SequenceNumber uint64                `json:"sequence_number"`
+	Timestamp      replication.Timestamp `json:"timestamp"`
 }
 
 type ICollection interface {
@@ -291,7 +294,7 @@ func NewCollection(options CollectionOptions) (*Collection, error) {
 		dataStreams := []DataStream{
 			{StreamID: 0, Data: optionsData},
 		}
-		err = spanFile.WriteRecord("", dataStreams, options.NodeID, options.Timestamp)
+		err = spanFile.WriteRecord("", dataStreams, options.NodeID, 0, options.Timestamp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to write options: %v", err)
 		}
@@ -453,7 +456,7 @@ func (c *Collection) Close() error {
 }
 
 // AddRecordDirect adds a record directly to the collection with the specified ID, metadata, datastreams, and timestamp.
-func (c *Collection) AddRecordDirect(id uint64, dataStreams []DataStream, nodeID uint64, timestamp replication.Timestamp) error {
+func (c *Collection) AddRecordDirect(id uint64, dataStreams []DataStream, nodeID, sequence uint64, timestamp replication.Timestamp) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -474,7 +477,7 @@ func (c *Collection) AddRecordDirect(id uint64, dataStreams []DataStream, nodeID
 	vector := decodeVector(vectorData, c.DimensionCount, c.Quantization)
 
 	// Use the common function to add the record
-	return c.addRecordCommon(id, vector, dataStreams, nodeID, timestamp)
+	return c.addRecordCommon(id, vector, dataStreams, nodeID, sequence, timestamp)
 }
 
 /*
@@ -500,12 +503,13 @@ func (c *Collection) AddDocument(id uint64, vector []float64, metadata []byte) e
 	}
 
 	// Use the common function to add the record
-	return c.addRecordCommon(id, vector, dataStreams, 0, c.spanfile.NextTimestamp())
+	// For local add without using replication, we use nodeID 0.
+	return c.addRecordCommon(id, vector, dataStreams, 0, c.spanfile.NextSequenceNumber(0), c.spanfile.NextTimestamp())
 }
 
-func (c *Collection) addRecordCommon(id uint64, vector []float64, dataStreams []DataStream, nodeID uint64, timestamp replication.Timestamp) error {
+func (c *Collection) addRecordCommon(id uint64, vector []float64, dataStreams []DataStream, nodeID, sequence uint64, timestamp replication.Timestamp) error {
 	// Write to spanfile
-	err := c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, nodeID, timestamp)
+	err := c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, nodeID, sequence, timestamp)
 	if err != nil {
 		return fmt.Errorf("failed to write record: %v", err)
 	}
@@ -568,7 +572,7 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 		{StreamID: 0, Data: newMetadata},
 		{StreamID: 1, Data: span.DataStreams[1].Data},
 	}
-	err = c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, 0, timestamp)
+	err = c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, 0, c.spanfile.NextSequenceNumber(0), timestamp)
 	if err != nil {
 		return err
 	}
@@ -592,7 +596,7 @@ func (c *Collection) RemoveDocument(id uint64) error {
 	return c.removeDocumentDirect(id, 0, c.spanfile.NextTimestamp())
 }
 
-func (c *Collection) UpdateDocumentDirect(id uint64, newMetadata []byte, nodeID uint64, timestamp replication.Timestamp) error {
+func (c *Collection) UpdateDocumentDirect(id uint64, newMetadata []byte, nodeID, sequence uint64, timestamp replication.Timestamp) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -605,7 +609,7 @@ func (c *Collection) UpdateDocumentDirect(id uint64, newMetadata []byte, nodeID 
 		{StreamID: 0, Data: newMetadata},
 		{StreamID: 1, Data: span.DataStreams[1].Data},
 	}
-	return c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, nodeID, timestamp)
+	return c.spanfile.WriteRecord(fmt.Sprintf("%d", id), dataStreams, nodeID, sequence, timestamp)
 }
 
 // iterateDocuments applies a function to each document in the collection.

@@ -27,6 +27,7 @@ type Node struct {
 	initialized bool
 	re          *replication.ReplicationEngine
 	config      Config
+	spanfile    *SpanFile
 }
 
 func NewNode(config Config) *Node {
@@ -56,6 +57,7 @@ func (n *Node) Initialize(openStored bool) error {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
 	log.Printf("Initailizing")
+
 	if openStored {
 		log.Printf("Openstored")
 		files, err := filepath.Glob(filepath.Join(n.dataFolder, "*.dat"))
@@ -77,6 +79,14 @@ func (n *Node) Initialize(openStored bool) error {
 		}
 	}
 
+	// create / open the clusterdata file
+	var err error
+	state, err := n.createClusterDataFile()
+
+	if err != nil {
+		return fmt.Errorf("failed to create clusterdata file: %v", err)
+	}
+
 	n.initialized = true
 
 	reConfig := replication.ReplicationConfig{
@@ -86,13 +96,7 @@ func (n *Node) Initialize(openStored bool) error {
 		NodeID:    n.config.NodeID,
 	}
 
-	var err error
-	clock := replication.NewVectorClock()
-	for _, collection := range n.collections {
-		clock.Merge(collection.getLatestVectorClock())
-	}
-
-	n.re, err = replication.Init(n, reConfig, clock)
+	n.re, err = replication.Init(n, reConfig, state)
 	if err != nil {
 		return err
 	}
@@ -100,6 +104,27 @@ func (n *Node) Initialize(openStored bool) error {
 	log.Printf("n.re is %p", n.re)
 
 	return nil
+}
+
+func (n *Node) createClusterDataFile() ([]byte, error) {
+	spanfile, err := OpenFile(filepath.Join(n.dataFolder, "clusterdata.span"), CreateIfNotExists)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create span file: %v", err)
+	}
+	n.spanfile = spanfile
+	span, err := spanfile.ReadRecord("replication_state")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read span file: %v", err)
+	}
+
+	return span.DataStreams[0].Data, nil
+}
+
+func (n *Node) SaveState(state []byte) error {
+	// save the replication state
+	return n.spanfile.WriteRecord("replication_state", []DataStream{
+		{StreamID: 0, Data: state},
+	}, 0, 0, n.re.NextTimestamp())
 }
 
 func (n *Node) CreateCollection(opts CollectionOptions) (ICollection, error) {
@@ -111,9 +136,8 @@ func (n *Node) CreateCollection(opts CollectionOptions) (ICollection, error) {
 	}
 
 	update := replication.Update{
-		NodeID:    n.nodeID,
-		Timestamp: n.re.NextLocalTimestamp(),
-		Type:      replication.CreateDatabase,
+		NodeID: n.nodeID,
+		Type:   replication.CreateDatabase,
 		DataStreams: []replication.DataStream{
 			{StreamID: 0, Data: data},
 		},
@@ -144,15 +168,21 @@ func (n *Node) GetCollection(name string) (ICollection, bool) {
 	return newCollectionProxy(n, collection), true
 }
 
-func (n *Node) createCollectionImpl(opts CollectionOptions) (ICollection, error) {
+func (n *Node) createCollectionImpl(update replication.Update, opts CollectionOptions) (ICollection, error) {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
+
+	// record the created collection.
+	err := n.spanfile.WriteRecord("create:"+opts.Name, nil, update.NodeID, update.SequenceNo, update.Timestamp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to record created collection: %v", err)
+	}
 
 	if current, exists := n.collections[opts.Name]; exists {
 		if opts.FileMode == CreateAndOverwrite {
 			err := current.Close()
 			if err != nil {
-				return nil, fmt.Errorf("failed to existing collection: %v", err)
+				return nil, fmt.Errorf("failed to overwrite existing collection: %v", err)
 			}
 		} else if opts.FileMode == CreateIfNotExists {
 			return current, nil
@@ -179,7 +209,6 @@ func (n *Node) DropCollection(name string) error {
 	// Prepare an update and send it to the replication engine.
 	update := replication.Update{
 		NodeID:       n.nodeID,
-		Timestamp:    n.re.NextLocalTimestamp(),
 		Type:         replication.DropDatabase,
 		DatabaseName: name,
 	}
@@ -187,18 +216,27 @@ func (n *Node) DropCollection(name string) error {
 	return n.re.SubmitUpdates([]replication.Update{update})
 }
 
-func (n *Node) dropCollectionImpl(name string) error {
+func (n *Node) dropCollectionImpl(update replication.Update) error {
+	name := update.DatabaseName
+
+	// record the deleted collection.
+	err := n.spanfile.WriteRecord("delete:"+name, nil, update.NodeID, update.SequenceNo, update.Timestamp)
+	if err != nil {
+		return fmt.Errorf("failed to record deleted collection: %v", err)
+	}
+
 	collection, exists := n.collections[name]
 	if !exists {
 		return fmt.Errorf("collection %s does not exist", name)
 	}
 
-	err := collection.Close()
+	err = collection.Close()
 	if err != nil {
 		return fmt.Errorf("failed to close collection: %v", err)
 	}
 
 	delete(n.collections, name)
+
 	return nil
 }
 
@@ -233,14 +271,15 @@ func (n *Node) CommitUpdates(updates []replication.Update) error {
 			opts.Name = update.DatabaseName
 			opts.Timestamp = update.Timestamp
 			opts.NodeID = update.NodeID
-			_, err = n.createCollectionImpl(opts)
+			opts.SequenceNumber = update.SequenceNo
+			_, err = n.createCollectionImpl(update, opts)
 			if err != nil {
 				return err
 			}
 
 		case replication.DropDatabase:
 			// TODO: Check if the drop is after the database was created.
-			err := n.dropCollectionImpl(update.DatabaseName)
+			err := n.dropCollectionImpl(update)
 			if err != nil {
 				return err
 			}
@@ -263,10 +302,10 @@ func (n *Node) CommitUpdates(updates []replication.Update) error {
 						Data:     ds.Data,
 					}
 				}
-				err = collection.AddRecordDirect(id, dataStreams, update.NodeID, update.Timestamp)
+				err = collection.AddRecordDirect(id, dataStreams, update.NodeID, update.SequenceNo, update.Timestamp)
 			} else if len(update.DataStreams) == 1 {
 				// This is an UpdateDocument operation
-				err = collection.UpdateDocumentDirect(id, update.DataStreams[0].Data, update.NodeID, update.Timestamp)
+				err = collection.UpdateDocumentDirect(id, update.DataStreams[0].Data, update.NodeID, update.SequenceNo, update.Timestamp)
 			} else {
 				return fmt.Errorf("invalid number of data streams for UpsertRecord")
 			}
@@ -293,17 +332,9 @@ func (n *Node) CommitUpdates(updates []replication.Update) error {
 }
 
 // GetUpdatesSince retrieves updates that occurred after the given vector clock, up to maxResults.
-func (n *Node) GetUpdatesSince(vectorClock *replication.VectorClock, maxResults int) (map[string][]replication.Update, bool, error) {
+func (n *Node) GetUpdatesSince(vectorClock *replication.NodeSequences, maxResults int) ([]replication.Update, bool, error) {
 	// TODO: Implement this method
 	return nil, false, nil
-}
-
-// ResolveConflict determines which of two conflicting updates should be applied.
-func (n *Node) ResolveConflict(update1, update2 replication.Update) (replication.Update, error) {
-	if update1.NodeID < update2.NodeID {
-		return update1, nil
-	}
-	return update2, nil
 }
 
 // Exists checks if a given dependency (usually a database) exists in the storage.
@@ -339,7 +370,6 @@ func (cf *CollectionProxy) AddDocument(id uint64, vector []float64, metadata []b
 
 	update := replication.Update{
 		NodeID:       cf.node.nodeID,
-		Timestamp:    cf.node.re.NextLocalTimestamp(),
 		Type:         replication.UpsertRecord,
 		RecordID:     fmt.Sprintf("%d", id),
 		DatabaseName: cf.collection.GetName(),
@@ -379,7 +409,6 @@ func (cf *CollectionProxy) GetOptions() CollectionOptions {
 func (cf *CollectionProxy) RemoveDocument(id uint64) error {
 	update := replication.Update{
 		NodeID:       cf.node.nodeID,
-		Timestamp:    cf.node.re.NextLocalTimestamp(),
 		Type:         replication.DeleteRecord,
 		RecordID:     fmt.Sprintf("%d", id),
 		DatabaseName: cf.collection.GetName(),
@@ -394,10 +423,9 @@ func (cf *CollectionProxy) Search(args SearchArgs) SearchResults {
 
 func (cf *CollectionProxy) UpdateDocument(id uint64, newMetadata []byte) error {
 	update := replication.Update{
-		NodeID:    cf.node.nodeID,
-		Timestamp: cf.node.re.NextLocalTimestamp(),
-		Type:      replication.UpsertRecord,
-		RecordID:  fmt.Sprintf("%d", id),
+		NodeID:   cf.node.nodeID,
+		Type:     replication.UpsertRecord,
+		RecordID: fmt.Sprintf("%d", id),
 		DataStreams: []replication.DataStream{
 			{StreamID: 0, Data: newMetadata},
 		},

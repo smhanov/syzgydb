@@ -7,6 +7,7 @@ Span ::= MagicNumber (4)
          Time (7code)
 				 LamportTime (7code)
 				 SiteID (7code)
+				 SequenceNumber (7code)
 				 Unused (7code)
          RecordIDLength (7code)
          RecordID (...bytes)
@@ -21,7 +22,7 @@ DataStream ::= StreamID (1)
 
 Padding is placed in a span if it is placed before another record,
 and there is not enough space to fit in at least an empty span.
-(4+4+1+1+1+1+1+1+4 = 17 bytes)
+(4+4+1+1+1+1+1+1+1+4 = 19 bytes)
 */
 
 package syzgydb
@@ -45,7 +46,7 @@ const (
 	deletedMagic = 0x44454C45 // 'DELE'
 )
 
-const minSpanLength = 18
+const minSpanLength = 19
 
 // NextTimestamp updates the internal latest timestamp by incrementing the lamport time and returns it
 func (db *SpanFile) NextTimestamp() replication.Timestamp {
@@ -113,6 +114,12 @@ func (sr *SpanReader) getStream(id uint8) ([]byte, error) {
 	}
 
 	// skip siteID
+	_, at, err = read7Code(sr.data, at)
+	if err != nil {
+		return nil, err
+	}
+
+	// skip sequenceNumber
 	_, at, err = read7Code(sr.data, at)
 	if err != nil {
 		return nil, err
@@ -189,13 +196,14 @@ func (db *SpanFile) Close() error {
 }
 
 type Span struct {
-	MagicNumber uint32
-	Length      uint64
-	Timestamp   replication.Timestamp
-	SiteID      uint64
-	RecordID    string
-	DataStreams []DataStream
-	Checksum    uint32
+	MagicNumber    uint32
+	Length         uint64
+	Timestamp      replication.Timestamp
+	SiteID         uint64
+	SequenceNumber uint64
+	RecordID       string
+	DataStreams    []DataStream
+	Checksum       uint32
 }
 
 type IndexEntry struct {
@@ -213,7 +221,7 @@ type SpanFile struct {
 	deletedIndex      map[string]uint64 // New map for deleted record IDs
 	freeMap           freeMap           // Change from freeList to freeMap
 	latestTimestamp   replication.Timestamp
-	latestVectorClock *replication.VectorClock
+	latestVectorClock *replication.NodeSequences
 	fileMutex         sync.RWMutex
 }
 
@@ -319,7 +327,7 @@ func OpenFile(filename string, mode FileMode) (*SpanFile, error) {
 		deletedIndex:      make(map[string]uint64),        // Initialize deletedIndex
 		freeMap:           freeMap{freeSpaces: []space{}}, // Initialize freeMap
 		latestTimestamp:   replication.Timestamp{UnixTime: 0, LamportClock: 0},
-		latestVectorClock: replication.NewVectorClock(),
+		latestVectorClock: replication.NewNodeSequences(),
 		fileName:          filename,
 	}
 
@@ -383,7 +391,7 @@ func (db *SpanFile) scanFile() error {
 			if span.Timestamp.After(latestTimestamp) {
 				latestTimestamp = span.Timestamp
 			}
-			db.latestVectorClock.Update(span.SiteID, span.Timestamp)
+			db.latestVectorClock.Update(span.SiteID, span.SequenceNumber)
 
 			db.index[span.RecordID] = uint64(offset)
 		} else if magicNumber == freeMagic {
@@ -514,7 +522,11 @@ func (db *SpanFile) addDeletedSpan(recordID string, siteID uint64, timestamp rep
 	return nil
 }
 
-func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, siteID uint64, timestamp replication.Timestamp) error {
+func (db *SpanFile) NextSequenceNumber(nodeid uint64) uint64 {
+	return db.latestVectorClock.Next(nodeid)
+}
+
+func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, siteID, sequence uint64, timestamp replication.Timestamp) error {
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
 
@@ -542,11 +554,12 @@ func (db *SpanFile) WriteRecord(recordID string, dataStreams []DataStream, siteI
 	}
 
 	span := &Span{
-		MagicNumber: activeMagic,
-		SiteID:      siteID,
-		Timestamp:   timestamp,
-		RecordID:    recordID,
-		DataStreams: dataStreams,
+		MagicNumber:    activeMagic,
+		SiteID:         siteID,
+		SequenceNumber: sequence,
+		Timestamp:      timestamp,
+		RecordID:       recordID,
+		DataStreams:    dataStreams,
 	}
 
 	spanBytes, err := serializeSpan(span)
@@ -806,6 +819,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 		lengthOf7Code(uint64(span.Timestamp.UnixTime)) +
 		lengthOf7Code(uint64(span.Timestamp.LamportClock)) +
 		lengthOf7Code(span.SiteID) +
+		lengthOf7Code(span.SequenceNumber) +
 		1 + // future use
 		lengthOf7Code(uint64(len(recordIDBytes))) +
 		uint64(len(recordIDBytes)) +
@@ -830,6 +844,7 @@ func serializeSpan(span *Span) ([]byte, error) {
 	buf = write7Code(buf, uint64(span.Timestamp.UnixTime))
 	buf = write7Code(buf, uint64(span.Timestamp.LamportClock))
 	buf = write7Code(buf, span.SiteID)
+	buf = write7Code(buf, span.SequenceNumber)
 	buf = append(buf, 0) // Unused
 
 	// Serialize RecordID Length and RecordID
@@ -890,7 +905,7 @@ func parseSpan(data []byte) (*Span, error) {
 	}
 
 	// Parse Timestamp
-	var unixTime, lamportClock, siteID uint64
+	var unixTime, lamportClock, siteID, sequence uint64
 	unixTime, at, err = read7Code(data, at)
 	if err != nil {
 		return nil, err
@@ -908,6 +923,12 @@ func parseSpan(data []byte) (*Span, error) {
 		LamportClock: int64(lamportClock),
 	}
 	span.SiteID = siteID
+
+	sequence, at, err = read7Code(data, at)
+	if err != nil {
+		return nil, err
+	}
+	span.SequenceNumber = sequence
 
 	_, at, err = read7Code(data, at) // Skip unused byte
 	if err != nil {
@@ -1085,8 +1106,4 @@ func (db *SpanFile) writeSpanToAllocatedSpace(span *Span, size int) (uint64, err
 	}
 
 	return offset, nil
-}
-
-func (db *SpanFile) getLatestVectorClock() *replication.VectorClock {
-	return db.latestVectorClock
 }
