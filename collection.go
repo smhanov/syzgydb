@@ -81,6 +81,15 @@ func (c *Collection) GetDocumentCount() int {
 	return numRecords
 }
 
+// GetUpdatesSince retrieves updates that occurred after the given node sequences, up to maxResults.
+// It returns the updates and any error encountered.
+func (c *Collection) GetUpdatesSince(since *replication.NodeSequences, maxResults int) ([]replication.Update, error) {
+    c.mutex.RLock()
+    defer c.mutex.RUnlock()
+    
+    return c.spanfile.GetUpdatesSince(since, maxResults)
+}
+
 /*
 ComputeStats gathers and returns statistics about the collection.
 It returns a CollectionStats object filled with the relevant statistics.
