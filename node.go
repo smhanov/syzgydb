@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -333,97 +334,97 @@ func (n *Node) CommitUpdates(updates []replication.Update) error {
 
 // GetUpdatesSince retrieves updates that occurred after the given vector clock, up to maxResults.
 func (n *Node) GetUpdatesSince(vectorClock *replication.NodeSequences, maxResults int) ([]replication.Update, bool, error) {
-    n.mutex.RLock()
-    defer n.mutex.RUnlock()
+	n.mutex.RLock()
+	defer n.mutex.RUnlock()
 
-    var wg sync.WaitGroup
-    var mu sync.Mutex // For protecting the combined results
-    var allUpdates []replication.Update
-    
-    // Channel to collect errors from goroutines
-    errChan := make(chan error, len(n.collections))
+	var wg sync.WaitGroup
+	var mu sync.Mutex // For protecting the combined results
+	var allUpdates []replication.Update
 
-    // Process each collection in parallel
-    for name, coll := range n.collections {
-        wg.Add(1)
-        go func(dbName string, c *Collection) {
-            defer wg.Done()
-            
-            updates, err := c.GetUpdatesSince(vectorClock, maxResults)
-            if err != nil {
-                errChan <- fmt.Errorf("error getting updates from collection %s: %v", dbName, err)
-                return
-            }
+	// Channel to collect errors from goroutines
+	errChan := make(chan error, len(n.collections))
 
-            // Set the database name for each update
-            for i := range updates {
-                updates[i].DatabaseName = dbName
-            }
+	// Process each collection in parallel
+	for name, coll := range n.collections {
+		wg.Add(1)
+		go func(dbName string, c *Collection) {
+			defer wg.Done()
 
-            mu.Lock()
-            allUpdates = append(allUpdates, updates...)
-            mu.Unlock()
-        }(name, coll)
-    }
+			updates, err := c.GetUpdatesSince(vectorClock, maxResults)
+			if err != nil {
+				errChan <- fmt.Errorf("error getting updates from collection %s: %v", dbName, err)
+				return
+			}
 
-    // Wait for all collection processing to complete
-    wg.Wait()
-    close(errChan)
+			// Set the database name for each update
+			for i := range updates {
+				updates[i].DatabaseName = dbName
+			}
 
-    // Check for any errors
-    for err := range errChan {
-        if err != nil {
-            return nil, false, err
-        }
-    }
+			mu.Lock()
+			allUpdates = append(allUpdates, updates...)
+			mu.Unlock()
+		}(name, coll)
+	}
 
-    // Get updates from node.spanfile for collection creation/deletion
-    spanUpdates, err := n.spanfile.GetUpdatesSince(vectorClock, maxResults)
-    if err != nil {
-        return nil, false, fmt.Errorf("error getting updates from spanfile: %v", err)
-    }
+	// Wait for all collection processing to complete
+	wg.Wait()
+	close(errChan)
 
-    // Process spanfile updates to convert them to appropriate Update types
-    for _, update := range spanUpdates {
-        if strings.HasPrefix(update.RecordID, "create:") {
-            dbName := strings.TrimPrefix(update.RecordID, "create:")
-            createUpdate := replication.Update{
-                NodeID:       update.NodeID,
-                SequenceNo:   update.SequenceNo,
-                Timestamp:    update.Timestamp,
-                Type:        replication.CreateDatabase,
-                DatabaseName: dbName,
-            }
-            allUpdates = append(allUpdates, createUpdate)
-        } else if strings.HasPrefix(update.RecordID, "delete:") {
-            dbName := strings.TrimPrefix(update.RecordID, "delete:")
-            deleteUpdate := replication.Update{
-                NodeID:       update.NodeID,
-                SequenceNo:   update.SequenceNo,
-                Timestamp:    update.Timestamp,
-                Type:        replication.DropDatabase,
-                DatabaseName: dbName,
-            }
-            allUpdates = append(allUpdates, deleteUpdate)
-        }
-    }
+	// Check for any errors
+	for err := range errChan {
+		if err != nil {
+			return nil, false, err
+		}
+	}
 
-    // Sort updates by NodeID and SequenceNo
-    sort.Slice(allUpdates, func(i, j int) bool {
-        if allUpdates[i].NodeID != allUpdates[j].NodeID {
-            return allUpdates[i].NodeID < allUpdates[j].NodeID
-        }
-        return allUpdates[i].SequenceNo < allUpdates[j].SequenceNo
-    })
+	// Get updates from node.spanfile for collection creation/deletion
+	spanUpdates, err := n.spanfile.GetUpdatesSince(vectorClock, maxResults)
+	if err != nil {
+		return nil, false, fmt.Errorf("error getting updates from spanfile: %v", err)
+	}
 
-    // Truncate to maxResults if needed
-    hasMore := false
-    if len(allUpdates) > maxResults {
-        hasMore = true
-        allUpdates = allUpdates[:maxResults]
-    }
+	// Process spanfile updates to convert them to appropriate Update types
+	for _, update := range spanUpdates {
+		if strings.HasPrefix(update.RecordID, "create:") {
+			dbName := strings.TrimPrefix(update.RecordID, "create:")
+			createUpdate := replication.Update{
+				NodeID:       update.NodeID,
+				SequenceNo:   update.SequenceNo,
+				Timestamp:    update.Timestamp,
+				Type:         replication.CreateDatabase,
+				DatabaseName: dbName,
+			}
+			allUpdates = append(allUpdates, createUpdate)
+		} else if strings.HasPrefix(update.RecordID, "delete:") {
+			dbName := strings.TrimPrefix(update.RecordID, "delete:")
+			deleteUpdate := replication.Update{
+				NodeID:       update.NodeID,
+				SequenceNo:   update.SequenceNo,
+				Timestamp:    update.Timestamp,
+				Type:         replication.DropDatabase,
+				DatabaseName: dbName,
+			}
+			allUpdates = append(allUpdates, deleteUpdate)
+		}
+	}
 
-    return allUpdates, hasMore, nil
+	// Sort updates by NodeID and SequenceNo
+	sort.Slice(allUpdates, func(i, j int) bool {
+		if allUpdates[i].NodeID != allUpdates[j].NodeID {
+			return allUpdates[i].NodeID < allUpdates[j].NodeID
+		}
+		return allUpdates[i].SequenceNo < allUpdates[j].SequenceNo
+	})
+
+	// Truncate to maxResults if needed
+	hasMore := false
+	if len(allUpdates) > maxResults {
+		hasMore = true
+		allUpdates = allUpdates[:maxResults]
+	}
+
+	return allUpdates, hasMore, nil
 }
 
 // Exists checks if a given dependency (usually a database) exists in the storage.
