@@ -1100,21 +1100,26 @@ func (db *SpanFile) GetUpdatesSince(since *replication.NodeSequences, maxResults
         }
 
         update := replication.Update{
-            NodeID:       span.SiteID,
-            SequenceNo:   span.SequenceNumber,
-            Timestamp:    span.Timestamp,
-            RecordID:     span.RecordID,
-            DatabaseName: "", // Leave empty as per current implementation
+            NodeID:         span.SiteID,
+            SequenceNo:     span.SequenceNumber,
+            Timestamp:      replication.Timestamp{
+                UnixTime:     span.Timestamp.UnixTime,
+                LamportClock: span.Timestamp.LamportClock,
+            },
+            Type:          replication.DeleteRecord, // Will be changed to UpsertRecord below if not deleted
+            RecordID:      span.RecordID,
+            DatabaseName:  "", // Leave empty as per current implementation
+            DataStreams:   nil, // Will be filled in below for non-deleted records
         }
 
         if isDeleted {
-            update.Type = replication.Delete
+            update.Type = replication.DeleteRecord
         } else {
-            update.Type = replication.Upsert
+            update.Type = replication.UpsertRecord
             update.DataStreams = make([]replication.DataStream, len(span.DataStreams))
             for i, ds := range span.DataStreams {
                 update.DataStreams[i] = replication.DataStream{
-                    StreamID: uint8(ds.StreamID),
+                    StreamID: ds.StreamID,
                     Data:     ds.Data,
                 }
             }
