@@ -2,6 +2,8 @@ package replication
 
 import (
 	"encoding/json"
+	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -30,7 +32,7 @@ type StateMachine struct {
 type replicationState struct {
 	NodeSequences *NodeSequences `json:"node_sequences"`
 	Timestamp     Timestamp      `json:"timestamp"`
-	PeerURLs      []string      `json:"peer_urls"`
+	PeerURLs      []string       `json:"peer_urls"`
 }
 
 func NewStateMachine(storage StorageInterface, config ReplicationConfig, state []byte) *StateMachine {
@@ -43,7 +45,7 @@ func NewStateMachine(storage StorageInterface, config ReplicationConfig, state [
 		rstate = replicationState{
 			NodeSequences: NewNodeSequences(),
 			Timestamp:     Now(),
-			PeerURLs:     make([]string, 0),
+			PeerURLs:      make([]string, 0),
 		}
 	}
 

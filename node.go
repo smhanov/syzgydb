@@ -114,7 +114,10 @@ func (n *Node) createClusterDataFile() ([]byte, error) {
 	}
 	n.spanfile = spanfile
 	span, err := spanfile.ReadRecord("replication_state")
-	if err != nil {
+	if err == ErrRecordNotFound {
+		// no state found, return empty state
+		return nil, nil
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to read span file: %v", err)
 	}
 
