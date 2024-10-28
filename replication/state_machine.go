@@ -30,6 +30,7 @@ type StateMachine struct {
 type replicationState struct {
 	NodeSequences *NodeSequences `json:"node_sequences"`
 	Timestamp     Timestamp      `json:"timestamp"`
+	PeerURLs      []string      `json:"peer_urls"`
 }
 
 func NewStateMachine(storage StorageInterface, config ReplicationConfig, state []byte) *StateMachine {
@@ -42,6 +43,7 @@ func NewStateMachine(storage StorageInterface, config ReplicationConfig, state [
 		rstate = replicationState{
 			NodeSequences: NewNodeSequences(),
 			Timestamp:     Now(),
+			PeerURLs:     make([]string, 0),
 		}
 	}
 
@@ -56,6 +58,13 @@ func NewStateMachine(storage StorageInterface, config ReplicationConfig, state [
 		timestamp:       rstate.Timestamp,
 		lastSavedState:  state,
 		stateTimer:      time.NewTicker(5 * time.Second),
+	}
+
+	// Initialize peers from saved state
+	for _, url := range rstate.PeerURLs {
+		if url != config.OwnURL { // Don't add ourselves as a peer
+			sm.peers[url] = NewPeer("", url, sm)
+		}
 	}
 
 	go sm.eventLoop()
@@ -86,9 +95,17 @@ func (sm *StateMachine) updateTimestamp(t Timestamp) {
 }
 
 func (sm *StateMachine) saveState() ([]byte, error) {
+	// Get peer URLs and sort them
+	peerURLs := make([]string, 0, len(sm.peers))
+	for url := range sm.peers {
+		peerURLs = append(peerURLs, url)
+	}
+	sort.Strings(peerURLs)
+
 	state := replicationState{
 		NodeSequences: sm.nodeSequences,
 		Timestamp:     sm.timestamp,
+		PeerURLs:      peerURLs,
 	}
 	return json.Marshal(state)
 }
