@@ -27,12 +27,24 @@ func gzipMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		w.Header().Set("Content-Encoding", "gzip")
+		// Create gzip writer
 		gz := gzip.NewWriter(w)
 		defer gz.Close()
 
-		gzr := gzipResponseWriter{Writer: gz, ResponseWriter: w}
-		next.ServeHTTP(gzr, r)
+		// Create gzip response writer
+		gzw := gzipResponseWriter{
+			ResponseWriter: w,
+			Writer:        gz,
+		}
+
+		// Set headers before any writes occur
+		gzw.Header().Set("Content-Type", "application/json")
+		gzw.Header().Set("Content-Encoding", "gzip")
+
+		// Remove Content-Length header since it will be invalid after compression
+		gzw.Header().Del("Content-Length")
+
+		next.ServeHTTP(gzw, r)
 	})
 }
 
@@ -43,6 +55,14 @@ type gzipResponseWriter struct {
 
 func (w gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
+}
+
+func (w gzipResponseWriter) Header() http.Header {
+	return w.ResponseWriter.Header()
+}
+
+func (w gzipResponseWriter) WriteHeader(statusCode int) {
+	w.ResponseWriter.WriteHeader(statusCode)
 }
 
 func (s *Server) collectionNameToFileName(name string) string {
