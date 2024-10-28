@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/NYTimes/gziphandler"
 )
 
 type Server struct {
@@ -20,32 +22,19 @@ type Server struct {
 	mutex       sync.Mutex
 }
 
-func gzipMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		// Create gzip writer
-		gz := gzip.NewWriter(w)
-		defer gz.Close()
-
-		// Create gzip response writer
-		gzw := gzipResponseWriter{
-			ResponseWriter: w,
-			Writer:        gz,
-		}
-
-		// Set headers before any writes occur
-		gzw.Header().Set("Content-Type", "application/json")
-		gzw.Header().Set("Content-Encoding", "gzip")
-
-		// Remove Content-Length header since it will be invalid after compression
-		gzw.Header().Del("Content-Length")
-
-		next.ServeHTTP(gzw, r)
-	})
+func gzipMiddleware(wrappedHandler http.Handler) http.Handler {
+	handler, err := gziphandler.GzipHandlerWithOpts(gziphandler.ContentTypes([]string{
+		"application/json",
+		"text",
+		"text/html",
+		"text/css",
+		"application/javascript",
+		"image/svg+xml",
+	}))
+	if err != nil {
+		panic(err)
+	}
+	return handler(wrappedHandler)
 }
 
 type gzipResponseWriter struct {
@@ -154,8 +143,8 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 			collectionsInfo[i].Name = s.fileNameToCollectionName(collectionsInfo[i].Name)
 		}
 
-		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
+
 		encoder := json.NewEncoder(w)
 		encoder.SetIndent("", "  ")
 		encoder.Encode(collectionsInfo)
@@ -458,11 +447,9 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		embeddingTime = time.Since(startEmbed)
 	}
 
-	log.Printf("Got here 1")
 	startSearch := time.Now()
 	results := collection.Search(searchArgs)
 	searchTime := time.Since(startSearch)
-	log.Printf("Got here 2")
 	type jsonSearchResult struct {
 		ID       uint64                 `json:"id"`
 		Metadata map[string]interface{} `json:"metadata"`
@@ -482,9 +469,8 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 			Distance: result.Distance,
 		})
 	}
-	log.Printf("Gothere 3")
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(struct {
+	err := json.NewEncoder(w).Encode(struct {
 		Results         []jsonSearchResult `json:"results"`
 		PercentSearched float64            `json:"percent_searched"`
 		SearchTime      int64              `json:"search_time"`
@@ -495,7 +481,9 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		SearchTime:      searchTime.Milliseconds(),
 		EmbeddingTime:   embeddingTime.Milliseconds(),
 	})
-	log.Printf("Got here 4")
+	if err != nil {
+		log.Panicf("Failed to encode search results: %v", err)
+	}
 }
 
 type collectionStatsWithName struct {

@@ -699,10 +699,15 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 
 	_, numRecords := c.spanfile.GetStats()
 
-	return SearchResults{
+	ret := SearchResults{
 		Results:         results,
 		PercentSearched: float64(pointsSearched) / float64(numRecords) * 100,
 	}
+	if numRecords == 0 {
+		// avoid NaN
+		ret.PercentSearched = 0
+	}
+	return ret
 }
 
 func encodeDocument(doc *Document, quantization int) []byte {

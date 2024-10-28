@@ -7,3 +7,4 @@ syzgy
 todo.txt
 *.csv
 *.prof
+.env

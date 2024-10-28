@@ -31,6 +31,8 @@ export default {
                 text: searchQuery.value,
                 limit: pageSize.value,
                 offset: (page.value - 1) * pageSize.value,
+                k: 0,
+                precision: "medium",
             };
             if (searchQuery.value.trim() !== '') {
                 searchParams.k = 100;
