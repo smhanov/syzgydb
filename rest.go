@@ -438,10 +438,11 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		embeddingTime = time.Since(startEmbed)
 	}
 
+	log.Printf("Got here 1")
 	startSearch := time.Now()
 	results := collection.Search(searchArgs)
 	searchTime := time.Since(startSearch)
-
+	log.Printf("Got here 2")
 	type jsonSearchResult struct {
 		ID       uint64                 `json:"id"`
 		Metadata map[string]interface{} `json:"metadata"`
@@ -461,7 +462,8 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 			Distance: result.Distance,
 		})
 	}
-
+	log.Printf("Gothere 3")
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
 		Results         []jsonSearchResult `json:"results"`
 		PercentSearched float64            `json:"percent_searched"`
@@ -473,6 +475,7 @@ func (s *Server) handleSearchRecords(w http.ResponseWriter, r *http.Request) {
 		SearchTime:      searchTime.Milliseconds(),
 		EmbeddingTime:   embeddingTime.Milliseconds(),
 	})
+	log.Printf("Got here 4")
 }
 
 type collectionStatsWithName struct {
