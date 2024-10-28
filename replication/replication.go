@@ -76,6 +76,12 @@ func (re *ReplicationEngine) NextTimestamp() Timestamp {
 	return re.stateMachine.nextTimestamp()
 }
 
+func (re *ReplicationEngine) LeaveCluster() error {
+    replyChan := make(chan error)
+    re.stateMachine.eventChan <- LeaveClusterEvent{ReplyChan: replyChan}
+    return <-replyChan
+}
+
 func (re *ReplicationEngine) Close() error {
 	re.stateMachine.Stop()
 	if re.server != nil {

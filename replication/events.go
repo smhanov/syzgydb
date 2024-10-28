@@ -405,6 +405,43 @@ func (e SendGossipToAllEvent) process(sm *StateMachine) {
 	}
 }
 
+type LeaveClusterEvent struct {
+    ReplyChan chan<- error
+}
+
+func (e LeaveClusterEvent) process(sm *StateMachine) {
+    log.Printf("[%d] Processing LeaveClusterEvent - leaving cluster", sm.config.NodeID)
+    
+    // Close all peer connections
+    for _, peer := range sm.peers {
+        if peer.connection != nil {
+            peer.connection.Close()
+        }
+    }
+
+    // Clear the peers map
+    sm.peers = make(map[string]*Peer)
+
+    // Save state immediately with empty peer list
+    state, err := sm.saveState()
+    if err != nil {
+        log.Printf("[%d] Error saving state while leaving cluster: %v", sm.config.NodeID, err)
+        e.ReplyChan <- err
+        return
+    }
+
+    err = sm.storage.SaveState(state)
+    if err != nil {
+        log.Printf("[%d] Error saving state while leaving cluster: %v", sm.config.NodeID, err)
+        e.ReplyChan <- err
+        return
+    }
+
+    sm.lastSavedState = state
+    log.Printf("[%d] Successfully left cluster", sm.config.NodeID)
+    e.ReplyChan <- nil
+}
+
 type PeerDisconnectEvent struct {
 	Peer *Peer
 }
