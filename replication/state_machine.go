@@ -23,6 +23,8 @@ type StateMachine struct {
 	done            chan struct{}
 	timestamp       Timestamp
 	scheduledEvents map[string]bool
+	lastSavedState  []byte
+	stateTimer      *time.Ticker
 }
 
 type replicationState struct {
@@ -52,9 +54,12 @@ func NewStateMachine(storage StorageInterface, config ReplicationConfig, state [
 		eventChan:       make(chan Event, 1000),
 		done:            make(chan struct{}),
 		timestamp:       rstate.Timestamp,
+		lastSavedState:  state,
+		stateTimer:      time.NewTicker(5 * time.Second),
 	}
 
 	go sm.eventLoop()
+	go sm.stateCheckLoop() // Start the state check loop
 	return sm
 }
 
@@ -70,6 +75,7 @@ func (sm *StateMachine) eventLoop() {
 }
 
 func (sm *StateMachine) Stop() {
+	sm.stateTimer.Stop()
 	close(sm.done)
 }
 
@@ -126,5 +132,30 @@ func (sm *StateMachine) scheduleEvent(eventType string, event Event, delay time.
 			delete(sm.scheduledEvents, eventType)
 			sm.mu.Unlock()
 		})
+	}
+}
+func (sm *StateMachine) stateCheckLoop() {
+	for {
+		select {
+		case <-sm.stateTimer.C:
+			currentState, err := sm.saveState()
+			if err != nil {
+				log.Printf("Error generating state: %v", err)
+				continue
+			}
+
+			// Only save if state has changed
+			if string(currentState) != string(sm.lastSavedState) {
+				err = sm.storage.SaveState(currentState)
+				if err != nil {
+					log.Printf("Error saving state: %v", err)
+					continue
+				}
+				sm.lastSavedState = currentState
+			}
+		case <-sm.done:
+			sm.stateTimer.Stop()
+			return
+		}
 	}
 }
