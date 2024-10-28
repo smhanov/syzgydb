@@ -82,6 +82,8 @@ const (
 	deletedMagic = 0x44454C45 // 'DELE'
 )
 
+var ErrRecordNotFound = fmt.Errorf("record not found")
+
 const minSpanLength = 19
 
 // NextTimestamp updates the internal latest timestamp by incrementing the lamport time and returns it
@@ -681,12 +683,12 @@ func (db *SpanFile) ReadRecord(recordID string) (*Span, error) {
 	defer db.fileMutex.RUnlock()
 
 	if _, exists := db.deletedIndex[recordID]; exists {
-		return nil, fmt.Errorf("record has been deleted")
+		return nil, ErrRecordNotFound
 	}
 
 	offset, exists := db.index[recordID]
 	if !exists {
-		return nil, fmt.Errorf("record not found")
+		return nil, ErrRecordNotFound
 	}
 	return parseSpanAtOffset(db.mmapData, offset)
 }
