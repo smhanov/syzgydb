@@ -36,15 +36,16 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/edsrzf/mmap-go"
 	"container/heap"
+
+	"github.com/edsrzf/mmap-go"
 	"github.com/smhanov/syzgydb/replication"
 )
 
 type updateItem struct {
-    update    replication.Update
-    siteID    uint64
-    seqNumber uint64
+	update    replication.Update
+	siteID    uint64
+	seqNumber uint64
 }
 
 type updateQueue []*updateItem
@@ -52,28 +53,28 @@ type updateQueue []*updateItem
 func (pq updateQueue) Len() int { return len(pq) }
 
 func (pq updateQueue) Less(i, j int) bool {
-    // Sort by siteID first, then sequenceNumber
-    if pq[i].siteID != pq[j].siteID {
-        return pq[i].siteID < pq[j].siteID
-    }
-    return pq[i].seqNumber < pq[j].seqNumber
+	// Sort by siteID first, then sequenceNumber
+	if pq[i].siteID != pq[j].siteID {
+		return pq[i].siteID > pq[j].siteID
+	}
+	return pq[i].seqNumber > pq[j].seqNumber
 }
 
 func (pq updateQueue) Swap(i, j int) {
-    pq[i], pq[j] = pq[j], pq[i]
+	pq[i], pq[j] = pq[j], pq[i]
 }
 
 func (pq *updateQueue) Push(x interface{}) {
-    item := x.(*updateItem)
-    *pq = append(*pq, item)
+	item := x.(*updateItem)
+	*pq = append(*pq, item)
 }
 
 func (pq *updateQueue) Pop() interface{} {
-    old := *pq
-    n := len(old)
-    item := old[n-1]
-    *pq = old[0 : n-1]
-    return item
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	*pq = old[0 : n-1]
+	return item
 }
 
 const (
@@ -457,7 +458,7 @@ func (db *SpanFile) addFreeSpan(offset, length uint64) {
 	db.freeMap.markFree(int(offset), int(length)) // Use markFree from freeMap
 }
 
-func (db *SpanFile) RemoveRecord(recordID string, siteID uint64, timestamp replication.Timestamp) error {
+func (db *SpanFile) RemoveRecord(recordID string, siteID, sequence uint64, timestamp replication.Timestamp) error {
 	db.fileMutex.Lock()
 	defer db.fileMutex.Unlock()
 
@@ -466,7 +467,7 @@ func (db *SpanFile) RemoveRecord(recordID string, siteID uint64, timestamp repli
 
 	if !exists && !wasDeleted {
 		// Record doesn't exist, add a new deleted span
-		return db.addDeletedSpan(recordID, siteID, timestamp)
+		return db.addDeletedSpan(recordID, siteID, sequence, timestamp)
 	}
 
 	if wasDeleted {
@@ -481,7 +482,7 @@ func (db *SpanFile) RemoveRecord(recordID string, siteID uint64, timestamp repli
 		}
 
 		// New timestamp is newer, create a new deleted span and mark the old one as free
-		err = db.addDeletedSpan(recordID, siteID, timestamp)
+		err = db.addDeletedSpan(recordID, siteID, sequence, timestamp)
 		if err != nil {
 			return err
 		}
@@ -511,7 +512,7 @@ func (db *SpanFile) RemoveRecord(recordID string, siteID uint64, timestamp repli
 	}
 
 	// Create a new deleted span
-	err = db.addDeletedSpan(recordID, siteID, timestamp)
+	err = db.addDeletedSpan(recordID, siteID, sequence, timestamp)
 	if err != nil {
 		return err
 	}
@@ -537,13 +538,14 @@ func (db *SpanFile) RemoveRecord(recordID string, siteID uint64, timestamp repli
 }
 
 // Helper function to add a deleted span
-func (db *SpanFile) addDeletedSpan(recordID string, siteID uint64, timestamp replication.Timestamp) error {
+func (db *SpanFile) addDeletedSpan(recordID string, siteID, sequence uint64, timestamp replication.Timestamp) error {
 	deletedSpan := &Span{
-		MagicNumber: deletedMagic,
-		SiteID:      siteID,
-		Timestamp:   timestamp,
-		RecordID:    recordID,
-		DataStreams: []DataStream{}, // Empty data streams
+		MagicNumber:    deletedMagic,
+		SiteID:         siteID,
+		SequenceNumber: sequence,
+		Timestamp:      timestamp,
+		RecordID:       recordID,
+		DataStreams:    []DataStream{}, // Empty data streams
 	}
 
 	deletedSpanBytes, err := serializeSpan(deletedSpan)
@@ -1082,89 +1084,95 @@ func msync(_ []byte) error {
 }
 
 func (db *SpanFile) GetUpdatesSince(since *replication.NodeSequences, maxResults int) ([]replication.Update, error) {
-    db.fileMutex.RLock()
-    defer db.fileMutex.RUnlock()
+	db.fileMutex.RLock()
+	defer db.fileMutex.RUnlock()
 
-    // Create priority queue
-    pq := &updateQueue{}
-    heap.Init(pq)
+	// Create priority queue
+	pq := &updateQueue{}
+	heap.Init(pq)
 
-    // Helper function to process spans
-    processSpan := func(offset uint64, isDeleted bool) error {
-        span, err := parseSpanAtOffset(db.mmapData, offset)
-        if err != nil {
-            return err
-        }
+	// Helper function to process spans
+	processSpan := func(offset uint64, isDeleted bool) error {
+		span, err := parseSpanAtOffset(db.mmapData, offset)
+		if err != nil {
+			return err
+		}
 
-        // Skip if this update is not newer than what we've seen
-        if sinceSeq := since.Get(span.SiteID); sinceSeq >= span.SequenceNumber {
-            return nil
-        }
+		log.Printf("Process span with recordID: %s, siteID: %d, seq: %d, deleted: %v", span.RecordID, span.SiteID, span.SequenceNumber, isDeleted)
+		// Skip if this update is not newer than what we've seen
+		if !since.BeforeNode(span.SiteID, span.SequenceNumber) {
+			log.Printf("Skipping since it's not newer than %s", since)
+			return nil
+		}
 
-        update := replication.Update{
-            NodeID:         span.SiteID,
-            SequenceNo:     span.SequenceNumber,
-            Timestamp:      replication.Timestamp{
-                UnixTime:     span.Timestamp.UnixTime,
-                LamportClock: span.Timestamp.LamportClock,
-            },
-            Type:          replication.DeleteRecord, // Will be changed to UpsertRecord below if not deleted
-            RecordID:      span.RecordID,
-            DatabaseName:  "", // Leave empty as per current implementation
-            DataStreams:   nil, // Will be filled in below for non-deleted records
-        }
+		update := replication.Update{
+			NodeID:     span.SiteID,
+			SequenceNo: span.SequenceNumber,
+			Timestamp: replication.Timestamp{
+				UnixTime:     span.Timestamp.UnixTime,
+				LamportClock: span.Timestamp.LamportClock,
+			},
+			Type:         replication.DeleteRecord, // Will be changed to UpsertRecord below if not deleted
+			RecordID:     span.RecordID,
+			DatabaseName: "",  // Leave empty as per current implementation
+			DataStreams:  nil, // Will be filled in below for non-deleted records
+		}
 
-        if isDeleted {
-            update.Type = replication.DeleteRecord
-        } else {
-            update.Type = replication.UpsertRecord
-            update.DataStreams = make([]replication.DataStream, len(span.DataStreams))
-            for i, ds := range span.DataStreams {
-                update.DataStreams[i] = replication.DataStream{
-                    StreamID: ds.StreamID,
-                    Data:     ds.Data,
-                }
-            }
-        }
+		if isDeleted {
+			update.Type = replication.DeleteRecord
+		} else {
+			update.Type = replication.UpsertRecord
+			update.DataStreams = make([]replication.DataStream, len(span.DataStreams))
+			for i, ds := range span.DataStreams {
+				update.DataStreams[i] = replication.DataStream{
+					StreamID: ds.StreamID,
+					Data:     ds.Data,
+				}
+			}
+		}
 
-        item := &updateItem{
-            update:    update,
-            siteID:    span.SiteID,
-            seqNumber: span.SequenceNumber,
-        }
+		item := &updateItem{
+			update:    update,
+			siteID:    span.SiteID,
+			seqNumber: span.SequenceNumber,
+		}
 
-        heap.Push(pq, item)
-        
-        // If we've exceeded maxResults, remove the oldest entry
-        if pq.Len() > maxResults {
-            heap.Pop(pq)
-        }
+		heap.Push(pq, item)
 
-        return nil
-    }
+		// If we've exceeded maxResults, remove the oldest entry
+		if pq.Len() > maxResults {
+			heap.Pop(pq)
+		}
 
-    // Process active records
-    for _, offset := range db.index {
-        if err := processSpan(offset, false); err != nil {
-            return nil, err
-        }
-    }
+		return nil
+	}
 
-    // Process deleted records
-    for _, offset := range db.deletedIndex {
-        if err := processSpan(offset, true); err != nil {
-            return nil, err
-        }
-    }
+	// Process active records
+	for name, offset := range db.index {
+		if name == "" {
+			continue
+		}
 
-    // Convert priority queue to sorted slice
-    result := make([]replication.Update, 0, pq.Len())
-    for pq.Len() > 0 {
-        item := heap.Pop(pq).(*updateItem)
-        result = append([]replication.Update{item.update}, result...)
-    }
+		if err := processSpan(offset, false); err != nil {
+			return nil, err
+		}
+	}
 
-    return result, nil
+	// Process deleted records
+	for _, offset := range db.deletedIndex {
+		if err := processSpan(offset, true); err != nil {
+			return nil, err
+		}
+	}
+
+	// Convert priority queue to sorted slice
+	result := make([]replication.Update, 0, pq.Len())
+	for pq.Len() > 0 {
+		item := heap.Pop(pq).(*updateItem)
+		result = append([]replication.Update{item.update}, result...)
+	}
+
+	return result, nil
 }
 
 func magicNumberToString(magic uint32) string {
@@ -1230,4 +1238,12 @@ func (db *SpanFile) writeSpanToAllocatedSpace(span *Span, size int) (uint64, err
 	}
 
 	return offset, nil
+}
+
+func (db *SpanFile) getNodeSequences() *replication.NodeSequences {
+	db.fileMutex.RLock()
+	defer db.fileMutex.RUnlock()
+
+	// Return a copy of the latest vector clock
+	return db.latestVectorClock.Clone()
 }

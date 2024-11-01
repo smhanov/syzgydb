@@ -84,10 +84,10 @@ func (c *Collection) GetDocumentCount() int {
 // GetUpdatesSince retrieves updates that occurred after the given node sequences, up to maxResults.
 // It returns the updates and any error encountered.
 func (c *Collection) GetUpdatesSince(since *replication.NodeSequences, maxResults int) ([]replication.Update, error) {
-    c.mutex.RLock()
-    defer c.mutex.RUnlock()
-    
-    return c.spanfile.GetUpdatesSince(since, maxResults)
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	return c.spanfile.GetUpdatesSince(since, maxResults)
 }
 
 /*
@@ -589,7 +589,7 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	return nil
 }
 
-func (c *Collection) removeDocumentDirect(id uint64, nodeID uint64, timeStamp replication.Timestamp) error {
+func (c *Collection) removeDocumentDirect(id uint64, nodeID, sequence uint64, timeStamp replication.Timestamp) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	idStr := fmt.Sprintf("%d", id)
@@ -598,11 +598,11 @@ func (c *Collection) removeDocumentDirect(id uint64, nodeID uint64, timeStamp re
 	if err == nil {
 		c.lshTree.removePoint(id, doc.Vector)
 	}
-	return c.spanfile.RemoveRecord(idStr, nodeID, timeStamp)
+	return c.spanfile.RemoveRecord(idStr, nodeID, sequence, timeStamp)
 }
 
 func (c *Collection) RemoveDocument(id uint64) error {
-	return c.removeDocumentDirect(id, 0, c.spanfile.NextTimestamp())
+	return c.removeDocumentDirect(id, 0, 0, c.spanfile.NextTimestamp())
 }
 
 func (c *Collection) UpdateDocumentDirect(id uint64, newMetadata []byte, nodeID, sequence uint64, timestamp replication.Timestamp) error {
@@ -890,4 +890,12 @@ type searchIndex interface {
 	addPoint(docid uint64, vector []float64)
 	removePoint(docid uint64, vector []float64)
 	search(vector []float64, callback func(docid uint64) int)
+}
+
+// GetNodeSequences returns the node sequences from the spanFile.
+func (c *Collection) GetNodeSequences() *replication.NodeSequences {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	return c.spanfile.getNodeSequences()
 }

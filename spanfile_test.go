@@ -378,7 +378,7 @@ func TestBatchOperations(t *testing.T) {
 				if _, exists := expectedRecords[recordID]; exists {
 					delete(expectedRecords, recordID)
 					// Simulate deletion by writing an empty data stream
-					err := db.RemoveRecord(recordID, 0, db.NextTimestamp())
+					err := db.RemoveRecord(recordID, 0, 0, db.NextTimestamp())
 					if err != nil {
 						t.Fatalf("Failed to delete record: %v", err)
 					}
@@ -424,7 +424,7 @@ func TestDeleteRecord(t *testing.T) {
 	oldOffset := db.index["record1"]
 
 	// Delete the record
-	err = db.RemoveRecord("record1", 0, db.NextTimestamp())
+	err = db.RemoveRecord("record1", 0, 0, db.NextTimestamp())
 	if err != nil {
 		t.Fatalf("Failed to delete record: %v", err)
 	}
@@ -492,7 +492,7 @@ func TestWriteDeletedRecord(t *testing.T) {
 	}
 
 	// Delete the record
-	err = db.RemoveRecord("record1", 0, db.NextTimestamp())
+	err = db.RemoveRecord("record1", 0, 0, db.NextTimestamp())
 	if err != nil {
 		t.Fatalf("Failed to delete record: %v", err)
 	}
@@ -589,7 +589,7 @@ func TestGetUpdatesSince(t *testing.T) {
 				t.Fatalf("Failed to write record %s: %v", td.recordID, err)
 			}
 		} else {
-			err := db.RemoveRecord(td.recordID, td.siteID, ts)
+			err := db.RemoveRecord(td.recordID, td.siteID, td.seqNum+1, ts)
 			if err != nil {
 				t.Fatalf("Failed to delete record %s: %v", td.recordID, err)
 			}
@@ -631,6 +631,12 @@ func TestGetUpdatesSince(t *testing.T) {
 		},
 	}
 
+	showRecords := func(updates []replication.Update) {
+		for _, update := range updates {
+			t.Logf("Update: %s", update)
+		}
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create NodeSequences from the test case
@@ -659,6 +665,7 @@ func TestGetUpdatesSince(t *testing.T) {
 
 				// Check last result
 				if updates[len(updates)-1].RecordID != tt.expectedLast {
+					showRecords(updates)
 					t.Errorf("Expected last record to be %s, got %s", tt.expectedLast, updates[len(updates)-1].RecordID)
 				}
 

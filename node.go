@@ -326,7 +326,7 @@ func (n *Node) CommitUpdates(updates []replication.Update) error {
 			if err != nil {
 				return fmt.Errorf("invalid record ID: %v", err)
 			}
-			err = collection.removeDocumentDirect(id, update.NodeID, update.Timestamp)
+			err = collection.removeDocumentDirect(id, update.NodeID, update.SequenceNo, update.Timestamp)
 			if err != nil {
 				return err
 			}
