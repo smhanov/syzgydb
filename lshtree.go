@@ -301,7 +301,7 @@ func (tree *lshTree) search(vector []float64, radius float64, callback searchCal
 		node := item.node
 		//log.Printf("Node with priority %v (tau=%v, k=%v) leaf=%v", item.priority, tau, k_counter, node.isLeaf())
 
-		if item.priority < 0 && -item.priority > radius {
+		if item.priority < 0 && -item.priority > radius && node.isLeaf() {
 			// This is the "other" side of the hyperplane.
 			// We can stop searching because the distance to the hyperplane is greater than the radius
 			//log.Printf("Early stopping; %v > %v", -item.priority, radius)
