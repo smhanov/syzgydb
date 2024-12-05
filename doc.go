@@ -67,7 +67,7 @@ Update the metadata of an existing document or remove a document from the collec
 	err := collection.UpdateDocument(1, []byte("updated metadata"))
 
 	// Remove a document
-	err = collection.removeDocument(1)
+	err = collection.RemoveDocument(1)
 
 ## Dumping the Collection
 
