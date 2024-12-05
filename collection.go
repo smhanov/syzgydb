@@ -574,7 +574,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		args.Precision = "medium"
 	}
 
-	log.Printf("Search called with %+v", args)
+	//log.Printf("Search called with %+v", args)
 
 	resultsPQ := &resultPriorityQueue{}
 	heap.Init(resultsPQ)
