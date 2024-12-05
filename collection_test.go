@@ -169,7 +169,7 @@ func TestRemoveDocumentRealWorld(t *testing.T) {
 	// Remove every 10th document
 	t.Logf(("Removing every 10th document"))
 	for i := 0; i < 1000; i += 10 {
-		err = collection.removeDocument(uint64(i))
+		err = collection.RemoveDocument(uint64(i))
 		if err != nil {
 			t.Errorf("Failed to remove document with ID %d: %v", i, err)
 		}
@@ -257,7 +257,7 @@ func TestRemoveDocument(t *testing.T) {
 	docToRemove := uint64(100)
 
 	// Remove the chosen document
-	err = collection.removeDocument(docToRemove)
+	err = collection.RemoveDocument(docToRemove)
 	if err != nil {
 		t.Fatalf("Failed to remove document: %v", err)
 	}
@@ -484,7 +484,7 @@ func TestCollectionAddDeleteAndRetrieve(t *testing.T) {
 
 	// Delete all records
 	for i := 0; i < numRecords; i++ {
-		err := collection.removeDocument(uint64(i))
+		err := collection.RemoveDocument(uint64(i))
 		if err != nil {
 			t.Errorf("Failed to remove document with ID %d: %v", i, err)
 		}

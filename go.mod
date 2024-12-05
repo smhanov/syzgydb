@@ -1,4 +1,4 @@
-module github.com/smhanov/syzgydb
+module github.com/nuwansa/syzgydb
 
 go 1.21
 
