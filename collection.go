@@ -508,7 +508,7 @@ func (c *Collection) UpdateDocument(id uint64, newMetadata []byte) error {
 	return nil
 }
 
-func (c *Collection) removeDocument(id uint64) error {
+func (c *Collection) RemoveDocument(id uint64) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -574,7 +574,7 @@ func (c *Collection) Search(args SearchArgs) SearchResults {
 		args.Precision = "medium"
 	}
 
-	log.Printf("Search called with %+v", args)
+	//log.Printf("Search called with %+v", args)
 
 	resultsPQ := &resultPriorityQueue{}
 	heap.Init(resultsPQ)
